@@ -1127,9 +1127,9 @@ export default function App() {
           </div>
 
           <div
-            className="pointer-events-none absolute left-[12%] z-10 transition-all duration-700 ease-in-out"
+            className="pointer-events-none absolute left-[8%] z-0 transition-all duration-700 ease-in-out"
             style={{
-              top: possession === 'player' ? '74%' : possession === 'opponent' ? '30%' : '52%',
+              top: possession === 'player' ? '66%' : possession === 'opponent' ? '20%' : '44%',
               animation: possession ? 'fieldBallBounce 1.4s ease-in-out infinite' : 'none'
             }}
           >
@@ -1138,7 +1138,7 @@ export default function App() {
             </div>
           </div>
 
-        <div className="w-full max-w-2xl opacity-80">
+        <div className="relative z-10 w-full max-w-2xl opacity-80">
           <div className="mb-2 text-center text-[10px] font-black uppercase tracking-[0.25em] text-white/60">
             Rival {DEV_SHOW_OPPONENT_HAND ? '(debug visible)' : ''}
           </div>
@@ -1158,7 +1158,7 @@ export default function App() {
               </button>
             )}
           </div>
-          <div className="flex flex-wrap justify-center gap-2">
+          <div className="grid w-full grid-cols-5 justify-items-center gap-1.5 sm:flex sm:flex-wrap sm:justify-center sm:gap-2">
             {opponentHand.map((card, index) =>
               DEV_SHOW_OPPONENT_HAND ? (
                 <CardItem
@@ -1236,7 +1236,7 @@ export default function App() {
               </div>
             )}
 
-          <div className="w-full max-w-2xl pb-2">
+          <div className="relative z-10 w-full max-w-2xl pb-2">
           <div className="mb-3 text-center text-[11px] font-black uppercase tracking-[0.3em] text-white/70">
             Turno actual: {currentTurnLabel}
           </div>
@@ -1264,7 +1264,7 @@ export default function App() {
             </button>
           </div>
 
-          <div className="flex flex-wrap justify-center gap-1.5">
+          <div className="grid w-full grid-cols-5 justify-items-center gap-1.5 sm:flex sm:flex-wrap sm:justify-center sm:gap-1.5">
             {playerHand.map((card, index) => (
               <CardItem
                 key={`${card.id}-${index}`}
