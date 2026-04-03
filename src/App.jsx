@@ -79,8 +79,7 @@ const DECK_DEFINITION = [
 
 const DEV_SHOW_OPPONENT_HAND = true;
 const AUTO_PASS_BY_DEFENSE = {
-  sb: { id: 'pc_auto', name: 'Pase Corto', value: 1, color: 'bg-emerald-500' },
-  sc: { id: 'pa_auto', name: 'Pase Aereo', value: 3, color: 'bg-cyan-500' }
+  sb: { id: 'pc_auto', name: 'Pase Corto', value: 1, color: 'bg-emerald-500' }
 };
 const PRE_SHOT_DEFENSE_CARD_IDS = ['ba', 'fa', 'sb', 'sc', 'cont'];
 
@@ -207,7 +206,7 @@ export default function App() {
   const [pendingCombo, setPendingCombo] = useState(null);
   const [counterAttackReady, setCounterAttackReady] = useState(false);
   const [bonusTurnFor, setBonusTurnFor] = useState(null);
-  const [pendingForcedDiscards, setPendingForcedDiscards] = useState({ player: 0, opponent: 0 });
+  const [redCardPenalty, setRedCardPenalty] = useState({ player: false, opponent: false });
   const [pendingBlindDiscard, setPendingBlindDiscard] = useState(null);
   const [gameLog, setGameLog] = useState(['Posesion persistente activada']);
   const [goalCelebration, setGoalCelebration] = useState(null);
@@ -236,6 +235,7 @@ export default function App() {
 
   const getOpponent = (actor) => (actor === 'player' ? 'opponent' : 'player');
   const getHand = (actor) => (actor === 'player' ? playerHand : opponentHand);
+  const getHandLimit = (actor) => (redCardPenalty[actor] ? 4 : 5);
   const hasCardInHand = (actor, cardId) => getHand(actor).some((card) => card.id === cardId);
   const canUsePreShotDefense = (actor) =>
     PRE_SHOT_DEFENSE_CARD_IDS.some((cardId) => {
@@ -244,7 +244,7 @@ export default function App() {
       }
 
       if (cardId === 'sc') {
-        return hasCardInHand(actor, 'sc') && hasCardInHand(actor, 'pa');
+        return hasCardInHand(actor, 'sc') && hasCardInHand(actor, 'pa') && hasCardInHand(actor, 'tg');
       }
 
       if (cardId === 'cont') {
@@ -272,6 +272,8 @@ export default function App() {
                     ? `VENTANA DE RESPUESTA DEL ${pendingDefense.possessor === 'player' ? 'JUGADOR' : 'RIVAL'}`
                   : pendingCombo?.type === 'sb_followup'
                     ? `SECUENCIA OBLIGATORIA: ${pendingCombo.actor === 'player' ? 'JUGADOR' : 'RIVAL'} DEBE JUGAR PASE CORTO`
+                  : pendingCombo?.type === 'sc_followup'
+                    ? `SECUENCIA OBLIGATORIA: ${pendingCombo.actor === 'player' ? 'JUGADOR' : 'RIVAL'} DEBE JUGAR PASE AEREO`
                   : pendingCombo?.type === 'cont_followup'
                     ? `SECUENCIA OBLIGATORIA: ${pendingCombo.actor === 'player' ? 'JUGADOR' : 'RIVAL'} DEBE JUGAR UN PASE`
                       : null;
@@ -298,7 +300,7 @@ export default function App() {
     setOpponentHand([]);
     setPossession(null);
     setCurrentTurn(null);
-    setPendingForcedDiscards({ player: 0, opponent: 0 });
+    setRedCardPenalty({ player: false, opponent: false });
     setPendingBlindDiscard(null);
     setGoalCelebration(null);
     setMatchWinner(null);
@@ -307,56 +309,20 @@ export default function App() {
   };
 
   const consumeCard = (actor, index, card) => {
-    setDiscardPile((previousPile) => [card, ...previousPile]);
-
-    if (actor === 'player') {
-      setPlayerHand((previousHand) => previousHand.filter((_, handIndex) => handIndex !== index));
-      return;
-    }
-
-    setOpponentHand((previousHand) => previousHand.filter((_, handIndex) => handIndex !== index));
-  };
-
-  const consumeCardAndRefillOne = (actor, index, card) => {
+    const currentHand = getHand(actor);
+    const nextHand = currentHand.filter((_, handIndex) => handIndex !== index);
     const newDeck = [...deck];
-    const drawnCard = newDeck.shift();
+    const drawnCards = newDeck.splice(0, Math.max(0, getHandLimit(actor) - nextHand.length));
 
     setDiscardPile((previousPile) => [card, ...previousPile]);
     setDeck(newDeck);
 
     if (actor === 'player') {
-      setPlayerHand((previousHand) => {
-        const nextHand = previousHand.filter((_, handIndex) => handIndex !== index);
-        return drawnCard ? [...nextHand, drawnCard] : nextHand;
-      });
+      setPlayerHand([...nextHand, ...drawnCards]);
       return;
     }
 
-    setOpponentHand((previousHand) => {
-      const nextHand = previousHand.filter((_, handIndex) => handIndex !== index);
-      return drawnCard ? [...nextHand, drawnCard] : nextHand;
-    });
-  };
-
-  const forceDiscardOneCard = (actor, reason) => {
-    const hand = getHand(actor);
-
-    if (hand.length === 0) {
-      return false;
-    }
-
-    const randomIndex = Math.floor(Math.random() * hand.length);
-    const cardToDiscard = hand[randomIndex];
-    setDiscardPile((previousPile) => [cardToDiscard, ...previousPile]);
-
-    if (actor === 'player') {
-      setPlayerHand((previousHand) => previousHand.filter((_, index) => index !== randomIndex));
-    } else {
-      setOpponentHand((previousHand) => previousHand.filter((_, index) => index !== randomIndex));
-    }
-
-    addLog(reason);
-    return true;
+    setOpponentHand([...nextHand, ...drawnCards]);
   };
 
   const openBlindDiscard = (actor, reason, returnTurnTo) => {
@@ -395,10 +361,10 @@ export default function App() {
     setHasActedThisTurn(returnTurnTo !== actor);
   };
 
-  const fillHandsToFive = () => {
+  const fillHandsToLimits = () => {
     const newDeck = [...deck];
-    const nextPlayerHand = [...playerHand, ...newDeck.splice(0, Math.max(0, 5 - playerHand.length))];
-    const nextOpponentHand = [...opponentHand, ...newDeck.splice(0, Math.max(0, 5 - opponentHand.length))];
+    const nextPlayerHand = [...playerHand, ...newDeck.splice(0, Math.max(0, getHandLimit('player') - playerHand.length))];
+    const nextOpponentHand = [...opponentHand, ...newDeck.splice(0, Math.max(0, getHandLimit('opponent') - opponentHand.length))];
 
     setPlayerHand(nextPlayerHand);
     setOpponentHand(nextOpponentHand);
@@ -429,7 +395,10 @@ export default function App() {
       return;
     }
 
-    fillHandsToFive();
+    fillHandsToLimits();
+    if (redCardPenalty[scorer]) {
+      setRedCardPenalty((previous) => ({ ...previous, [scorer]: false }));
+    }
     setPossession(nextActor);
     setCurrentTurn(nextActor);
     addLog(reason);
@@ -531,9 +500,9 @@ export default function App() {
     }
 
     if (defenseCard.id === 'sc') {
-      setActivePlay([AUTO_PASS_BY_DEFENSE.sc]);
-      setCounterAttackReady(true);
-      addLog('Saque de corner: recuperas el balon con Pase Aereo listo.');
+      setActivePlay([]);
+      setPendingCombo({ actor: defender, type: 'sc_followup' });
+      addLog('Saque de corner: recuperas el balon, se reinicia la jugada y debes jugar Pase Aereo antes de tirar a gol.');
     }
   };
 
@@ -558,6 +527,11 @@ export default function App() {
   const endTurn = () => {
     if (pendingCombo?.type === 'sb_followup') {
       addLog('Debes completar la secuencia Saque de Banda + Pase Corto antes de finalizar el turno.');
+      return;
+    }
+
+    if (pendingCombo?.type === 'sc_followup') {
+      addLog('Debes completar la secuencia Saque de Corner + Pase Aereo antes de finalizar el turno.');
       return;
     }
 
@@ -611,21 +585,6 @@ export default function App() {
     }
 
     const actor = currentTurn;
-    const currentHand = getHand(actor);
-    const neededCards = 5 - currentHand.length;
-
-    if (neededCards > 0) {
-      const newDeck = [...deck];
-      const drawnCards = newDeck.splice(0, neededCards);
-
-      if (actor === 'player') {
-        setPlayerHand([...currentHand, ...drawnCards]);
-      } else {
-        setOpponentHand([...currentHand, ...drawnCards]);
-      }
-
-      setDeck(newDeck);
-    }
 
     const keepsTurn = bonusTurnFor === actor;
     const nextActor = keepsTurn ? actor : getOpponent(actor);
@@ -634,17 +593,8 @@ export default function App() {
       setBonusTurnFor(null);
     }
 
-    if (pendingForcedDiscards[nextActor] > 0) {
-      setPendingForcedDiscards((previous) => ({
-        ...previous,
-        [nextActor]: Math.max(0, previous[nextActor] - 1)
-      }));
-      openBlindDiscard(
-        nextActor,
-        `Tarjeta Roja: ${nextActor === 'player' ? 'Jugador' : 'Rival'} debe elegir una posicion de su mano para descartar una carta oculta.`,
-        nextActor
-      );
-      return;
+    if (redCardPenalty[actor] && !keepsTurn) {
+      setRedCardPenalty((previous) => ({ ...previous, [actor]: false }));
     }
 
     setCurrentTurn(nextActor);
@@ -665,12 +615,14 @@ export default function App() {
     if (!discardMode) {
       setDiscardMode(true);
       setSelectedForDiscard([]);
-      addLog(`Modo descarte: selecciona 2 cartas del ${currentTurn === 'player' ? 'Jugador' : 'Rival'}.`);
+      addLog(`Modo descarte: selecciona las cartas que quieras descartar del ${currentTurn === 'player' ? 'Jugador' : 'Rival'}.`);
       return;
     }
 
-    if (selectedForDiscard.length !== 2) {
-      addLog('Debes seleccionar exactamente 2 cartas para descartar.');
+    if (selectedForDiscard.length === 0) {
+      setDiscardMode(false);
+      setSelectedForDiscard([]);
+      addLog('Descarte cancelado.');
       return;
     }
 
@@ -679,7 +631,7 @@ export default function App() {
     const cardsToDiscard = hand.filter((_, idx) => selectedForDiscard.includes(idx));
     const newHand = hand.filter((_, idx) => !selectedForDiscard.includes(idx));
     const newDeck = [...deck];
-    const drawnCards = newDeck.splice(0, 2);
+    const drawnCards = newDeck.splice(0, Math.max(0, getHandLimit(actor) - newHand.length));
 
     setDiscardPile((previousPile) => [...cardsToDiscard, ...previousPile]);
 
@@ -694,7 +646,7 @@ export default function App() {
     setHasActedThisTurn(false);
     setSelectedForDiscard([]);
     setDiscardMode(false);
-    addLog(`${actor === 'player' ? 'Jugador' : 'Rival'} descarto 2 cartas.`);
+    addLog(`${actor === 'player' ? 'Jugador' : 'Rival'} descarto ${cardsToDiscard.length} carta${cardsToDiscard.length === 1 ? '' : 's'}.`);
   };
 
   const toggleDiscardSelection = (event, index) => {
@@ -709,9 +661,7 @@ export default function App() {
       return;
     }
 
-    if (selectedForDiscard.length < 2) {
-      setSelectedForDiscard((previous) => [...previous, index]);
-    }
+    setSelectedForDiscard((previous) => [...previous, index]);
   };
 
   const playCard = (card, index, isFromPlayer) => {
@@ -743,6 +693,18 @@ export default function App() {
         }
     }
 
+    if (pendingCombo?.type === 'sc_followup') {
+      if (actor !== pendingCombo.actor) {
+        addLog('Debe resolverse primero la combinacion de Saque de Corner + Pase Aereo.');
+        return;
+      }
+
+      if (card.id !== 'pa') {
+        addLog('Despues de Saque de Corner debes jugar obligatoriamente un Pase Aereo.');
+        return;
+      }
+    }
+
     if (pendingCombo?.type === 'cont_followup') {
       if (actor !== pendingCombo.actor) {
         addLog('Debe resolverse primero la combinacion de Contraataque + pase.');
@@ -766,12 +728,12 @@ export default function App() {
         return;
       }
 
-      if (card.id === 'sc' && !hasCardInHand(actor, 'pa')) {
-        addLog('Saque de corner solo puede activarse si tienes Pase Aereo en mano.');
+      if (card.id === 'sc' && (!hasCardInHand(actor, 'pa') || !hasCardInHand(actor, 'tg'))) {
+        addLog('Saque de corner solo puede activarse si tienes Pase Aereo y Tirar a Gol en mano.');
         return;
       }
 
-        consumeCardAndRefillOne(actor, index, card);
+        consumeCard(actor, index, card);
         setHasActedThisTurn(true);
         setDiscardMode(false);
         setSelectedForDiscard([]);
@@ -785,7 +747,7 @@ export default function App() {
         return;
       }
 
-        consumeCardAndRefillOne(actor, index, card);
+        consumeCard(actor, index, card);
         clearTransientState();
         setPossession(actor);
         setCurrentTurn(actor);
@@ -809,7 +771,7 @@ export default function App() {
         return;
       }
 
-      consumeCardAndRefillOne(actor, index, card);
+      consumeCard(actor, index, card);
 
       if (pendingDefense.defenseCardId === 'fa' && card.id === 'tr' && hasCardInHand(pendingDefense.defender, 'var')) {
         setPendingDefense({ ...pendingDefense, defenseCardId: 'tr_var' });
@@ -850,11 +812,8 @@ export default function App() {
         'Tarjeta Roja: el rival debe elegir una posicion de su mano para descartar una carta oculta.',
         actor
       );
-      setPendingForcedDiscards((previous) => ({
-        ...previous,
-        [pendingDefense.defender]: previous[pendingDefense.defender] + 1
-      }));
-      addLog('Tarjeta Roja: mantienes la posesion, robas un turno y el rival descartara otra carta en su siguiente turno.');
+      setRedCardPenalty((previous) => ({ ...previous, [pendingDefense.defender]: true }));
+      addLog('Tarjeta Roja: mantienes la posesion y el rival jugara con 4 cartas hasta que termine su siguiente turno.');
       return;
     }
 
@@ -864,7 +823,7 @@ export default function App() {
         return;
       }
 
-        consumeCardAndRefillOne(actor, index, card);
+        consumeCard(actor, index, card);
 
         if (card.id === 'paq') {
         if (!hasCardInHand(pendingShot.attacker, 'rem')) {
@@ -897,7 +856,7 @@ export default function App() {
         return;
       }
 
-        consumeCardAndRefillOne(actor, index, card);
+        consumeCard(actor, index, card);
 
         if (!hasCardInHand(pendingShot.attacker, 'rem')) {
         clearTransientState();
@@ -922,7 +881,7 @@ export default function App() {
         return;
       }
 
-        consumeCardAndRefillOne(actor, index, card);
+        consumeCard(actor, index, card);
         setHasActedThisTurn(true);
         startShotResolution(actor, 'remate');
         return;
@@ -941,8 +900,8 @@ export default function App() {
         return;
       }
 
-      if (card.id === 'sc' && !hasCardInHand(actor, 'pa')) {
-        addLog('Saque de corner solo puede activarse si tienes Pase Aereo en mano.');
+      if (card.id === 'sc' && (!hasCardInHand(actor, 'pa') || !hasCardInHand(actor, 'tg'))) {
+        addLog('Saque de corner solo puede activarse si tienes Pase Aereo y Tirar a Gol en mano.');
         return;
       }
 
@@ -980,6 +939,10 @@ export default function App() {
       setActivePlay((previousPlay) => [...previousPlay, card]);
       if (pendingCombo?.type === 'sb_followup') {
         setPendingCombo(null);
+      }
+      if (pendingCombo?.type === 'sc_followup') {
+        setPendingCombo(null);
+        setCounterAttackReady(true);
       }
       if (pendingCombo?.type === 'cont_followup') {
         setPendingCombo(null);
@@ -1246,13 +1209,13 @@ export default function App() {
                 onClick={handleDiscard}
                 className={`flex items-center gap-2 rounded-full px-6 py-2.5 text-[10px] font-black transition-all ${
                   discardMode
-                    ? selectedForDiscard.length === 2
+                    ? selectedForDiscard.length > 0
                       ? 'scale-105 bg-orange-600 shadow-lg'
                       : 'bg-slate-700'
                     : 'bg-orange-700 shadow-lg hover:bg-orange-600'
                 }`}
               >
-                <RefreshCcw size={14} /> {discardMode ? `CONFIRMAR DESCARTE (${selectedForDiscard.length}/2)` : 'DESCARTAR 2'}
+                <RefreshCcw size={14} /> {discardMode ? (selectedForDiscard.length > 0 ? `CONFIRMAR DESCARTE (${selectedForDiscard.length})` : 'CANCELAR DESCARTE') : 'DESCARTAR'}
               </button>
             )}
 
