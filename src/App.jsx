@@ -189,8 +189,15 @@ const CardItem = ({
 
 export default function App() {
   const [gameState, setGameState] = useState('coin-flip');
+  const [coinFlipState, setCoinFlipState] = useState({
+    choice: null,
+    result: null,
+    winner: null,
+    isFlipping: false
+  });
   const [playerScore, setPlayerScore] = useState(0);
   const [opponentScore, setOpponentScore] = useState(0);
+  const [sanctions, setSanctions] = useState({ player: null, opponent: null });
   const [deck, setDeck] = useState([]);
   const [discardPile, setDiscardPile] = useState([]);
   const [playerHand, setPlayerHand] = useState([]);
@@ -206,7 +213,7 @@ export default function App() {
   const [pendingCombo, setPendingCombo] = useState(null);
   const [counterAttackReady, setCounterAttackReady] = useState(false);
   const [bonusTurnFor, setBonusTurnFor] = useState(null);
-  const [redCardPenalty, setRedCardPenalty] = useState({ player: false, opponent: false });
+  const [redCardPenalty, setRedCardPenalty] = useState({ player: 0, opponent: 0 });
   const [pendingBlindDiscard, setPendingBlindDiscard] = useState(null);
   const [gameLog, setGameLog] = useState(['Posesion persistente activada']);
   const [goalCelebration, setGoalCelebration] = useState(null);
@@ -216,6 +223,7 @@ export default function App() {
   const isOpponentTurn = currentTurn === 'opponent';
   const currentTurnLabel = isPlayerTurn ? 'Jugador' : isOpponentTurn ? 'Rival' : 'Nadie';
   const currentPassTotal = activePlay.reduce((sum, card) => sum + (card.value || 0), 0);
+  const getPassTrackerTotal = (actor) => (possession === actor ? currentPassTotal : 0);
 
   const addLog = (message) => {
     setGameLog((previousLog) => [message, ...previousLog].slice(0, 5));
@@ -235,8 +243,41 @@ export default function App() {
 
   const getOpponent = (actor) => (actor === 'player' ? 'opponent' : 'player');
   const getHand = (actor) => (actor === 'player' ? playerHand : opponentHand);
-  const getHandLimit = (actor) => (redCardPenalty[actor] ? 4 : 5);
+  const getHandLimit = (actor) => (redCardPenalty[actor] > 0 ? 4 : 5);
   const hasCardInHand = (actor, cardId) => getHand(actor).some((card) => card.id === cardId);
+  const setSanctionFor = (actor, sanction) => {
+    setSanctions((previous) => ({ ...previous, [actor]: sanction }));
+  };
+  const clearSanctionFor = (actor) => {
+    setSanctions((previous) => ({ ...previous, [actor]: null }));
+  };
+  const consumeSanctionTurn = (actor) => {
+    setSanctions((previous) => {
+      const currentSanction = previous[actor];
+
+      if (!currentSanction?.turnsRemaining) {
+        return previous;
+      }
+
+      const nextTurnsRemaining = currentSanction.turnsRemaining - 1;
+      return {
+        ...previous,
+        [actor]: nextTurnsRemaining > 0 ? { ...currentSanction, turnsRemaining: nextTurnsRemaining } : null
+      };
+    });
+  };
+  const consumeRedCardTurn = (actor) => {
+    setRedCardPenalty((previous) => {
+      const currentTurns = previous[actor];
+
+      if (currentTurns <= 0) {
+        return previous;
+      }
+
+      const nextTurns = currentTurns - 1;
+      return { ...previous, [actor]: nextTurns };
+    });
+  };
   const canUsePreShotDefense = (actor) =>
     PRE_SHOT_DEFENSE_CARD_IDS.some((cardId) => {
       if (cardId === 'sb') {
@@ -266,7 +307,7 @@ export default function App() {
             ? `VENTANA DE RESPUESTA DEL ${pendingShot.attacker === 'player' ? 'JUGADOR' : 'RIVAL'}: REMATE`
             : pendingDefense?.defenseCardId === 'pre_shot'
               ? `VENTANA DE RESPUESTA DEL ${pendingDefense.defender === 'player' ? 'JUGADOR' : 'RIVAL'} ANTES DEL TIRO`
-              : pendingDefense?.defenseCardId === 'tr_var'
+              : pendingDefense?.defenseCardId === 'red_card_var'
                 ? `VENTANA DE RESPUESTA DEL ${pendingDefense.defender === 'player' ? 'JUGADOR' : 'RIVAL'}: VAR`
                   : pendingDefense?.defenseCardId
                     ? `VENTANA DE RESPUESTA DEL ${pendingDefense.possessor === 'player' ? 'JUGADOR' : 'RIVAL'}`
@@ -292,15 +333,22 @@ export default function App() {
 
   const resetMatch = () => {
     setGameState('coin-flip');
+    setCoinFlipState({
+      choice: null,
+      result: null,
+      winner: null,
+      isFlipping: false
+    });
     setPlayerScore(0);
     setOpponentScore(0);
+    setSanctions({ player: null, opponent: null });
     setDeck([]);
     setDiscardPile([]);
     setPlayerHand([]);
     setOpponentHand([]);
     setPossession(null);
     setCurrentTurn(null);
-    setRedCardPenalty({ player: false, opponent: false });
+    setRedCardPenalty({ player: 0, opponent: 0 });
     setPendingBlindDiscard(null);
     setGoalCelebration(null);
     setMatchWinner(null);
@@ -396,9 +444,6 @@ export default function App() {
     }
 
     fillHandsToLimits();
-    if (redCardPenalty[scorer]) {
-      setRedCardPenalty((previous) => ({ ...previous, [scorer]: false }));
-    }
     setPossession(nextActor);
     setCurrentTurn(nextActor);
     addLog(reason);
@@ -461,6 +506,7 @@ export default function App() {
       clearTransientState();
       setPossession(defender);
       setCurrentTurn(defender);
+      setHasActedThisTurn(true);
       addLog('Barrida exitosa. El balon cambia de posesion.');
       return;
     }
@@ -479,6 +525,7 @@ export default function App() {
       clearTransientState();
       setPossession(defender);
       setCurrentTurn(defender);
+      setHasActedThisTurn(true);
       addLog('Falta agresiva sin respuesta. El balon cambia de posesion.');
       return;
     }
@@ -486,6 +533,7 @@ export default function App() {
     clearTransientState();
     setPossession(defender);
     setCurrentTurn(defender);
+    setHasActedThisTurn(true);
 
     if (defenseCard.id === 'cont') {
       setPendingCombo({ actor: defender, type: 'cont_followup' });
@@ -507,13 +555,32 @@ export default function App() {
   };
 
   const handleCoinFlip = (choice) => {
+    if (coinFlipState.isFlipping) {
+      return;
+    }
+
     const result = Math.random() > 0.5 ? 'Cara' : 'Sello';
     const winner = choice === result ? 'player' : 'opponent';
 
-    setPossession(winner);
-    setCurrentTurn(winner);
-    setGameState('dealing');
-    addLog(`Salio ${result}. El ${winner === 'player' ? 'Jugador' : 'Rival'} tiene el balon.`);
+    setCoinFlipState({
+      choice,
+      result: null,
+      winner: null,
+      isFlipping: true
+    });
+
+    window.setTimeout(() => {
+      setCoinFlipState({
+        choice,
+        result,
+        winner,
+        isFlipping: false
+      });
+      setPossession(winner);
+      setCurrentTurn(winner);
+      setGameState('dealing');
+      addLog(`Salio ${result}. El ${winner === 'player' ? 'Jugador' : 'Rival'} tiene el balon.`);
+    }, 1900);
   };
 
   const handleDeal = () => {
@@ -567,7 +634,7 @@ export default function App() {
       return;
     }
 
-    if (pendingDefense?.defenseCardId === 'tr_var') {
+    if (pendingDefense?.defenseCardId === 'red_card_var') {
       setPendingDefense(null);
       setCurrentTurn(pendingDefense.possessor);
       setHasActedThisTurn(true);
@@ -575,7 +642,7 @@ export default function App() {
       return;
     }
 
-    if (pendingDefense && pendingDefense.defenseCardId !== 'tr_var') {
+    if (pendingDefense && pendingDefense.defenseCardId !== 'red_card_var') {
       const defender = pendingDefense.defender;
       clearTransientState();
       setPossession(defender);
@@ -591,17 +658,32 @@ export default function App() {
 
     if (keepsTurn) {
       setBonusTurnFor(null);
+      consumeSanctionTurn(getOpponent(actor));
     }
 
-    if (redCardPenalty[actor] && !keepsTurn) {
-      setRedCardPenalty((previous) => ({ ...previous, [actor]: false }));
+    if (redCardPenalty[actor] > 0 && !keepsTurn) {
+      consumeRedCardTurn(actor);
+      if (redCardPenalty[actor] <= 1) {
+        clearSanctionFor(actor);
+      } else {
+        setSanctionFor(actor, {
+          type: 'red',
+          title: 'Roja',
+          detail: 'Descarta 1 y juega con 4 cartas durante 3 turnos.',
+          turnsRemaining: redCardPenalty[actor] - 1
+        });
+      }
     }
 
     setCurrentTurn(nextActor);
-    setHasActedThisTurn(keepsTurn);
+    setHasActedThisTurn(false);
     setSelectedForDiscard([]);
     setDiscardMode(false);
-    addLog(`Cambio de turno. Balon: ${possession === 'player' ? 'Jugador' : 'Rival'}.`);
+    addLog(
+      keepsTurn
+        ? 'Tarjeta Amarilla: comienza un nuevo turno extra con la misma posesion.'
+        : `Cambio de turno. Balon: ${possession === 'player' ? 'Jugador' : 'Rival'}.`
+    );
   };
 
   const handleDiscard = () => {
@@ -741,13 +823,14 @@ export default function App() {
         return;
     }
 
-    if (pendingDefense?.defenseCardId === 'tr_var') {
+    if (pendingDefense?.defenseCardId === 'red_card_var') {
       if (actor !== pendingDefense.defender || card.id !== 'var') {
         addLog('Solo puedes responder con VAR para anular la Roja.');
         return;
       }
 
         consumeCard(actor, index, card);
+        clearSanctionFor(actor);
         clearTransientState();
         setPossession(actor);
         setCurrentTurn(actor);
@@ -773,8 +856,8 @@ export default function App() {
 
       consumeCard(actor, index, card);
 
-      if (pendingDefense.defenseCardId === 'fa' && card.id === 'tr' && hasCardInHand(pendingDefense.defender, 'var')) {
-        setPendingDefense({ ...pendingDefense, defenseCardId: 'tr_var' });
+      if (card.id === 'tr' && hasCardInHand(pendingDefense.defender, 'var')) {
+        setPendingDefense({ ...pendingDefense, defenseCardId: 'red_card_var' });
         setCurrentTurn(pendingDefense.defender);
         setHasActedThisTurn(false);
         setDiscardMode(false);
@@ -803,6 +886,12 @@ export default function App() {
       setBonusTurnFor(actor);
 
       if (card.id === 'ta') {
+        setSanctionFor(pendingDefense.defender, {
+          type: 'yellow',
+          title: 'Amarilla',
+          detail: 'Pierde la jugada y concede un turno extra.',
+          turnsRemaining: 1
+        });
         addLog('Tarjeta Amarilla: mantienes la posesion y robas un turno.');
         return;
       }
@@ -812,8 +901,14 @@ export default function App() {
         'Tarjeta Roja: el rival debe elegir una posicion de su mano para descartar una carta oculta.',
         actor
       );
-      setRedCardPenalty((previous) => ({ ...previous, [pendingDefense.defender]: true }));
-      addLog('Tarjeta Roja: mantienes la posesion y el rival jugara con 4 cartas hasta que termine su siguiente turno.');
+      setRedCardPenalty((previous) => ({ ...previous, [pendingDefense.defender]: 3 }));
+      setSanctionFor(pendingDefense.defender, {
+        type: 'red',
+        title: 'Roja',
+        detail: 'Descarta 1 y juega con 4 cartas durante 3 turnos.',
+        turnsRemaining: 3
+      });
+      addLog('Tarjeta Roja: mantienes la posesion y el rival jugara con 4 cartas durante 3 turnos.');
       return;
     }
 
@@ -928,6 +1023,13 @@ export default function App() {
     }
 
     if (card.type === 'pass') {
+      const lastPass = activePlay[activePlay.length - 1];
+
+      if (lastPass?.id === 'pa' && !pendingCombo) {
+        addLog('Despues de un Pase Aereo debes finalizar la jugada con Chilena o Tirar a Gol.');
+        return;
+      }
+
       const nextPassTotal = currentPassTotal + card.value;
 
       if (nextPassTotal > 4) {
@@ -1035,6 +1137,22 @@ export default function App() {
             50% { transform: translate(-50%, -12px); }
           }
 
+          @keyframes coinTossArc {
+            0% { transform: translateY(150px) scale(0.82) rotateX(0deg) rotateY(0deg); opacity: 0; }
+            12% { opacity: 1; }
+            30% { transform: translateY(-48px) scale(1.02) rotateX(540deg) rotateY(180deg); }
+            55% { transform: translateY(-150px) scale(1.08) rotateX(1260deg) rotateY(360deg); }
+            78% { transform: translateY(-24px) scale(0.98) rotateX(1800deg) rotateY(540deg); }
+            100% { transform: translateY(0) scale(1) rotateX(2160deg) rotateY(720deg); opacity: 1; }
+          }
+
+          @keyframes coinShadowPulse {
+            0% { transform: scale(0.6); opacity: 0; }
+            30% { transform: scale(0.9); opacity: 0.22; }
+            55% { transform: scale(0.48); opacity: 0.1; }
+            100% { transform: scale(1); opacity: 0.24; }
+          }
+
           @keyframes goalPulse {
             0% { opacity: 0; transform: scale(0.82); }
             20% { opacity: 1; transform: scale(1.06); }
@@ -1049,35 +1167,119 @@ export default function App() {
         `}</style>
         <div className="z-20 border-b-2 border-emerald-500 bg-slate-900 p-2 shadow-2xl">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4">
-          <div className={`flex items-center gap-4 rounded-2xl p-3 transition-all ${possession === 'player' ? 'bg-blue-600/30 ring-2 ring-blue-500' : 'grayscale opacity-30'}`}>
+          <div className={`flex items-center gap-4 rounded-2xl p-3 transition-all ${
+            possession === 'player'
+              ? 'bg-blue-600/30 ring-2 ring-blue-500'
+              : sanctions.player
+                ? 'bg-blue-600/12 ring-1 ring-blue-300/60'
+                : 'grayscale opacity-30'
+          }`}>
+            {possession === 'player' && <SoccerBallIcon size={20} className="animate-bounce" />}
             <div className="text-center">
               <span className="block text-[10px] font-black text-blue-400">JUGADOR</span>
               <span className="text-3xl font-black">{playerScore}</span>
-            </div>
-            {possession === 'player' && <SoccerBallIcon size={20} className="animate-bounce" />}
-          </div>
-
-          <div className="flex flex-col items-center">
-            <div className="mb-1 flex gap-1.5">
-              {[1, 2, 3, 4].map((point) => (
+              <div className="mt-1 flex justify-center gap-1.5">
+                {[1, 2, 3, 4].map((point) => (
+                  <div
+                    key={`player-pass-${point}`}
+                    className={`h-2 w-4 rounded-full transition-all duration-500 ${
+                      getPassTrackerTotal('player') >= point ? 'bg-yellow-400 shadow-[0_0_10px_#facc15]' : 'bg-slate-800'
+                    }`}
+                  />
+                ))}
+              </div>
+              <span className="mt-1 block text-[10px] font-black uppercase tracking-widest text-yellow-500">
+                Puntos jugada: {getPassTrackerTotal('player')} / 4
+              </span>
+              {sanctions.player && (
                 <div
-                  key={point}
-                  className={`h-2 w-4 rounded-full transition-all duration-500 ${
-                    currentPassTotal >= point ? 'bg-yellow-400 shadow-[0_0_10px_#facc15]' : 'bg-slate-800'
+                  className={`mt-2 flex max-w-[220px] items-start gap-2 rounded-xl border px-3 py-2 text-left shadow-lg ${
+                    sanctions.player.type === 'red'
+                      ? 'border-red-200/80 bg-red-500 text-white'
+                      : 'border-yellow-100/90 bg-yellow-300 text-slate-950'
                   }`}
-                />
-              ))}
+                >
+                  <div
+                    className={`mt-0.5 h-8 w-6 rounded-sm border shadow-md ${
+                      sanctions.player.type === 'red'
+                        ? 'border-red-100/80 bg-red-700'
+                        : 'border-yellow-950/20 bg-yellow-100'
+                    }`}
+                  />
+                  <div className="min-w-0">
+                    <span className="block text-[9px] font-black uppercase tracking-[0.2em]">
+                      {sanctions.player.title}
+                    </span>
+                    <span className="block text-[10px] font-black leading-tight">
+                      {sanctions.player.detail}
+                    </span>
+                    {sanctions.player.turnsRemaining ? (
+                      <span className="mt-1 inline-flex rounded-full bg-black/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.18em]">
+                        Turnos restantes: {sanctions.player.turnsRemaining}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              )}
             </div>
-            <span className="text-[10px] font-black uppercase tracking-widest text-yellow-500">
-              Puntos jugada: {currentPassTotal} / 4
-            </span>
           </div>
 
-          <div className={`flex items-center gap-4 rounded-2xl p-3 transition-all ${possession === 'opponent' ? 'bg-red-600/30 ring-2 ring-red-500' : 'grayscale opacity-30'}`}>
+          <div className="flex-1" />
+
+          <div className={`flex items-center gap-4 rounded-2xl p-3 transition-all ${
+            possession === 'opponent'
+              ? 'bg-red-600/30 ring-2 ring-red-500'
+              : sanctions.opponent
+                ? 'bg-red-600/12 ring-1 ring-red-300/60'
+                : 'grayscale opacity-30'
+          }`}>
             {possession === 'opponent' && <SoccerBallIcon size={20} className="animate-bounce" />}
             <div className="text-center">
               <span className="block text-[10px] font-black text-red-400">RIVAL</span>
               <span className="text-3xl font-black">{opponentScore}</span>
+              <div className="mt-1 flex justify-center gap-1.5">
+                {[1, 2, 3, 4].map((point) => (
+                  <div
+                    key={`opponent-pass-${point}`}
+                    className={`h-2 w-4 rounded-full transition-all duration-500 ${
+                      getPassTrackerTotal('opponent') >= point ? 'bg-yellow-400 shadow-[0_0_10px_#facc15]' : 'bg-slate-800'
+                    }`}
+                  />
+                ))}
+              </div>
+              <span className="mt-1 block text-[10px] font-black uppercase tracking-widest text-yellow-500">
+                Puntos jugada: {getPassTrackerTotal('opponent')} / 4
+              </span>
+              {sanctions.opponent && (
+                <div
+                  className={`mt-2 flex max-w-[220px] items-start gap-2 rounded-xl border px-3 py-2 text-left shadow-lg ${
+                    sanctions.opponent.type === 'red'
+                      ? 'border-red-200/80 bg-red-500 text-white'
+                      : 'border-yellow-100/90 bg-yellow-300 text-slate-950'
+                  }`}
+                >
+                  <div
+                    className={`mt-0.5 h-8 w-6 rounded-sm border shadow-md ${
+                      sanctions.opponent.type === 'red'
+                        ? 'border-red-100/80 bg-red-700'
+                        : 'border-yellow-950/20 bg-yellow-100'
+                    }`}
+                  />
+                  <div className="min-w-0">
+                    <span className="block text-[9px] font-black uppercase tracking-[0.2em]">
+                      {sanctions.opponent.title}
+                    </span>
+                    <span className="block text-[10px] font-black leading-tight">
+                      {sanctions.opponent.detail}
+                    </span>
+                    {sanctions.opponent.turnsRemaining ? (
+                      <span className="mt-1 inline-flex rounded-full bg-black/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.18em]">
+                        Turnos restantes: {sanctions.opponent.turnsRemaining}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1245,19 +1447,70 @@ export default function App() {
 
           {gameState === 'coin-flip' && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-6">
-              <div className="text-center">
-                <Coins size={64} className="mx-auto mb-6 animate-spin text-yellow-500" />
-                <h2 className="mb-8 text-3xl font-black">SORTEO DE SAQUE</h2>
-                <div className="flex gap-4">
+              <div className="w-full max-w-lg rounded-[2rem] border border-yellow-400/20 bg-slate-950/90 px-7 py-8 text-center shadow-[0_20px_70px_rgba(0,0,0,0.6)]">
+                <div className="mb-3 text-[11px] font-black uppercase tracking-[0.45em] text-yellow-500/70">
+                  Inicio del partido
+                </div>
+                <h2 className="mb-4 text-3xl font-black">Sorteo de saque</h2>
+                <p className="mx-auto mb-6 max-w-md text-sm font-semibold text-white/65">
+                  Elige cara o sello y lanza la moneda al aire para definir quien arranca con el balon.
+                </p>
+
+                <div className="relative mx-auto mb-7 flex h-52 w-full max-w-[220px] items-end justify-center overflow-hidden">
+                  <div
+                    className="absolute bottom-5 h-5 w-24 rounded-full bg-black/40 blur-md"
+                    style={{
+                      animation: coinFlipState.isFlipping ? 'coinShadowPulse 1.9s ease-in-out forwards' : 'none'
+                    }}
+                  />
+                  <div
+                    className="relative flex h-28 w-28 items-center justify-center rounded-full border-4 border-yellow-200/70 bg-[radial-gradient(circle_at_32%_30%,#fff2a6_0%,#ffd54d_28%,#d89b00_66%,#7a4b00_100%)] shadow-[inset_0_5px_10px_rgba(255,255,255,0.45),inset_0_-10px_18px_rgba(96,56,0,0.45),0_18px_35px_rgba(0,0,0,0.45)]"
+                    style={{
+                      transformStyle: 'preserve-3d',
+                      animation: coinFlipState.isFlipping ? 'coinTossArc 1.9s cubic-bezier(0.2,0.7,0.18,1) forwards' : 'none'
+                    }}
+                  >
+                    <div className="absolute inset-[8px] rounded-full border border-white/30" />
+                    <span className="text-3xl font-black uppercase text-slate-900/85">
+                      {coinFlipState.result ?? coinFlipState.choice ?? '?'}
+                    </span>
+                    <div className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_30%_28%,rgba(255,255,255,0.55),rgba(255,255,255,0.06)_35%,transparent_50%)]" />
+                  </div>
+                </div>
+
+                <div className="mb-6 min-h-[56px]">
+                  {coinFlipState.isFlipping ? (
+                    <div className="text-sm font-black uppercase tracking-[0.3em] text-yellow-300">
+                      Moneda en el aire...
+                    </div>
+                  ) : coinFlipState.result ? (
+                    <div className="space-y-1">
+                      <div className="text-sm font-black uppercase tracking-[0.3em] text-yellow-300">
+                        Salio {coinFlipState.result}
+                      </div>
+                      <div className="text-sm font-semibold text-white/70">
+                        {coinFlipState.winner === 'player' ? 'Jugador' : 'Rival'} gana el sorteo.
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-sm font-semibold text-white/45">
+                      Esperando tu eleccion.
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-center gap-4">
                   <button
                     onClick={() => handleCoinFlip('Cara')}
-                    className="rounded-2xl bg-white px-10 py-4 font-black text-black transition-all hover:bg-emerald-400"
+                    disabled={coinFlipState.isFlipping}
+                    className="rounded-2xl bg-white px-10 py-4 font-black text-black transition-all hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     CARA
                   </button>
                   <button
                     onClick={() => handleCoinFlip('Sello')}
-                    className="rounded-2xl bg-white px-10 py-4 font-black text-black transition-all hover:bg-emerald-400"
+                    disabled={coinFlipState.isFlipping}
+                    className="rounded-2xl bg-white px-10 py-4 font-black text-black transition-all hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     SELLO
                   </button>
@@ -1268,12 +1521,27 @@ export default function App() {
 
             {gameState === 'dealing' && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-                <button
-                  onClick={handleDeal}
-                  className="animate-pulse rounded-2xl bg-emerald-500 px-12 py-6 text-xl font-black"
-              >
-                EMPEZAR PARTIDO
-                </button>
+                <div className="rounded-[2rem] border border-emerald-400/20 bg-slate-950/90 px-10 py-8 text-center shadow-[0_20px_70px_rgba(0,0,0,0.6)]">
+                  {coinFlipState.result && (
+                    <div className="mb-5">
+                      <div className="text-[11px] font-black uppercase tracking-[0.35em] text-yellow-400/80">
+                        Resultado del sorteo
+                      </div>
+                      <div className="mt-2 text-3xl font-black text-white">
+                        Salio {coinFlipState.result}
+                      </div>
+                      <div className="mt-1 text-sm font-semibold text-white/65">
+                        Comienza {coinFlipState.winner === 'player' ? 'Jugador' : 'Rival'}.
+                      </div>
+                    </div>
+                  )}
+                  <button
+                    onClick={handleDeal}
+                    className="animate-pulse rounded-2xl bg-emerald-500 px-12 py-6 text-xl font-black"
+                  >
+                    EMPEZAR PARTIDO
+                  </button>
+                </div>
               </div>
             )}
 
