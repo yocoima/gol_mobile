@@ -95,6 +95,89 @@ const initDeck = () => {
 
 const shuffleCards = (cards) => [...cards].sort(() => Math.random() - 0.5);
 
+const TUTORIAL_SEQUENCES = [
+  {
+    title: 'Jugada basica',
+    note: 'Construye pases hasta llegar al tiro.',
+    steps: ['Pase Corto', 'Pase Largo', 'Pase Aereo', 'Tirar a Gol']
+  },
+  {
+    title: 'Combinacion Chilena',
+    note: 'La Chilena abre una secuencia especial y el arquero no puede detener ese gol.',
+    steps: ['Chilena', 'Pase Aereo', 'Tirar a Gol']
+  },
+  {
+    title: 'Contraataque',
+    note: 'Recuperas y cierras rapido la jugada.',
+    steps: ['Contraataque', 'Pase', 'Tirar a Gol']
+  },
+  {
+    title: 'Saque de Banda',
+    note: 'Recupera la posesion y suma un pase.',
+    steps: ['Saque Banda', 'Pase Corto']
+  },
+  {
+    title: 'Saque de Corner',
+    note: 'Reinicia la jugada con secuencia ofensiva.',
+    steps: ['Saque Corner', 'Pase Aereo', 'Tirar a Gol']
+  },
+  {
+    title: 'Barrida',
+    note: 'Roba el balon, pero puede ser evitada.',
+    layout: 'versus',
+    left: {
+      title: 'Barrida',
+      text: 'Roba el balon con una barrida.',
+      card: 'Barrida'
+    },
+    right: {
+      title: 'Regatear',
+      text: 'Una barrida puede ser evadida con un regate.',
+      card: 'Regatear'
+    }
+  },
+  {
+    title: 'Penalti',
+    note: 'Con posesion del balon se puede jugar un penalti.',
+    layout: 'penalty',
+    center: {
+      title: 'Penalti',
+      text: 'Con posesion del balon se puede jugar un penalti.',
+      card: 'Penalti'
+    },
+    left: {
+      title: 'VAR',
+      text: 'El penalti puede ser anulado con la carta de VAR.',
+      card: 'VAR'
+    },
+    right: {
+      title: 'Parada Arquero',
+      text: 'O puede ser parado por el arquero.',
+      card: 'Parada Arquero'
+    }
+  },
+  {
+    title: 'Falta Agresiva',
+    note: 'No puede ser evadida con regate y puede escalar a Roja.',
+    layout: 'foul',
+    center: {
+      title: 'Falta Agresiva',
+      text: 'No puede ser evadida con Regatear.',
+      card: 'Falta Agresiva'
+    },
+    left: {
+      title: 'Tarjeta Roja',
+      text: 'Si responden con Roja, aplica sancion y descarte.',
+      card: 'Tarj. Roja'
+    },
+    right: {
+      title: 'VAR',
+      text: 'La Tarjeta Roja puede ser anulada con VAR.',
+      card: 'VAR'
+    }
+  }
+];
+
 const SoccerBallIcon = ({ size, className }) =>
   BALL_IMAGE ? (
     <span
@@ -191,8 +274,57 @@ const CardItem = ({
   );
 };
 
+const TutorialStepCard = ({ label }) => {
+  const normalizedLabel = normalizeAssetName(label);
+  const tutorialAliases = {
+    'pase': 'Pase Corto',
+    'parada arquero o var': 'VAR',
+    'gol o remate': 'Remate',
+    'recupera posesion': 'Barrida',
+    'sigue la jugada': 'Regatear',
+    'descarta y sancion': 'Tarj. Roja',
+    'tarjeta roja o penalti': 'VAR',
+    'jugada anulada': 'VAR'
+  };
+  const mappedLabel = tutorialAliases[normalizedLabel] ?? label;
+  const mappedNormalizedLabel = normalizeAssetName(mappedLabel);
+  const card =
+    DECK_DEFINITION.find((entry) => normalizeAssetName(entry.name) === mappedNormalizedLabel) ??
+    DECK_DEFINITION.find((entry) => entry.type === 'pass' && mappedNormalizedLabel === 'pase corto');
+
+  return (
+    <div className="flex w-[96px] flex-col items-center gap-2">
+      <div
+        className={`relative flex h-28 w-[84px] items-end justify-center overflow-hidden rounded-[18px] border border-white/10 shadow-[0_14px_30px_rgba(0,0,0,0.35)] ${
+          card?.imageUrl ? 'bg-slate-900' : card?.color ?? 'bg-slate-800'
+        }`}
+      >
+        {card?.imageUrl ? (
+          <>
+            <img
+              src={card.imageUrl}
+              alt={label}
+              className="absolute inset-0 h-full w-full object-cover object-center"
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/18 via-transparent to-black/30" />
+          </>
+        ) : (
+          <div className="flex h-full w-full items-center justify-center px-2 text-center text-[11px] font-black uppercase leading-tight text-white/85">
+            {label}
+          </div>
+        )}
+        <div className="absolute inset-[3px] rounded-[15px] border border-white/12" />
+      </div>
+      <div className="text-center text-[10px] font-black uppercase leading-tight text-white/80">
+        {label}
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   const [gameState, setGameState] = useState('menu');
+  const [tutorialPage, setTutorialPage] = useState(0);
   const [coinFlipState, setCoinFlipState] = useState({
     choice: null,
     result: null,
@@ -229,6 +361,7 @@ export default function App() {
   const currentPassTotal = activePlay.reduce((sum, card) => sum + (card.value || 0), 0);
   const getPassTrackerTotal = (actor) => (possession === actor ? currentPassTotal : 0);
   const lastActiveCard = activePlay[activePlay.length - 1];
+  const currentTutorial = TUTORIAL_SEQUENCES[tutorialPage] ?? TUTORIAL_SEQUENCES[0];
 
   const addLog = (message) => {
     setGameLog((previousLog) => [message, ...previousLog].slice(0, 5));
@@ -435,6 +568,7 @@ export default function App() {
 
   const resetMatch = () => {
     setGameState('menu');
+    setTutorialPage(0);
     setCoinFlipState({
       choice: null,
       result: null,
@@ -481,6 +615,7 @@ export default function App() {
 
   const startFromMenu = () => {
     setGameState('coin-flip');
+    setTutorialPage(0);
     setGameLog(['Posesion persistente activada']);
   };
 
@@ -1689,12 +1824,109 @@ export default function App() {
                   Tutorial rapido
                 </div>
                 <h2 className="mb-6 text-3xl font-black text-white">Como se juega</h2>
-                <div className="space-y-4 text-sm font-semibold text-white/75">
-                  <p>Construye la jugada con pases hasta llegar a una situacion de tiro o activa combinaciones especiales para atacar mas rapido.</p>
-                  <p>Las cartas defensivas recuperan la posesion o abren respuestas. Algunas secuencias ahora usan subventanas para mostrar el orden obligatorio de cartas.</p>
-                  <p>Combinaciones especiales actuales: `Chilena`, `Contraataque`, `Saque de banda` y `Saque de corner`.</p>
-                  <p>Cuando el mazo se acaba, el descarte se baraja automaticamente y se convierte en el nuevo mazo.</p>
-                  <p>Las tarjetas amarillas y rojas muestran su efecto en pantalla, incluyendo los turnos de sancion restantes.</p>
+                <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-5 shadow-[0_14px_35px_rgba(0,0,0,0.22)]">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="text-[11px] font-black uppercase tracking-[0.28em] text-cyan-300">
+                      {currentTutorial.title}
+                    </div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45">
+                      Paso {tutorialPage + 1} de {TUTORIAL_SEQUENCES.length}
+                    </div>
+                  </div>
+                  <div className="mt-2 text-sm font-semibold leading-tight text-white/70">
+                    {currentTutorial.note}
+                  </div>
+                  {currentTutorial.layout === 'versus' ? (
+                    <div className="mt-5 grid gap-4 md:grid-cols-2">
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-center">
+                        <div className="text-[11px] font-black uppercase tracking-[0.24em] text-cyan-300">
+                          {currentTutorial.left.title}
+                        </div>
+                        <div className="mt-3 flex justify-center">
+                          <TutorialStepCard label={currentTutorial.left.card} />
+                        </div>
+                        <div className="mt-3 text-sm font-semibold leading-tight text-white/75">
+                          {currentTutorial.left.text}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-center">
+                        <div className="text-[11px] font-black uppercase tracking-[0.24em] text-cyan-300">
+                          {currentTutorial.right.title}
+                        </div>
+                        <div className="mt-3 flex justify-center">
+                          <TutorialStepCard label={currentTutorial.right.card} />
+                        </div>
+                        <div className="mt-3 text-sm font-semibold leading-tight text-white/75">
+                          {currentTutorial.right.text}
+                        </div>
+                      </div>
+                    </div>
+                  ) : currentTutorial.layout === 'penalty' || currentTutorial.layout === 'foul' ? (
+                    <div className="mt-5 space-y-4">
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-center">
+                        <div className="text-[11px] font-black uppercase tracking-[0.24em] text-cyan-300">
+                          {currentTutorial.center.title}
+                        </div>
+                        <div className="mt-3 flex justify-center">
+                          <TutorialStepCard label={currentTutorial.center.card} />
+                        </div>
+                        <div className="mt-3 text-sm font-semibold leading-tight text-white/75">
+                          {currentTutorial.center.text}
+                        </div>
+                      </div>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-center">
+                          <div className="text-[11px] font-black uppercase tracking-[0.24em] text-cyan-300">
+                            {currentTutorial.left.title}
+                          </div>
+                          <div className="mt-3 flex justify-center">
+                            <TutorialStepCard label={currentTutorial.left.card} />
+                          </div>
+                          <div className="mt-3 text-sm font-semibold leading-tight text-white/75">
+                            {currentTutorial.left.text}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-center">
+                          <div className="text-[11px] font-black uppercase tracking-[0.24em] text-cyan-300">
+                            {currentTutorial.right.title}
+                          </div>
+                          <div className="mt-3 flex justify-center">
+                            <TutorialStepCard label={currentTutorial.right.card} />
+                          </div>
+                          <div className="mt-3 text-sm font-semibold leading-tight text-white/75">
+                            {currentTutorial.right.text}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-5 flex flex-wrap items-start justify-center gap-3">
+                      {currentTutorial.steps.map((step, index) => (
+                        <React.Fragment key={`${currentTutorial.title}-${step}-${index}`}>
+                          <TutorialStepCard label={step} />
+                          {index < currentTutorial.steps.length - 1 ? (
+                            <div className="pt-10 text-lg font-black text-cyan-300/60">+</div>
+                          ) : null}
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-6 flex items-center justify-between gap-3">
+                    <button
+                      onClick={() => setTutorialPage((previous) => Math.max(0, previous - 1))}
+                      disabled={tutorialPage === 0}
+                      className="rounded-2xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-black text-white transition-all hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      ANTERIOR
+                    </button>
+                    <button
+                      onClick={() => setTutorialPage((previous) => Math.min(TUTORIAL_SEQUENCES.length - 1, previous + 1))}
+                      disabled={tutorialPage === TUTORIAL_SEQUENCES.length - 1}
+                      className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-5 py-3 text-sm font-black text-cyan-100 transition-all hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      SIGUIENTE
+                    </button>
+                  </div>
                 </div>
                 <div className="mt-8 flex flex-wrap items-center justify-end gap-4">
                   <button
