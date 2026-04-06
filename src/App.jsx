@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import {
   ArrowRightCircle,
+  BookOpen,
   Coins,
   History,
   Library,
+  PlayCircle,
   RefreshCcw,
   Trash2,
 } from 'lucide-react';
@@ -37,18 +39,18 @@ const BALL_IMAGE = CARD_IMAGE_BY_NAME.balon ?? null;
 const DECK_DEFINITION = [
   { id: 'pc', name: 'Pase Corto', value: 1, type: 'pass', color: 'bg-emerald-500', count: 12, detail: 'Suma valor x1' },
   { id: 'pl', name: 'Pase Largo', value: 2, type: 'pass', color: 'bg-blue-500', count: 8, detail: 'Suma valor x2' },
-  { id: 'pa', name: 'Pase Aereo', value: 3, type: 'pass', color: 'bg-cyan-500', count: 6, detail: 'Suma valor x3' },
+  { id: 'pa', name: 'Pase Aereo', value: 3, type: 'pass', color: 'bg-cyan-500', count: 8, detail: 'Suma valor x3' },
   { id: 'cont', name: 'Contraataque', value: 0, type: 'defense', color: 'bg-indigo-600', count: 4, detail: 'Recupera durante pases' },
-  { id: 'reg', name: 'Regatear', value: 0, type: 'counter', color: 'bg-teal-400', count: 8, detail: 'Responde a Barrida' },
+  { id: 'reg', name: 'Regatear', value: 0, type: 'counter', color: 'bg-teal-400', count: 6, detail: 'Responde a Barrida' },
   { id: 'tg', name: 'Tirar a Gol', value: 0, type: 'shoot', color: 'bg-red-600', count: 8, detail: 'Intenta anotar' },
-  { id: 'ch', name: 'Chilena', value: 0, type: 'shoot_special', color: 'bg-orange-500', count: 2, detail: 'Tras Pase Aereo' },
-  { id: 'ba', name: 'Barrida', value: 0, type: 'defense', color: 'bg-slate-700', count: 8, detail: 'Quita posesion' },
+  { id: 'ch', name: 'Chilena', value: 0, type: 'shoot_special', color: 'bg-orange-500', count: 3, detail: 'Tras Pase Aereo' },
+  { id: 'ba', name: 'Barrida', value: 0, type: 'defense', color: 'bg-slate-700', count: 6, detail: 'Quita posesion' },
   { id: 'fa', name: 'Falta Agresiva', value: 0, type: 'defense', color: 'bg-orange-800', count: 4, detail: 'Responde con tarjeta' },
-  { id: 'pe', name: 'Penalti', value: 0, type: 'shoot_direct', color: 'bg-yellow-500', count: 2, detail: 'Tiro directo' },
-  { id: 'paq', name: 'Parada Arquero', value: 0, type: 'save', color: 'bg-stone-500', count: 7, detail: 'Evita un gol' },
+  { id: 'pe', name: 'Penalti', value: 0, type: 'shoot_direct', color: 'bg-yellow-500', count: 3, detail: 'Tiro directo' },
+  { id: 'paq', name: 'Parada Arquero', value: 0, type: 'save', color: 'bg-stone-500', count: 6, detail: 'Evita un gol' },
   { id: 'rem', name: 'Remate', value: 0, type: 'special', color: 'bg-pink-600', count: 4, detail: 'Tras Parada Arquero' },
   { id: 'sb', name: 'Saque Banda', value: 0, type: 'defense', color: 'bg-lime-600', count: 4, detail: 'Recupera + Pase Corto' },
-  { id: 'sc', name: 'Saque Corner', value: 0, type: 'defense', color: 'bg-sky-700', count: 3, detail: 'Recupera + Pase Aereo' },
+  { id: 'sc', name: 'Saque Corner', value: 0, type: 'defense', color: 'bg-sky-700', count: 4, detail: 'Recupera + Pase Aereo' },
   { id: 'ta', name: 'Tarj. Amarilla', value: 0, type: 'card', color: 'bg-yellow-400', count: 4, detail: 'Contra Falta Agresiva' },
   { id: 'tr', name: 'Tarj. Roja', value: 0, type: 'card_hard', color: 'bg-red-500', count: 2, detail: 'Contra Falta Agresiva' },
   { id: 'var', name: 'VAR', value: 0, type: 'var', color: 'bg-purple-600', count: 2, detail: 'Anula Roja o Penalti' }
@@ -90,6 +92,8 @@ const initDeck = () => {
 
   return fullDeck.sort(() => Math.random() - 0.5);
 };
+
+const shuffleCards = (cards) => [...cards].sort(() => Math.random() - 0.5);
 
 const SoccerBallIcon = ({ size, className }) =>
   BALL_IMAGE ? (
@@ -188,7 +192,7 @@ const CardItem = ({
 };
 
 export default function App() {
-  const [gameState, setGameState] = useState('coin-flip');
+  const [gameState, setGameState] = useState('menu');
   const [coinFlipState, setCoinFlipState] = useState({
     choice: null,
     result: null,
@@ -224,6 +228,7 @@ export default function App() {
   const currentTurnLabel = isPlayerTurn ? 'Jugador' : isOpponentTurn ? 'Rival' : 'Nadie';
   const currentPassTotal = activePlay.reduce((sum, card) => sum + (card.value || 0), 0);
   const getPassTrackerTotal = (actor) => (possession === actor ? currentPassTotal : 0);
+  const lastActiveCard = activePlay[activePlay.length - 1];
 
   const addLog = (message) => {
     setGameLog((previousLog) => [message, ...previousLog].slice(0, 5));
@@ -314,10 +319,73 @@ export default function App() {
                   : pendingCombo?.type === 'sb_followup'
                     ? `SECUENCIA OBLIGATORIA: ${pendingCombo.actor === 'player' ? 'JUGADOR' : 'RIVAL'} DEBE JUGAR PASE CORTO`
                   : pendingCombo?.type === 'sc_followup'
-                    ? `SECUENCIA OBLIGATORIA: ${pendingCombo.actor === 'player' ? 'JUGADOR' : 'RIVAL'} DEBE JUGAR PASE AEREO`
+                    ? pendingCombo.stage === 'pass'
+                      ? `SECUENCIA OBLIGATORIA: ${pendingCombo.actor === 'player' ? 'JUGADOR' : 'RIVAL'} DEBE JUGAR PASE AEREO`
+                      : `SECUENCIA OBLIGATORIA: ${pendingCombo.actor === 'player' ? 'JUGADOR' : 'RIVAL'} DEBE JUGAR TIRAR A GOL`
                   : pendingCombo?.type === 'cont_followup'
-                    ? `SECUENCIA OBLIGATORIA: ${pendingCombo.actor === 'player' ? 'JUGADOR' : 'RIVAL'} DEBE JUGAR UN PASE`
+                    ? pendingCombo.stage === 'pass'
+                      ? `SECUENCIA OBLIGATORIA: ${pendingCombo.actor === 'player' ? 'JUGADOR' : 'RIVAL'} DEBE JUGAR UN PASE`
+                      : `SECUENCIA OBLIGATORIA: ${pendingCombo.actor === 'player' ? 'JUGADOR' : 'RIVAL'} DEBE JUGAR TIRAR A GOL`
+                  : pendingCombo?.type === 'chilena_followup'
+                    ? pendingCombo.stage === 'pass'
+                      ? `SECUENCIA OBLIGATORIA: ${pendingCombo.actor === 'player' ? 'JUGADOR' : 'RIVAL'} DEBE JUGAR PASE AEREO`
+                      : `SECUENCIA OBLIGATORIA: ${pendingCombo.actor === 'player' ? 'JUGADOR' : 'RIVAL'} DEBE JUGAR TIRAR A GOL`
                       : null;
+  const comboWindow =
+    pendingCombo?.type === 'chilena_followup'
+      ? {
+          title: 'Combinacion Chilena',
+          actor: pendingCombo.actor,
+          accent: 'orange',
+          required: pendingCombo.stage === 'pass'
+            ? 'Debes jugar Pase Aereo para continuar la combinacion.'
+            : 'Debes cerrar la jugada con Tirar a Gol.',
+          slots: [
+            { label: 'Chilena', filled: true },
+            { label: 'Pase Aereo', filled: pendingCombo.stage === 'shot' },
+            { label: 'Tirar a Gol', filled: false }
+          ]
+        }
+      : pendingCombo?.type === 'sb_followup'
+        ? {
+            title: 'Saque de Banda',
+            actor: pendingCombo.actor,
+            accent: 'lime',
+            required: 'Debes jugar Pase Corto para completar la combinacion.',
+            slots: [
+              { label: 'Saque de Banda', filled: true },
+              { label: 'Pase Corto', filled: false }
+            ]
+          }
+      : pendingCombo?.type === 'sc_followup'
+        ? {
+            title: 'Saque de Corner',
+            actor: pendingCombo.actor,
+            accent: 'sky',
+            required: pendingCombo.stage === 'pass'
+              ? 'Debes jugar Pase Aereo para continuar la combinacion.'
+              : 'Debes cerrar la jugada con Tirar a Gol.',
+            slots: [
+              { label: 'Saque de Corner', filled: true },
+              { label: 'Pase Aereo', filled: pendingCombo.stage === 'shot' },
+              { label: 'Tirar a Gol', filled: false }
+            ]
+          }
+      : pendingCombo?.type === 'cont_followup'
+        ? {
+            title: 'Contraataque',
+            actor: pendingCombo.actor,
+            accent: 'indigo',
+            required: pendingCombo.stage === 'pass'
+              ? 'Debes jugar un pase para continuar la combinacion.'
+              : 'Debes cerrar la jugada con Tirar a Gol.',
+            slots: [
+              { label: 'Contraataque', filled: true },
+              { label: 'Pase', filled: pendingCombo.stage === 'shot' },
+              { label: 'Tirar a Gol', filled: false }
+            ]
+          }
+      : null;
 
   const clearTransientState = () => {
     setActivePlay([]);
@@ -331,8 +399,42 @@ export default function App() {
     setHasActedThisTurn(false);
   };
 
+  const drawCardsFromPools = (currentDeck, currentDiscardPile, amount) => {
+    let workingDeck = [...currentDeck];
+    let workingDiscardPile = [...currentDiscardPile];
+    const drawnCards = [];
+    let reshuffled = false;
+
+    while (drawnCards.length < amount) {
+      if (workingDeck.length === 0) {
+        if (workingDiscardPile.length === 0) {
+          break;
+        }
+
+        workingDeck = shuffleCards(workingDiscardPile);
+        workingDiscardPile = [];
+        reshuffled = true;
+      }
+
+      const nextCard = workingDeck.shift();
+
+      if (!nextCard) {
+        break;
+      }
+
+      drawnCards.push(nextCard);
+    }
+
+    return {
+      deck: workingDeck,
+      discardPile: workingDiscardPile,
+      drawnCards,
+      reshuffled
+    };
+  };
+
   const resetMatch = () => {
-    setGameState('coin-flip');
+    setGameState('menu');
     setCoinFlipState({
       choice: null,
       result: null,
@@ -359,18 +461,27 @@ export default function App() {
   const consumeCard = (actor, index, card) => {
     const currentHand = getHand(actor);
     const nextHand = currentHand.filter((_, handIndex) => handIndex !== index);
-    const newDeck = [...deck];
-    const drawnCards = newDeck.splice(0, Math.max(0, getHandLimit(actor) - nextHand.length));
+    const nextDiscardPile = [card, ...discardPile];
+    const drawResult = drawCardsFromPools(deck, nextDiscardPile, Math.max(0, getHandLimit(actor) - nextHand.length));
 
-    setDiscardPile((previousPile) => [card, ...previousPile]);
-    setDeck(newDeck);
+    setDiscardPile(drawResult.discardPile);
+    setDeck(drawResult.deck);
+
+    if (drawResult.reshuffled) {
+      addLog('El mazo se vacio. Se barajo el descarte y se formo un nuevo mazo.');
+    }
 
     if (actor === 'player') {
-      setPlayerHand([...nextHand, ...drawnCards]);
+      setPlayerHand([...nextHand, ...drawResult.drawnCards]);
       return;
     }
 
-    setOpponentHand([...nextHand, ...drawnCards]);
+    setOpponentHand([...nextHand, ...drawResult.drawnCards]);
+  };
+
+  const startFromMenu = () => {
+    setGameState('coin-flip');
+    setGameLog(['Posesion persistente activada']);
   };
 
   const openBlindDiscard = (actor, reason, returnTurnTo) => {
@@ -410,13 +521,21 @@ export default function App() {
   };
 
   const fillHandsToLimits = () => {
-    const newDeck = [...deck];
-    const nextPlayerHand = [...playerHand, ...newDeck.splice(0, Math.max(0, getHandLimit('player') - playerHand.length))];
-    const nextOpponentHand = [...opponentHand, ...newDeck.splice(0, Math.max(0, getHandLimit('opponent') - opponentHand.length))];
+    const playerDrawResult = drawCardsFromPools(deck, discardPile, Math.max(0, getHandLimit('player') - playerHand.length));
+    const opponentDrawResult = drawCardsFromPools(
+      playerDrawResult.deck,
+      playerDrawResult.discardPile,
+      Math.max(0, getHandLimit('opponent') - opponentHand.length)
+    );
 
-    setPlayerHand(nextPlayerHand);
-    setOpponentHand(nextOpponentHand);
-    setDeck(newDeck);
+    setPlayerHand([...playerHand, ...playerDrawResult.drawnCards]);
+    setOpponentHand([...opponentHand, ...opponentDrawResult.drawnCards]);
+    setDiscardPile(opponentDrawResult.discardPile);
+    setDeck(opponentDrawResult.deck);
+
+    if (playerDrawResult.reshuffled || opponentDrawResult.reshuffled) {
+      addLog('El mazo se vacio. Se barajo el descarte y se formo un nuevo mazo.');
+    }
   };
 
   const scoreGoal = (scorer, reason) => {
@@ -536,21 +655,21 @@ export default function App() {
     setHasActedThisTurn(true);
 
     if (defenseCard.id === 'cont') {
-      setPendingCombo({ actor: defender, type: 'cont_followup' });
-      addLog('Contraataque: recuperas el balon, pero debes combinarlo con un pase antes de tirar a gol.');
+      setPendingCombo({ actor: defender, type: 'cont_followup', stage: 'pass' });
+      addLog('Contraataque activado. Debes jugar un pase y luego Tirar a Gol.');
       return;
     }
 
     if (defenseCard.id === 'sb') {
       setPendingCombo({ actor: defender, type: 'sb_followup' });
-      addLog('Saque de banda: recuperas el balon, pero debes combinarlo con Pase Corto.');
+      addLog('Saque de banda activado. Debes jugar Pase Corto para recuperar y sumar un pase.');
       return;
     }
 
     if (defenseCard.id === 'sc') {
       setActivePlay([]);
-      setPendingCombo({ actor: defender, type: 'sc_followup' });
-      addLog('Saque de corner: recuperas el balon, se reinicia la jugada y debes jugar Pase Aereo antes de tirar a gol.');
+      setPendingCombo({ actor: defender, type: 'sc_followup', stage: 'pass' });
+      addLog('Saque de corner activado. Debes jugar Pase Aereo y luego Tirar a Gol.');
     }
   };
 
@@ -598,12 +717,17 @@ export default function App() {
     }
 
     if (pendingCombo?.type === 'sc_followup') {
-      addLog('Debes completar la secuencia Saque de Corner + Pase Aereo antes de finalizar el turno.');
+      addLog('Debes completar la secuencia Saque de Corner + Pase Aereo + Tirar a Gol antes de finalizar el turno.');
       return;
     }
 
     if (pendingCombo?.type === 'cont_followup') {
       addLog('Debes completar la secuencia Contraataque + pase antes de finalizar el turno.');
+      return;
+    }
+
+    if (pendingCombo?.type === 'chilena_followup') {
+      addLog('Debes completar la combinacion Chilena + Pase Aereo + Tirar a Gol antes de finalizar el turno.');
       return;
     }
 
@@ -712,22 +836,26 @@ export default function App() {
     const hand = [...getHand(actor)];
     const cardsToDiscard = hand.filter((_, idx) => selectedForDiscard.includes(idx));
     const newHand = hand.filter((_, idx) => !selectedForDiscard.includes(idx));
-    const newDeck = [...deck];
-    const drawnCards = newDeck.splice(0, Math.max(0, getHandLimit(actor) - newHand.length));
-
-    setDiscardPile((previousPile) => [...cardsToDiscard, ...previousPile]);
+    const nextDiscardPile = [...cardsToDiscard, ...discardPile];
+    const drawResult = drawCardsFromPools(deck, nextDiscardPile, Math.max(0, getHandLimit(actor) - newHand.length));
 
     if (actor === 'player') {
-      setPlayerHand([...newHand, ...drawnCards]);
+      setPlayerHand([...newHand, ...drawResult.drawnCards]);
     } else {
-      setOpponentHand([...newHand, ...drawnCards]);
+      setOpponentHand([...newHand, ...drawResult.drawnCards]);
     }
 
-    setDeck(newDeck);
+    setDiscardPile(drawResult.discardPile);
+    setDeck(drawResult.deck);
     setCurrentTurn(getOpponent(actor));
     setHasActedThisTurn(false);
     setSelectedForDiscard([]);
     setDiscardMode(false);
+
+    if (drawResult.reshuffled) {
+      addLog('El mazo se vacio. Se barajo el descarte y se formo un nuevo mazo.');
+    }
+
     addLog(`${actor === 'player' ? 'Jugador' : 'Rival'} descarto ${cardsToDiscard.length} carta${cardsToDiscard.length === 1 ? '' : 's'}.`);
   };
 
@@ -781,8 +909,13 @@ export default function App() {
         return;
       }
 
-      if (card.id !== 'pa') {
+      if (pendingCombo.stage === 'pass' && card.id !== 'pa') {
         addLog('Despues de Saque de Corner debes jugar obligatoriamente un Pase Aereo.');
+        return;
+      }
+
+      if (pendingCombo.stage === 'shot' && card.id !== 'tg') {
+        addLog('Despues del Pase Aereo debes jugar obligatoriamente Tirar a Gol.');
         return;
       }
     }
@@ -793,8 +926,25 @@ export default function App() {
         return;
       }
 
-      if (card.type !== 'pass') {
+      if (pendingCombo.stage === 'pass' && card.type !== 'pass') {
         addLog('Despues de Contraataque debes jugar obligatoriamente un pase.');
+        return;
+      }
+
+      if (pendingCombo.stage === 'shot' && card.id !== 'tg') {
+        addLog('Despues del pase del Contraataque debes jugar obligatoriamente Tirar a Gol.');
+        return;
+      }
+    }
+
+    if (pendingCombo?.type === 'chilena_followup' && actor === pendingCombo.actor) {
+      if (pendingCombo.stage === 'pass' && card.id !== 'pa') {
+        addLog('Despues de Chilena debes jugar obligatoriamente Pase Aereo.');
+        return;
+      }
+
+      if (pendingCombo.stage === 'shot' && card.id !== 'tg') {
+        addLog('Despues del Pase Aereo debes jugar obligatoriamente Tirar a Gol.');
         return;
       }
     }
@@ -1023,13 +1173,6 @@ export default function App() {
     }
 
     if (card.type === 'pass') {
-      const lastPass = activePlay[activePlay.length - 1];
-
-      if (lastPass?.id === 'pa' && !pendingCombo) {
-        addLog('Despues de un Pase Aereo debes finalizar la jugada con Chilena o Tirar a Gol.');
-        return;
-      }
-
       const nextPassTotal = currentPassTotal + card.value;
 
       if (nextPassTotal > 4) {
@@ -1042,13 +1185,16 @@ export default function App() {
       if (pendingCombo?.type === 'sb_followup') {
         setPendingCombo(null);
       }
-      if (pendingCombo?.type === 'sc_followup') {
-        setPendingCombo(null);
+      if (pendingCombo?.type === 'sc_followup' && pendingCombo.stage === 'pass') {
+        setPendingCombo({ ...pendingCombo, stage: 'shot' });
         setCounterAttackReady(true);
       }
-      if (pendingCombo?.type === 'cont_followup') {
-        setPendingCombo(null);
+      if (pendingCombo?.type === 'cont_followup' && pendingCombo.stage === 'pass') {
+        setPendingCombo({ ...pendingCombo, stage: 'shot' });
         setCounterAttackReady(true);
+      }
+      if (pendingCombo?.type === 'chilena_followup' && pendingCombo.stage === 'pass') {
+        setPendingCombo({ ...pendingCombo, stage: 'shot' });
       }
       setHasActedThisTurn(true);
       setDiscardMode(false);
@@ -1072,9 +1218,12 @@ export default function App() {
     }
 
     if (card.id === 'tg') {
-      const canShootFromSpecial = counterAttackReady;
+      const canShootFromSpecial =
+        counterAttackReady ||
+        pendingCombo?.type === 'chilena_followup' ||
+        (pendingCombo?.type === 'sc_followup' && pendingCombo.stage === 'shot');
 
-      if (pendingCombo?.type === 'cont_followup') {
+      if (pendingCombo?.type === 'cont_followup' && pendingCombo.stage === 'pass') {
         addLog('Antes de tirar a gol debes jugar el pase obligatorio del Contraataque.');
         return;
       }
@@ -1086,6 +1235,20 @@ export default function App() {
 
       consumeCard(actor, index, card);
       setHasActedThisTurn(true);
+      if (pendingCombo?.type === 'chilena_followup') {
+        setPendingCombo(null);
+        startShotResolution(actor, 'chilena');
+        return;
+      }
+
+      if (pendingCombo?.type === 'sc_followup' && pendingCombo.stage === 'shot') {
+        setPendingCombo(null);
+      }
+
+      if (pendingCombo?.type === 'cont_followup' && pendingCombo.stage === 'shot') {
+        setPendingCombo(null);
+      }
+
       startShotResolution(actor, 'regular');
       return;
     }
@@ -1098,16 +1261,19 @@ export default function App() {
     }
 
     if (card.id === 'ch') {
-      const lastPass = activePlay[activePlay.length - 1];
-
-      if (!lastPass || !String(lastPass.id).startsWith('pa')) {
-        addLog('La Chilena solo puede jugarse despues de un Pase Aereo.');
+      if (!hasCardInHand(actor, 'pa') || !hasCardInHand(actor, 'tg')) {
+        addLog('La Chilena solo puede activarse si tienes Pase Aereo y Tirar a Gol en mano.');
         return;
       }
 
       consumeCard(actor, index, card);
       setHasActedThisTurn(true);
-      startShotResolution(actor, 'chilena');
+      setPendingCombo({
+        actor,
+        type: 'chilena_followup',
+        stage: 'pass'
+      });
+      addLog('Chilena activada. Ahora debes jugar Pase Aereo y luego Tirar a Gol.');
       return;
     }
 
@@ -1401,6 +1567,49 @@ export default function App() {
               </div>
             )}
 
+          {comboWindow && (
+            <div
+              className={`mt-4 w-full max-w-lg rounded-[1.4rem] border px-5 py-4 text-center shadow-[0_18px_40px_rgba(0,0,0,0.28)] ${
+                comboWindow.accent === 'lime'
+                  ? 'border-lime-300/50 bg-lime-500/15 text-lime-100'
+                  : comboWindow.accent === 'sky'
+                    ? 'border-sky-300/50 bg-sky-500/15 text-sky-100'
+                    : comboWindow.accent === 'indigo'
+                      ? 'border-indigo-300/50 bg-indigo-500/15 text-indigo-100'
+                      : 'border-orange-300/50 bg-orange-500/15 text-orange-100'
+              }`}
+            >
+              <div className="text-[10px] font-black uppercase tracking-[0.35em]">
+                {comboWindow.title}
+              </div>
+              <div className="mt-2 text-sm font-black">
+                {comboWindow.actor === 'player' ? 'Jugador' : 'Rival'} en combinacion especial
+              </div>
+              <div className="mt-2 text-sm font-semibold leading-tight text-white">
+                {comboWindow.required}
+              </div>
+              <div className="mt-4 flex items-center justify-center gap-3">
+                {comboWindow.slots.map((slot) => (
+                  <div
+                    key={slot.label}
+                    className={`flex h-20 w-24 flex-col items-center justify-center rounded-2xl border text-center shadow-lg ${
+                      slot.filled
+                        ? 'border-orange-200/80 bg-orange-400/90 text-slate-950'
+                        : 'border-white/15 bg-slate-950/60 text-white/55'
+                    }`}
+                  >
+                    <span className="px-2 text-[10px] font-black uppercase leading-tight tracking-[0.18em]">
+                      {slot.label}
+                    </span>
+                    <span className="mt-2 text-[9px] font-black uppercase">
+                      {slot.filled ? 'Listo' : 'Pendiente'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="relative z-10 w-full max-w-2xl pb-2">
           <div className="mb-3 text-center text-[11px] font-black uppercase tracking-[0.3em] text-white/70">
             Turno actual: {currentTurnLabel}
@@ -1444,6 +1653,66 @@ export default function App() {
               />
             ))}
           </div>
+
+          {gameState === 'menu' && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-6">
+              <div className="w-full max-w-2xl rounded-[2rem] border border-emerald-400/20 bg-slate-950/90 px-8 py-10 text-center shadow-[0_20px_70px_rgba(0,0,0,0.6)]">
+                <div className="mb-3 text-[11px] font-black uppercase tracking-[0.45em] text-emerald-400/70">
+                  Menu principal
+                </div>
+                <h1 className="mb-4 text-4xl font-black text-white">Gol App</h1>
+                <p className="mx-auto mb-8 max-w-xl text-sm font-semibold text-white/65">
+                  Elige si quieres entrar directo al partido o ver un tutorial rapido con las reglas base y las combinaciones especiales.
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-4">
+                  <button
+                    onClick={startFromMenu}
+                    className="flex items-center gap-3 rounded-2xl bg-emerald-500 px-8 py-4 text-sm font-black text-slate-950 transition-all hover:bg-emerald-400"
+                  >
+                    <PlayCircle size={18} /> JUGAR
+                  </button>
+                  <button
+                    onClick={() => setGameState('tutorial')}
+                    className="flex items-center gap-3 rounded-2xl border border-white/15 bg-white/5 px-8 py-4 text-sm font-black text-white transition-all hover:bg-white/10"
+                  >
+                    <BookOpen size={18} /> TUTORIAL
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {gameState === 'tutorial' && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-6">
+              <div className="w-full max-w-3xl rounded-[2rem] border border-cyan-400/20 bg-slate-950/95 px-8 py-8 text-left shadow-[0_20px_70px_rgba(0,0,0,0.6)]">
+                <div className="mb-3 text-[11px] font-black uppercase tracking-[0.45em] text-cyan-400/70">
+                  Tutorial rapido
+                </div>
+                <h2 className="mb-6 text-3xl font-black text-white">Como se juega</h2>
+                <div className="space-y-4 text-sm font-semibold text-white/75">
+                  <p>Construye la jugada con pases hasta llegar a una situacion de tiro o activa combinaciones especiales para atacar mas rapido.</p>
+                  <p>Las cartas defensivas recuperan la posesion o abren respuestas. Algunas secuencias ahora usan subventanas para mostrar el orden obligatorio de cartas.</p>
+                  <p>Combinaciones especiales actuales: `Chilena`, `Contraataque`, `Saque de banda` y `Saque de corner`.</p>
+                  <p>Cuando el mazo se acaba, el descarte se baraja automaticamente y se convierte en el nuevo mazo.</p>
+                  <p>Las tarjetas amarillas y rojas muestran su efecto en pantalla, incluyendo los turnos de sancion restantes.</p>
+                </div>
+                <div className="mt-8 flex flex-wrap items-center justify-end gap-4">
+                  <button
+                    onClick={() => setGameState('menu')}
+                    className="rounded-2xl border border-white/15 bg-white/5 px-6 py-3 text-sm font-black text-white transition-all hover:bg-white/10"
+                  >
+                    VOLVER
+                  </button>
+                  <button
+                    onClick={startFromMenu}
+                    className="rounded-2xl bg-emerald-500 px-6 py-3 text-sm font-black text-slate-950 transition-all hover:bg-emerald-400"
+                  >
+                    IR A JUGAR
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {gameState === 'coin-flip' && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-6">
