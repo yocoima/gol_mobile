@@ -9,6 +9,8 @@ import {
   RefreshCcw,
   Trash2,
 } from 'lucide-react';
+import yellowCardImage from '../imagenes/Tarjeta amarilla.png';
+import redCardImage from '../imagenes/Tarjeta roja.png';
 
 const CARD_IMAGE_MODULES = import.meta.glob('../imagenes/*.{png,jpg,jpeg,webp}', {
   eager: true,
@@ -19,7 +21,7 @@ const normalizeAssetName = (value) =>
   value
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\.[^/.]+$/, '')
+    .replace(/\.(png|jpe?g|webp|gif|bmp)$/i, '')
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase();
@@ -34,6 +36,8 @@ const CARD_IMAGE_BY_ID = {
   ta: CARD_IMAGE_BY_NAME['tarjeta amarilla'] ?? null,
   tr: CARD_IMAGE_BY_NAME['tarjeta roja'] ?? null
 };
+const YELLOW_CARD_IMAGE = yellowCardImage;
+const RED_CARD_IMAGE = redCardImage;
 const BALL_IMAGE = CARD_IMAGE_BY_NAME.balon ?? null;
 
 const DECK_DEFINITION = [
@@ -175,6 +179,21 @@ const TUTORIAL_SEQUENCES = [
       text: 'La Tarjeta Roja puede ser anulada con VAR.',
       card: 'VAR'
     }
+  },
+  {
+    title: 'Tarjetas',
+    note: 'Las tarjetas cambian el ritmo de la jugada y la sancion.',
+    layout: 'versus',
+    left: {
+      title: 'Tarjeta Amarilla',
+      text: 'La Amarilla concede un turno extra al rival en la jugada.',
+      card: 'Tarj. Amarilla'
+    },
+    right: {
+      title: 'Tarjeta Roja',
+      text: 'La Roja obliga descarte y deja al rival con menos mano por varios turnos.',
+      card: 'Tarj. Roja'
+    }
   }
 ];
 
@@ -278,6 +297,8 @@ const TutorialStepCard = ({ label }) => {
   const normalizedLabel = normalizeAssetName(label);
   const tutorialAliases = {
     'pase': 'Pase Corto',
+    'tarjeta amarilla': 'Tarj. Amarilla',
+    'tarjeta roja': 'Tarj. Roja',
     'parada arquero o var': 'VAR',
     'gol o remate': 'Remate',
     'recupera posesion': 'Barrida',
@@ -288,7 +309,21 @@ const TutorialStepCard = ({ label }) => {
   };
   const mappedLabel = tutorialAliases[normalizedLabel] ?? label;
   const mappedNormalizedLabel = normalizeAssetName(mappedLabel);
+  const tutorialCardOverrides = {
+    [normalizeAssetName('Tarj. Amarilla')]: {
+      name: 'Tarj. Amarilla',
+      color: 'bg-yellow-400',
+      imageUrl: YELLOW_CARD_IMAGE
+    },
+    [normalizeAssetName('Tarj. Roja')]: {
+      name: 'Tarj. Roja',
+      color: 'bg-red-500',
+      imageUrl: RED_CARD_IMAGE
+    }
+  };
+  const cardById = tutorialCardOverrides[mappedNormalizedLabel] ?? null;
   const card =
+    cardById ??
     DECK_DEFINITION.find((entry) => normalizeAssetName(entry.name) === mappedNormalizedLabel) ??
     DECK_DEFINITION.find((entry) => entry.type === 'pass' && mappedNormalizedLabel === 'pase corto');
 
