@@ -708,6 +708,47 @@ export default function App() {
     }
   };
 
+  const refillActorHandToLimit = (actor, targetLimit) => {
+    const currentHand = getHand(actor);
+    const drawResult = drawCardsFromPools(deck, discardPile, Math.max(0, targetLimit - currentHand.length));
+
+    if (actor === 'player') {
+      setPlayerHand([...currentHand, ...drawResult.drawnCards]);
+    } else {
+      setOpponentHand([...currentHand, ...drawResult.drawnCards]);
+    }
+
+    setDiscardPile(drawResult.discardPile);
+    setDeck(drawResult.deck);
+
+    if (drawResult.reshuffled) {
+      addLog('El mazo se vacio. Se barajo el descarte y se formo un nuevo mazo.');
+    }
+  };
+
+  const applyRedCardTurnProgress = (actor) => {
+    const currentTurns = redCardPenalty[actor];
+
+    if (currentTurns <= 0) {
+      return;
+    }
+
+    consumeRedCardTurn(actor);
+
+    if (currentTurns <= 1) {
+      clearSanctionFor(actor);
+      refillActorHandToLimit(actor, 5);
+      return;
+    }
+
+    setSanctionFor(actor, {
+      type: 'red',
+      title: 'Roja',
+      detail: 'Descarta 1 y juega con 4 cartas durante 3 turnos.',
+      turnsRemaining: currentTurns - 1
+    });
+  };
+
   const scoreGoal = (scorer, reason) => {
     const scorerLabel = scorer === 'player' ? 'Jugador' : 'Rival';
     const nextPlayerScore = scorer === 'player' ? playerScore + 1 : playerScore;
@@ -721,6 +762,7 @@ export default function App() {
     });
 
     const nextActor = getOpponent(scorer);
+    applyRedCardTurnProgress(scorer);
     clearTransientState();
 
     if (Math.max(nextPlayerScore, nextOpponentScore) >= 5) {
@@ -881,6 +923,11 @@ export default function App() {
   };
 
   const endTurn = () => {
+    if (pendingBlindDiscard) {
+      addLog('Debes resolver primero el descarte oculto antes de continuar.');
+      return;
+    }
+
     if (pendingCombo?.type === 'sb_followup') {
       addLog('Debes completar la secuencia Saque de Banda + Pase Corto antes de finalizar el turno.');
       return;
@@ -956,17 +1003,7 @@ export default function App() {
     }
 
     if (redCardPenalty[actor] > 0 && !keepsTurn) {
-      consumeRedCardTurn(actor);
-      if (redCardPenalty[actor] <= 1) {
-        clearSanctionFor(actor);
-      } else {
-        setSanctionFor(actor, {
-          type: 'red',
-          title: 'Roja',
-          detail: 'Descarta 1 y juega con 4 cartas durante 3 turnos.',
-          turnsRemaining: redCardPenalty[actor] - 1
-        });
-      }
+      applyRedCardTurnProgress(actor);
     }
 
     setCurrentTurn(nextActor);
@@ -1017,6 +1054,7 @@ export default function App() {
 
     setDiscardPile(drawResult.discardPile);
     setDeck(drawResult.deck);
+    applyRedCardTurnProgress(actor);
     setCurrentTurn(getOpponent(actor));
     setHasActedThisTurn(false);
     setSelectedForDiscard([]);
@@ -1800,12 +1838,17 @@ export default function App() {
               </button>
             )}
 
-            <button
-              onClick={endTurn}
-              className="flex items-center gap-2 rounded-full bg-emerald-500 px-8 py-2.5 text-[10px] font-black shadow-xl hover:bg-emerald-400"
-            >
-              <ArrowRightCircle size={14} /> FINALIZAR TURNO
-            </button>
+              <button
+                onClick={endTurn}
+                disabled={Boolean(pendingBlindDiscard)}
+                className={`flex items-center gap-2 rounded-full px-8 py-2.5 text-[10px] font-black shadow-xl ${
+                  pendingBlindDiscard
+                    ? 'cursor-not-allowed bg-slate-700 text-white/50'
+                    : 'bg-emerald-500 hover:bg-emerald-400'
+                }`}
+              >
+                <ArrowRightCircle size={14} /> FINALIZAR TURNO
+              </button>
           </div>
 
           <div className="grid w-full grid-cols-5 justify-items-center gap-1.5 sm:flex sm:flex-wrap sm:justify-center sm:gap-1.5">
