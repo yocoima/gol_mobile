@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   ArrowRightCircle,
+  Bot,
   BookOpen,
   Coins,
   History,
@@ -91,15 +92,41 @@ const AUTO_PASS_BY_DEFENSE = {
 };
 const PRE_SHOT_DEFENSE_CARD_IDS = ['ba', 'fa', 'sb', 'sc', 'cont'];
 
-const initDeck = () => {
-  const fullDeck = DECK_DEFINITION.flatMap((card) =>
-    Array.from({ length: card.count }, () => ({ ...card }))
-  );
+const getRandomIndex = (maxExclusive) => {
+  if (maxExclusive <= 0) {
+    return 0;
+  }
 
-  return fullDeck.sort(() => Math.random() - 0.5);
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const values = new Uint32Array(1);
+    crypto.getRandomValues(values);
+    return values[0] % maxExclusive;
+  }
+
+  return Math.floor(Math.random() * maxExclusive);
 };
 
-const shuffleCards = (cards) => [...cards].sort(() => Math.random() - 0.5);
+const shuffleCards = (cards) => {
+  const shuffled = [...cards];
+
+  for (let currentIndex = shuffled.length - 1; currentIndex > 0; currentIndex -= 1) {
+    const randomIndex = getRandomIndex(currentIndex + 1);
+    [shuffled[currentIndex], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[currentIndex]];
+  }
+
+  return shuffled;
+};
+
+const initDeck = () => {
+  const fullDeck = DECK_DEFINITION.flatMap((card) =>
+    Array.from({ length: card.count }, (_, instanceIndex) => ({
+      ...card,
+      instanceId: `${card.id}-${instanceIndex}-${getRandomIndex(1_000_000)}`
+    }))
+  );
+
+  return shuffleCards(fullDeck);
+};
 
 const TUTORIAL_SEQUENCES = [
   {
@@ -411,6 +438,8 @@ export default function App() {
   const [gameLog, setGameLog] = useState(['Posesion persistente activada']);
   const [goalCelebration, setGoalCelebration] = useState(null);
   const [matchWinner, setMatchWinner] = useState(null);
+  const [aiMode, setAiMode] = useState(false);
+  const [aiStatus, setAiStatus] = useState('');
 
   const isPlayerTurn = currentTurn === 'player';
   const isOpponentTurn = currentTurn === 'opponent';
@@ -435,6 +464,18 @@ export default function App() {
 
     return () => window.clearTimeout(timeoutId);
   }, [goalCelebration]);
+
+  useEffect(() => {
+    if (!aiStatus) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setAiStatus('');
+    }, 1900);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [aiStatus]);
 
   const getOpponent = (actor) => (actor === 'player' ? 'opponent' : 'player');
   const getHand = (actor) => (actor === 'player' ? playerHand : opponentHand);
@@ -489,6 +530,160 @@ export default function App() {
 
       return hasCardInHand(actor, cardId);
     });
+  const getFirstCardIndex = (actor, matcher) => getHand(actor).findIndex((card) => matcher(card));
+  const getPreferredPassIndex = (actor, maxTotal = 4) => {
+    const availablePasses = getHand(actor)
+      .map((card, index) => ({ card, index }))
+      .filter(({ card }) => card.type === 'pass' && currentPassTotal + card.value <= maxTotal)
+      .sort((left, right) => right.card.value - left.card.value);
+
+    return availablePasses[0]?.index ?? -1;
+  };
+  const getDiscardAction = (actor) => {
+    if (hasActedThisTurn || hasReactionWindow || getHand(actor).length < 2) {
+      return null;
+    }
+
+    const discardIndexes = getHand(actor)
+      .map((_, index) => index)
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 2);
+
+    return { type: 'discard', indexes: discardIndexes };
+  };
+  const chooseOpponentAction = () => {
+    if (gameState !== 'playing' || currentTurn !== 'opponent') {
+      if (aiMode && pendingBlindDiscard?.actor === 'player' && playerHand.length > 0) {
+        return { type: 'blind-discard-player', index: Math.floor(Math.random() * playerHand.length) };
+      }
+
+      return null;
+    }
+
+    if (pendingBlindDiscard?.actor === 'opponent') {
+      return opponentHand.length > 0 ? { type: 'play', index: Math.floor(Math.random() * opponentHand.length) } : null;
+    }
+
+    if (pendingCombo?.actor === 'opponent') {
+      if (pendingCombo.type === 'sb_followup') {
+        return { type: 'play', index: getFirstCardIndex('opponent', (card) => card.id === 'pc') };
+      }
+
+      if (pendingCombo.type === 'sc_followup') {
+        return {
+          type: 'play',
+          index: pendingCombo.stage === 'pass'
+            ? getFirstCardIndex('opponent', (card) => card.id === 'pa')
+            : getFirstCardIndex('opponent', (card) => card.id === 'tg')
+        };
+      }
+
+      if (pendingCombo.type === 'cont_followup') {
+        return {
+          type: 'play',
+          index: pendingCombo.stage === 'pass'
+            ? getPreferredPassIndex('opponent')
+            : getFirstCardIndex('opponent', (card) => card.id === 'tg')
+        };
+      }
+
+      if (pendingCombo.type === 'chilena_followup') {
+        return {
+          type: 'play',
+          index: pendingCombo.stage === 'pass'
+            ? getFirstCardIndex('opponent', (card) => card.id === 'pa')
+            : getFirstCardIndex('opponent', (card) => card.id === 'tg')
+        };
+      }
+    }
+
+    if (pendingDefense?.defenseCardId === 'pre_shot' && pendingDefense.defender === 'opponent') {
+      const options = [
+        getFirstCardIndex('opponent', (card) => card.id === 'sc' && hasCardInHand('opponent', 'pa') && hasCardInHand('opponent', 'tg')),
+        getFirstCardIndex('opponent', (card) => card.id === 'cont' && hasCardInHand('opponent', 'tg') && getHand('opponent').some((handCard) => handCard.type === 'pass')),
+        getFirstCardIndex('opponent', (card) => card.id === 'sb' && hasCardInHand('opponent', 'pc')),
+        getFirstCardIndex('opponent', (card) => card.id === 'ba'),
+        getFirstCardIndex('opponent', (card) => card.id === 'fa')
+      ].filter((index) => index >= 0);
+
+      return options.length > 0 ? { type: 'play', index: options[0] } : { type: 'end' };
+    }
+
+    if (pendingDefense?.defenseCardId === 'red_card_var' && pendingDefense.defender === 'opponent') {
+      const varIndex = getFirstCardIndex('opponent', (card) => card.id === 'var');
+      return varIndex >= 0 ? { type: 'play', index: varIndex } : { type: 'end' };
+    }
+
+    if (pendingDefense && pendingDefense.possessor === 'opponent') {
+      if (pendingDefense.defenseCardId === 'ba') {
+        return { type: 'play', index: getFirstCardIndex('opponent', (card) => card.id === 'reg') };
+      }
+
+      if (pendingDefense.defenseCardId === 'fa') {
+        const yellowIndex = getFirstCardIndex('opponent', (card) => card.id === 'ta');
+        const redIndex = getFirstCardIndex('opponent', (card) => card.id === 'tr');
+        return { type: 'play', index: yellowIndex >= 0 ? yellowIndex : redIndex };
+      }
+    }
+
+    if (pendingShot?.phase === 'penalty_response' && pendingShot.defender === 'opponent') {
+      const saveIndex = getFirstCardIndex('opponent', (card) => card.id === 'paq');
+      const varIndex = getFirstCardIndex('opponent', (card) => card.id === 'var');
+      return saveIndex >= 0 ? { type: 'play', index: saveIndex } : varIndex >= 0 ? { type: 'play', index: varIndex } : { type: 'end' };
+    }
+
+    if (pendingShot?.phase === 'save' && pendingShot.defender === 'opponent') {
+      const saveIndex = getFirstCardIndex('opponent', (card) => card.id === 'paq');
+      return saveIndex >= 0 ? { type: 'play', index: saveIndex } : { type: 'end' };
+    }
+
+    if (pendingShot?.phase === 'remate' && pendingShot.attacker === 'opponent') {
+      const remateIndex = getFirstCardIndex('opponent', (card) => card.id === 'rem');
+      return remateIndex >= 0 ? { type: 'play', index: remateIndex } : { type: 'end' };
+    }
+
+    if (possession !== 'opponent') {
+      const stealOptions = [
+        getFirstCardIndex('opponent', (card) => card.id === 'cont' && hasCardInHand('opponent', 'tg') && getHand('opponent').some((handCard) => handCard.type === 'pass')),
+        getFirstCardIndex('opponent', (card) => card.id === 'sc' && hasCardInHand('opponent', 'pa') && hasCardInHand('opponent', 'tg')),
+        getFirstCardIndex('opponent', (card) => card.id === 'sb' && hasCardInHand('opponent', 'pc')),
+        getFirstCardIndex('opponent', (card) => card.id === 'ba'),
+        getFirstCardIndex('opponent', (card) => card.id === 'fa')
+      ].filter((index) => index >= 0);
+
+      return stealOptions.length > 0 ? { type: 'play', index: stealOptions[0] } : (getDiscardAction('opponent') ?? { type: 'end' });
+    }
+
+    const canShootNow =
+      counterAttackReady ||
+      (pendingCombo?.type === 'chilena_followup' && pendingCombo.stage === 'shot') ||
+      (pendingCombo?.type === 'sc_followup' && pendingCombo.stage === 'shot') ||
+      (pendingCombo?.type === 'cont_followup' && pendingCombo.stage === 'shot') ||
+      currentPassTotal >= 4;
+    if (canShootNow) {
+      const shotIndex = getFirstCardIndex('opponent', (card) => card.id === 'tg');
+      if (shotIndex >= 0) {
+        return { type: 'play', index: shotIndex };
+      }
+    }
+
+    const chilenaIndex = getFirstCardIndex('opponent', (card) => card.id === 'ch' && hasCardInHand('opponent', 'pa') && hasCardInHand('opponent', 'tg'));
+    if (chilenaIndex >= 0 && currentPassTotal === 0) {
+      return { type: 'play', index: chilenaIndex };
+    }
+
+    const passIndex = getPreferredPassIndex('opponent');
+    if (passIndex >= 0) {
+      return { type: 'play', index: passIndex };
+    }
+
+    const penaltyIndex = getFirstCardIndex('opponent', (card) => card.id === 'pe');
+    if (penaltyIndex >= 0) {
+      return { type: 'play', index: penaltyIndex };
+    }
+
+    return getDiscardAction('opponent') ?? { type: 'end' };
+  };
   const hasReactionWindow = Boolean(pendingShot || pendingDefense || pendingBlindDiscard || pendingCombo);
   const canUseDiscard = !hasActedThisTurn && !hasReactionWindow;
   const reactionBannerMessage =
@@ -523,6 +718,7 @@ export default function App() {
                       ? `SECUENCIA OBLIGATORIA: ${pendingCombo.actor === 'player' ? 'JUGADOR' : 'RIVAL'} DEBE JUGAR PASE AEREO`
                       : `SECUENCIA OBLIGATORIA: ${pendingCombo.actor === 'player' ? 'JUGADOR' : 'RIVAL'} DEBE JUGAR TIRAR A GOL`
                       : null;
+  const statusBannerMessage = aiStatus || reactionBannerMessage;
   const comboWindow =
     pendingCombo?.type === 'chilena_followup'
       ? {
@@ -647,6 +843,7 @@ export default function App() {
     setPendingBlindDiscard(null);
     setGoalCelebration(null);
     setMatchWinner(null);
+    setAiMode(false);
     setGameLog(['Posesion persistente activada']);
     clearTransientState();
   };
@@ -672,10 +869,11 @@ export default function App() {
     setOpponentHand([...nextHand, ...drawResult.drawnCards]);
   };
 
-  const startFromMenu = () => {
+  const startFromMenu = (nextAiMode = false) => {
+    setAiMode(nextAiMode);
     setGameState('coin-flip');
     setTutorialPage(0);
-    setGameLog(['Posesion persistente activada']);
+    setGameLog([nextAiMode ? 'Modo IA activado' : 'Posesion persistente activada']);
   };
 
   const openBlindDiscard = (actor, reason, returnTurnTo) => {
@@ -714,6 +912,43 @@ export default function App() {
     setHasActedThisTurn(returnTurnTo !== actor);
   };
 
+  const executeDiscard = (actor, indexes) => {
+    const hand = [...getHand(actor)];
+    const uniqueIndexes = [...new Set(indexes)]
+      .filter((index) => index >= 0 && index < hand.length)
+      .sort((left, right) => left - right);
+
+    if (uniqueIndexes.length === 0) {
+      return false;
+    }
+
+    const cardsToDiscard = hand.filter((_, idx) => uniqueIndexes.includes(idx));
+    const newHand = hand.filter((_, idx) => !uniqueIndexes.includes(idx));
+    const nextDiscardPile = [...cardsToDiscard, ...discardPile];
+    const drawResult = drawCardsFromPools(deck, nextDiscardPile, Math.max(0, getHandLimit(actor) - newHand.length));
+
+    if (actor === 'player') {
+      setPlayerHand([...newHand, ...drawResult.drawnCards]);
+    } else {
+      setOpponentHand([...newHand, ...drawResult.drawnCards]);
+    }
+
+    setDiscardPile(drawResult.discardPile);
+    setDeck(drawResult.deck);
+    applyRedCardTurnProgress(actor);
+    setCurrentTurn(getOpponent(actor));
+    setHasActedThisTurn(false);
+    setSelectedForDiscard([]);
+    setDiscardMode(false);
+
+    if (drawResult.reshuffled) {
+      addLog('El mazo se vacio. Se barajo el descarte y se formo un nuevo mazo.');
+    }
+
+    addLog(`${actor === 'player' ? 'Jugador' : 'Rival'} descarto ${cardsToDiscard.length} carta${cardsToDiscard.length === 1 ? '' : 's'}.`);
+    return true;
+  };
+
   const fillHandsToLimits = () => {
     const playerDrawResult = drawCardsFromPools(deck, discardPile, Math.max(0, getHandLimit('player') - playerHand.length));
     const opponentDrawResult = drawCardsFromPools(
@@ -732,6 +967,47 @@ export default function App() {
     }
   };
 
+  const refillActorHandToLimit = (actor, targetLimit) => {
+    const currentHand = getHand(actor);
+    const drawResult = drawCardsFromPools(deck, discardPile, Math.max(0, targetLimit - currentHand.length));
+
+    if (actor === 'player') {
+      setPlayerHand([...currentHand, ...drawResult.drawnCards]);
+    } else {
+      setOpponentHand([...currentHand, ...drawResult.drawnCards]);
+    }
+
+    setDiscardPile(drawResult.discardPile);
+    setDeck(drawResult.deck);
+
+    if (drawResult.reshuffled) {
+      addLog('El mazo se vacio. Se barajo el descarte y se formo un nuevo mazo.');
+    }
+  };
+
+  const applyRedCardTurnProgress = (actor) => {
+    const currentTurns = redCardPenalty[actor];
+
+    if (currentTurns <= 0) {
+      return;
+    }
+
+    consumeRedCardTurn(actor);
+
+    if (currentTurns <= 1) {
+      clearSanctionFor(actor);
+      refillActorHandToLimit(actor, 5);
+      return;
+    }
+
+    setSanctionFor(actor, {
+      type: 'red',
+      title: 'Roja',
+      detail: 'Descarta 1 y juega con 4 cartas durante 3 turnos.',
+      turnsRemaining: currentTurns - 1
+    });
+  };
+
   const scoreGoal = (scorer, reason) => {
     const scorerLabel = scorer === 'player' ? 'Jugador' : 'Rival';
     const nextPlayerScore = scorer === 'player' ? playerScore + 1 : playerScore;
@@ -745,6 +1021,7 @@ export default function App() {
     });
 
     const nextActor = getOpponent(scorer);
+    applyRedCardTurnProgress(scorer);
     clearTransientState();
 
     if (Math.max(nextPlayerScore, nextOpponentScore) >= 5) {
@@ -911,6 +1188,11 @@ export default function App() {
   };
 
   const endTurn = () => {
+    if (pendingBlindDiscard) {
+      addLog('Debes resolver primero el descarte oculto antes de continuar.');
+      return;
+    }
+
     if (pendingCombo?.type === 'sb_followup') {
       addLog('Debes completar la secuencia Saque de Banda + Pase Corto antes de finalizar el turno.');
       return;
@@ -994,17 +1276,7 @@ export default function App() {
     }
 
     if (redCardPenalty[actor] > 0 && !keepsTurn) {
-      consumeRedCardTurn(actor);
-      if (redCardPenalty[actor] <= 1) {
-        clearSanctionFor(actor);
-      } else {
-        setSanctionFor(actor, {
-          type: 'red',
-          title: 'Roja',
-          detail: 'Descarta 1 y juega con 4 cartas durante 3 turnos.',
-          turnsRemaining: redCardPenalty[actor] - 1
-        });
-      }
+      applyRedCardTurnProgress(actor);
     }
 
     setCurrentTurn(nextActor);
@@ -1040,31 +1312,7 @@ export default function App() {
       return;
     }
 
-    const actor = currentTurn;
-    const hand = [...getHand(actor)];
-    const cardsToDiscard = hand.filter((_, idx) => selectedForDiscard.includes(idx));
-    const newHand = hand.filter((_, idx) => !selectedForDiscard.includes(idx));
-    const nextDiscardPile = [...cardsToDiscard, ...discardPile];
-    const drawResult = drawCardsFromPools(deck, nextDiscardPile, Math.max(0, getHandLimit(actor) - newHand.length));
-
-    if (actor === 'player') {
-      setPlayerHand([...newHand, ...drawResult.drawnCards]);
-    } else {
-      setOpponentHand([...newHand, ...drawResult.drawnCards]);
-    }
-
-    setDiscardPile(drawResult.discardPile);
-    setDeck(drawResult.deck);
-    setCurrentTurn(getOpponent(actor));
-    setHasActedThisTurn(false);
-    setSelectedForDiscard([]);
-    setDiscardMode(false);
-
-    if (drawResult.reshuffled) {
-      addLog('El mazo se vacio. Se barajo el descarte y se formo un nuevo mazo.');
-    }
-
-    addLog(`${actor === 'player' ? 'Jugador' : 'Rival'} descarto ${cardsToDiscard.length} carta${cardsToDiscard.length === 1 ? '' : 's'}.`);
+    executeDiscard(currentTurn, selectedForDiscard);
   };
 
   const toggleDiscardSelection = (event, index) => {
@@ -1560,6 +1808,78 @@ export default function App() {
     addLog('No puedes usar esa carta ahora.');
   };
 
+  useEffect(() => {
+    if (!aiMode || gameState !== 'playing') {
+      return undefined;
+    }
+
+    const isOpponentTurn = currentTurn === 'opponent';
+    const isAiResolvingPlayerBlindDiscard = pendingBlindDiscard?.actor === 'player';
+
+    if (!isOpponentTurn && !isAiResolvingPlayerBlindDiscard) {
+      return undefined;
+    }
+
+    const action = chooseOpponentAction();
+
+    if (!action) {
+      return undefined;
+    }
+
+    setAiStatus(pendingBlindDiscard ? 'IA elige una carta oculta...' : 'IA pensando...');
+
+    const timeoutId = window.setTimeout(() => {
+      if (action.type === 'end') {
+        addLog('IA: finaliza el turno.');
+        setAiStatus('IA finaliza el turno');
+        endTurn();
+        return;
+      }
+
+      if (action.type === 'discard') {
+        setAiStatus('IA descarta 2 cartas');
+        executeDiscard('opponent', action.indexes);
+        return;
+      }
+
+      if (action.type === 'blind-discard-player') {
+        setAiStatus('IA elige una carta oculta del jugador');
+        resolveBlindDiscard('player', action.index);
+        return;
+      }
+
+      const card = opponentHand[action.index];
+
+      if (!card) {
+        addLog('IA: no encontro una carta valida y finaliza el turno.');
+        setAiStatus('IA no encontro jugada valida');
+        endTurn();
+        return;
+      }
+
+      addLog(`IA juega: ${card.name}`);
+      setAiStatus(`IA juega: ${card.name}`);
+      playCard(card, action.index, false);
+    }, pendingBlindDiscard ? 1200 : 1800);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [
+    aiMode,
+    gameState,
+    currentTurn,
+    playerHand,
+    opponentHand,
+    possession,
+    pendingBlindDiscard,
+    pendingCombo,
+    pendingDefense,
+    pendingShot,
+    counterAttackReady,
+    currentPassTotal,
+    hasActedThisTurn,
+    hasReactionWindow
+  ]);
+
   return (
       <div className="flex min-h-screen flex-col overflow-hidden bg-slate-950 text-white">
         <style>{`
@@ -1826,9 +2146,9 @@ export default function App() {
             {gameLog[0]}
           </div>
 
-            {reactionBannerMessage && (
+            {statusBannerMessage && (
               <div className="mt-3 rounded-full border border-yellow-300/40 bg-yellow-500/15 px-5 py-2 text-center text-[10px] font-black uppercase tracking-[0.22em] text-yellow-200 shadow-[0_0_20px_rgba(250,204,21,0.18)]">
-                {reactionBannerMessage}
+                {statusBannerMessage}
               </div>
             )}
 
@@ -1895,12 +2215,17 @@ export default function App() {
               </button>
             )}
 
-            <button
-              onClick={endTurn}
-              className="flex items-center gap-2 rounded-full bg-emerald-500 px-8 py-2.5 text-[10px] font-black shadow-xl hover:bg-emerald-400"
-            >
-              <ArrowRightCircle size={14} /> FINALIZAR TURNO
-            </button>
+              <button
+                onClick={endTurn}
+                disabled={Boolean(pendingBlindDiscard)}
+                className={`flex items-center gap-2 rounded-full px-8 py-2.5 text-[10px] font-black shadow-xl ${
+                  pendingBlindDiscard
+                    ? 'cursor-not-allowed bg-slate-700 text-white/50'
+                    : 'bg-emerald-500 hover:bg-emerald-400'
+                }`}
+              >
+                <ArrowRightCircle size={14} /> FINALIZAR TURNO
+              </button>
           </div>
 
           <div className="grid w-full grid-cols-5 justify-items-center gap-1.5 sm:flex sm:flex-wrap sm:justify-center sm:gap-1.5">
@@ -1929,17 +2254,23 @@ export default function App() {
                 <p className="mx-auto mb-8 max-w-xl text-sm font-semibold text-white/65">
                   Elige si quieres entrar directo al partido o ver un tutorial rapido con las reglas base y las combinaciones especiales.
                 </p>
-                <div className="flex flex-wrap items-center justify-center gap-4">
-                  <button
-                    onClick={startFromMenu}
-                    className="flex items-center gap-3 rounded-2xl bg-emerald-500 px-8 py-4 text-sm font-black text-slate-950 transition-all hover:bg-emerald-400"
-                  >
-                    <PlayCircle size={18} /> JUGAR
-                  </button>
-                  <button
-                    onClick={() => setGameState('tutorial')}
-                    className="flex items-center gap-3 rounded-2xl border border-white/15 bg-white/5 px-8 py-4 text-sm font-black text-white transition-all hover:bg-white/10"
-                  >
+                  <div className="flex flex-wrap items-center justify-center gap-4">
+                    <button
+                      onClick={() => startFromMenu(false)}
+                      className="flex items-center gap-3 rounded-2xl bg-emerald-500 px-8 py-4 text-sm font-black text-slate-950 transition-all hover:bg-emerald-400"
+                    >
+                      <PlayCircle size={18} /> JUGAR
+                    </button>
+                    <button
+                      onClick={() => startFromMenu(true)}
+                      className="flex items-center gap-3 rounded-2xl bg-cyan-400 px-8 py-4 text-sm font-black text-slate-950 transition-all hover:bg-cyan-300"
+                    >
+                      <Bot size={18} /> JUGAR CONTRA IA
+                    </button>
+                    <button
+                      onClick={() => setGameState('tutorial')}
+                      className="flex items-center gap-3 rounded-2xl border border-white/15 bg-white/5 px-8 py-4 text-sm font-black text-white transition-all hover:bg-white/10"
+                    >
                     <BookOpen size={18} /> TUTORIAL
                   </button>
                 </div>
