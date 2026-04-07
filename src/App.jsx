@@ -8,7 +8,9 @@ import {
   Library,
   PlayCircle,
   RefreshCcw,
+  Shield,
   Trash2,
+  UserRound,
 } from 'lucide-react';
 import yellowCardImage from '../imagenes/Tarjeta amarilla.png';
 import redCardImage from '../imagenes/Tarjeta roja.png';
@@ -284,6 +286,34 @@ const SoccerBallIcon = ({ size, className }) =>
       <path d="M12 2a10 10 0 0 1 10 10" />
     </svg>
   );
+
+const getOppositeCoinFace = (face) => (face === 'Cara' ? 'Sello' : 'Cara');
+
+const CoinFace = ({ face, mirrored = false }) => {
+  const isCara = face === 'Cara';
+  const FaceIcon = isCara ? UserRound : Shield;
+
+  return (
+    <div
+      className="absolute inset-0 flex items-center justify-center rounded-full"
+      style={{
+        backfaceVisibility: 'hidden',
+        transform: mirrored ? 'rotateY(180deg)' : 'rotateY(0deg)'
+      }}
+    >
+      <div className="absolute inset-[7px] rounded-full border border-white/50 bg-[radial-gradient(circle_at_30%_24%,rgba(255,255,255,0.98)_0%,rgba(225,231,239,0.94)_30%,rgba(154,165,178,0.95)_62%,rgba(77,88,100,1)_100%)]" />
+      <div className="absolute inset-[15px] rounded-full border border-white/35 bg-[radial-gradient(circle_at_28%_26%,rgba(255,255,255,0.82)_0%,rgba(214,221,231,0.4)_22%,rgba(82,92,106,0.14)_72%,rgba(255,255,255,0.05)_100%)]" />
+      <div className="relative flex h-[74px] w-[74px] items-center justify-center rounded-full border border-slate-900/12 bg-slate-700/10 shadow-[inset_0_10px_18px_rgba(255,255,255,0.2),inset_0_-14px_24px_rgba(55,65,81,0.24)]">
+        <div className="absolute h-[54px] w-[54px] rounded-full border border-slate-900/10 bg-white/10 shadow-[inset_0_4px_10px_rgba(255,255,255,0.22)]" />
+        <FaceIcon className="relative h-8 w-8 text-slate-800/85" strokeWidth={2.2} />
+      </div>
+      <div className="absolute bottom-[21px] text-[8px] font-black uppercase tracking-[0.26em] text-slate-800/75">
+        {face}
+      </div>
+      <div className="pointer-events-none absolute inset-[4px] rounded-full border border-white/18" />
+    </div>
+  );
+};
 
 const CardItem = ({
   card,
@@ -787,9 +817,10 @@ export default function App() {
     setHasActedThisTurn(false);
   };
 
-  const drawCardsFromPools = (currentDeck, currentDiscardPile, amount) => {
+  const drawCardsFromPools = (currentDeck, currentDiscardPile, amount, heldBackCards = []) => {
     let workingDeck = [...currentDeck];
     let workingDiscardPile = [...currentDiscardPile];
+    const reservedDiscardCards = [...heldBackCards];
     const drawnCards = [];
     let reshuffled = false;
 
@@ -815,7 +846,7 @@ export default function App() {
 
     return {
       deck: workingDeck,
-      discardPile: workingDiscardPile,
+      discardPile: [...reservedDiscardCards, ...workingDiscardPile],
       drawnCards,
       reshuffled
     };
@@ -851,8 +882,12 @@ export default function App() {
   const consumeCard = (actor, index, card) => {
     const currentHand = getHand(actor);
     const nextHand = currentHand.filter((_, handIndex) => handIndex !== index);
-    const nextDiscardPile = [card, ...discardPile];
-    const drawResult = drawCardsFromPools(deck, nextDiscardPile, Math.max(0, getHandLimit(actor) - nextHand.length));
+    const drawResult = drawCardsFromPools(
+      deck,
+      discardPile,
+      Math.max(0, getHandLimit(actor) - nextHand.length),
+      [card]
+    );
 
     setDiscardPile(drawResult.discardPile);
     setDeck(drawResult.deck);
@@ -924,8 +959,12 @@ export default function App() {
 
     const cardsToDiscard = hand.filter((_, idx) => uniqueIndexes.includes(idx));
     const newHand = hand.filter((_, idx) => !uniqueIndexes.includes(idx));
-    const nextDiscardPile = [...cardsToDiscard, ...discardPile];
-    const drawResult = drawCardsFromPools(deck, nextDiscardPile, Math.max(0, getHandLimit(actor) - newHand.length));
+    const drawResult = drawCardsFromPools(
+      deck,
+      discardPile,
+      Math.max(0, getHandLimit(actor) - newHand.length),
+      cardsToDiscard
+    );
 
     if (actor === 'player') {
       setPlayerHand([...newHand, ...drawResult.drawnCards]);
@@ -1889,18 +1928,27 @@ export default function App() {
           }
 
           @keyframes coinTossArc {
-            0% { transform: translateY(150px) scale(0.82) rotateX(0deg) rotateY(0deg); opacity: 0; }
+            0% { transform: translateY(170px) scale(0.78); opacity: 0; }
             12% { opacity: 1; }
-            30% { transform: translateY(-48px) scale(1.02) rotateX(540deg) rotateY(180deg); }
-            55% { transform: translateY(-150px) scale(1.08) rotateX(1260deg) rotateY(360deg); }
-            78% { transform: translateY(-24px) scale(0.98) rotateX(1800deg) rotateY(540deg); }
-            100% { transform: translateY(0) scale(1) rotateX(2160deg) rotateY(720deg); opacity: 1; }
+            28% { transform: translateY(-56px) scale(1.01); }
+            52% { transform: translateY(-166px) scale(1.08); }
+            74% { transform: translateY(-34px) scale(0.96); }
+            100% { transform: translateY(0) scale(1); opacity: 1; }
+          }
+
+          @keyframes coinSpinFace {
+            0% { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+            18% { transform: rotateX(620deg) rotateY(120deg) rotateZ(-12deg); }
+            52% { transform: rotateX(1680deg) rotateY(360deg) rotateZ(10deg); }
+            82% { transform: rotateX(2440deg) rotateY(580deg) rotateZ(-5deg); }
+            100% { transform: rotateX(2880deg) rotateY(720deg) rotateZ(0deg); }
           }
 
           @keyframes coinShadowPulse {
-            0% { transform: scale(0.6); opacity: 0; }
-            30% { transform: scale(0.9); opacity: 0.22; }
-            55% { transform: scale(0.48); opacity: 0.1; }
+            0% { transform: scale(0.54); opacity: 0; }
+            24% { transform: scale(0.88); opacity: 0.22; }
+            52% { transform: scale(0.38); opacity: 0.08; }
+            78% { transform: scale(0.92); opacity: 0.18; }
             100% { transform: scale(1); opacity: 0.24; }
           }
 
@@ -2418,27 +2466,49 @@ export default function App() {
                   Elige cara o sello y lanza la moneda al aire para definir quien arranca con el balon.
                 </p>
 
+                {(() => {
+                  const shownFace = coinFlipState.result ?? coinFlipState.choice ?? 'Cara';
+                  const hiddenFace = getOppositeCoinFace(shownFace);
+                  const restingTransform = coinFlipState.result
+                    ? coinFlipState.result === 'Cara'
+                      ? 'rotateY(0deg)'
+                      : 'rotateY(180deg)'
+                    : coinFlipState.choice === 'Sello'
+                      ? 'rotateY(180deg)'
+                      : 'rotateY(0deg)';
+
+                  return (
                 <div className="relative mx-auto mb-7 flex h-52 w-full max-w-[220px] items-end justify-center overflow-hidden">
                   <div
-                    className="absolute bottom-5 h-5 w-24 rounded-full bg-black/40 blur-md"
+                    className="absolute bottom-4 h-5 w-28 rounded-full bg-black/50 blur-md"
                     style={{
                       animation: coinFlipState.isFlipping ? 'coinShadowPulse 1.9s ease-in-out forwards' : 'none'
                     }}
                   />
                   <div
-                    className="relative flex h-28 w-28 items-center justify-center rounded-full border-4 border-yellow-200/70 bg-[radial-gradient(circle_at_32%_30%,#fff2a6_0%,#ffd54d_28%,#d89b00_66%,#7a4b00_100%)] shadow-[inset_0_5px_10px_rgba(255,255,255,0.45),inset_0_-10px_18px_rgba(96,56,0,0.45),0_18px_35px_rgba(0,0,0,0.45)]"
+                    className="relative flex h-32 w-32 items-center justify-center"
                     style={{
-                      transformStyle: 'preserve-3d',
+                      perspective: '1200px',
                       animation: coinFlipState.isFlipping ? 'coinTossArc 1.9s cubic-bezier(0.2,0.7,0.18,1) forwards' : 'none'
                     }}
                   >
-                    <div className="absolute inset-[8px] rounded-full border border-white/30" />
-                    <span className="text-3xl font-black uppercase text-slate-900/85">
-                      {coinFlipState.result ?? coinFlipState.choice ?? '?'}
-                    </span>
-                    <div className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_30%_28%,rgba(255,255,255,0.55),rgba(255,255,255,0.06)_35%,transparent_50%)]" />
+                    <div
+                      className="relative h-full w-full"
+                      style={{
+                        transformStyle: 'preserve-3d',
+                        transform: coinFlipState.isFlipping ? undefined : restingTransform,
+                        animation: coinFlipState.isFlipping ? 'coinSpinFace 1.9s cubic-bezier(0.18,0.72,0.16,1) forwards' : 'none'
+                      }}
+                    >
+                      <div className="absolute inset-y-[10px] left-1/2 w-[12px] -translate-x-1/2 rounded-full bg-[linear-gradient(180deg,#7a4b00_0%,#d9a419_26%,#fff0a2_50%,#d29c11_74%,#6f4300_100%)] shadow-[0_0_0_1px_rgba(255,240,170,0.24),inset_0_0_8px_rgba(255,255,255,0.22)] [transform:translateX(-50%)_rotateY(90deg)]" />
+                      <div className="absolute inset-0 rounded-full border-[5px] border-yellow-100/70 shadow-[inset_0_8px_18px_rgba(255,255,255,0.34),inset_0_-18px_26px_rgba(92,54,0,0.42),0_18px_35px_rgba(0,0,0,0.45)]" />
+                      <CoinFace face={shownFace} />
+                      <CoinFace face={hiddenFace} mirrored />
+                    </div>
                   </div>
                 </div>
+                  );
+                })()}
 
                 <div className="mb-6 min-h-[56px]">
                   {coinFlipState.isFlipping ? (
