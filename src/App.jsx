@@ -51,6 +51,7 @@ const DECK_DEFINITION = [
   { id: 'ba', name: 'Barrida', value: 0, type: 'defense', color: 'bg-slate-700', count: 6, detail: 'Quita posesion' },
   { id: 'fa', name: 'Falta Agresiva', value: 0, type: 'defense', color: 'bg-orange-800', count: 4, detail: 'Responde con tarjeta' },
   { id: 'pe', name: 'Penalti', value: 0, type: 'shoot_direct', color: 'bg-yellow-500', count: 3, detail: 'Tiro directo' },
+  { id: 'off', name: 'Offside', value: 0, type: 'save', color: 'bg-amber-600', count: 4, detail: 'Anula Tiro a Gol' },
   { id: 'paq', name: 'Parada Arquero', value: 0, type: 'save', color: 'bg-stone-500', count: 6, detail: 'Evita un gol' },
   { id: 'rem', name: 'Remate', value: 0, type: 'special', color: 'bg-pink-600', count: 4, detail: 'Tras Parada Arquero' },
   { id: 'sb', name: 'Saque Banda', value: 0, type: 'defense', color: 'bg-lime-600', count: 4, detail: 'Recupera + Pase Corto' },
@@ -66,6 +67,7 @@ const DECK_DEFINITION = [
     'pase largo': ['pase largo'],
     'pase aereo': ['pase aereo', 'pase aéreo'],
     'falta agresiva': ['falta agresiva'],
+    'offside': ['offside'],
     'parada arquero': ['parada del arquero'],
     'saque corner': ['saque de corner', 'saque corner'],
     'tarj. amarilla': ['tarj. amarilla', 'tarjeta amarilla', 'tarjea amarilla'],
@@ -193,6 +195,26 @@ const TUTORIAL_SEQUENCES = [
       title: 'Tarjeta Roja',
       text: 'La Roja obliga descarte y deja al rival con menos mano por varios turnos.',
       card: 'Tarj. Roja'
+    }
+  },
+  {
+    title: 'Offside',
+    note: 'Anula un Tiro a Gol por posicion adelantada.',
+    layout: 'foul',
+    center: {
+      title: 'Offside',
+      text: 'Se juega cuando el rival hace un Tiro a Gol.',
+      card: 'Offside'
+    },
+    left: {
+      title: 'VAR',
+      text: 'El atacante puede usar VAR para anular el Offside.',
+      card: 'VAR'
+    },
+    right: {
+      title: 'Parada Arquero',
+      text: 'Si se anula el Offside, aun puede quedar la Parada Arquero.',
+      card: 'Parada Arquero'
     }
   }
 ];
@@ -474,8 +496,10 @@ export default function App() {
       ? `DESCARTE OCULTO EN CURSO: ${pendingBlindDiscard.actor === 'player' ? 'JUGADOR' : 'RIVAL'}`
       : pendingShot?.phase === 'penalty_response'
         ? `VENTANA DE RESPUESTA DEL ${pendingShot.defender === 'player' ? 'JUGADOR' : 'RIVAL'}: PENALTI`
+        : pendingShot?.phase === 'offside_var'
+          ? `VENTANA DE RESPUESTA DEL ${pendingShot.attacker === 'player' ? 'JUGADOR' : 'RIVAL'}: VAR CONTRA OFFSIDE`
         : pendingShot?.phase === 'save'
-          ? `VENTANA DE RESPUESTA DEL ${pendingShot.defender === 'player' ? 'JUGADOR' : 'RIVAL'}: PARADA DEL ARQUERO`
+          ? `VENTANA DE RESPUESTA DEL ${pendingShot.defender === 'player' ? 'JUGADOR' : 'RIVAL'}: ${pendingShot.allowOffside ? 'OFFSIDE O PARADA' : 'PARADA DEL ARQUERO'}`
           : pendingShot?.phase === 'remate'
             ? `VENTANA DE RESPUESTA DEL ${pendingShot.attacker === 'player' ? 'JUGADOR' : 'RIVAL'}: REMATE`
             : pendingDefense?.defenseCardId === 'pre_shot'
@@ -765,17 +789,23 @@ export default function App() {
       return;
     }
 
-    if (hasCardInHand(defender, 'paq')) {
-      setPendingShot({ attacker, defender, shotType, phase: 'save' });
+    if (hasCardInHand(defender, 'paq') || hasCardInHand(defender, 'off')) {
+      setPendingShot({
+        attacker,
+        defender,
+        shotType,
+        phase: 'save',
+        allowOffside: hasCardInHand(defender, 'off')
+      });
       setCurrentTurn(defender);
       setHasActedThisTurn(false);
       setDiscardMode(false);
       setSelectedForDiscard([]);
-      addLog('Tiro al arco. El rival puede usar Parada Arquero.');
+      addLog('Tiro al arco. El rival puede responder con Offside o Parada Arquero.');
       return;
     }
 
-    scoreGoal(attacker, 'Gol: el rival no tenia Parada Arquero.');
+    scoreGoal(attacker, 'Gol: el rival no tenia Offside ni Parada Arquero.');
   };
 
   const startDefenseResolution = (defender, defenseCard) => {
@@ -908,6 +938,14 @@ export default function App() {
 
     if (pendingShot?.phase === 'save') {
       scoreGoal(pendingShot.attacker, 'Gol: no hubo Parada Arquero.');
+      return;
+    }
+
+    if (pendingShot?.phase === 'offside_var') {
+      clearTransientState();
+      setPossession(pendingShot.defender);
+      setCurrentTurn(pendingShot.defender);
+      addLog('Offside confirmado. No se uso VAR y el balon cambia de posesion.');
       return;
     }
 
@@ -1266,12 +1304,30 @@ export default function App() {
     }
 
     if (pendingShot?.phase === 'save') {
-      if (actor !== pendingShot.defender || card.id !== 'paq') {
-        addLog('Solo puedes responder al tiro con Parada Arquero.');
+      if (actor !== pendingShot.defender || !['paq', 'off'].includes(card.id) || (card.id === 'off' && !pendingShot.allowOffside)) {
+        addLog(`Solo puedes responder al tiro con ${pendingShot.allowOffside ? 'Offside o Parada Arquero' : 'Parada Arquero'}.`);
         return;
       }
 
         consumeCard(actor, index, card);
+
+        if (card.id === 'off') {
+        if (!hasCardInHand(pendingShot.attacker, 'var')) {
+          clearTransientState();
+          setPossession(actor);
+          setCurrentTurn(actor);
+          addLog('Offside sancionado. No hubo VAR y el balon cambia de posesion.');
+          return;
+        }
+
+        setPendingShot({ ...pendingShot, phase: 'offside_var', allowOffside: false });
+        setCurrentTurn(pendingShot.attacker);
+        setHasActedThisTurn(false);
+        setDiscardMode(false);
+        setSelectedForDiscard([]);
+        addLog('Offside jugado. El atacante puede usar VAR para mantener la jugada.');
+        return;
+      }
 
         if (!hasCardInHand(pendingShot.attacker, 'rem')) {
         clearTransientState();
@@ -1287,6 +1343,28 @@ export default function App() {
       setDiscardMode(false);
       setSelectedForDiscard([]);
       addLog('Parada del arquero. El atacante puede usar Remate.');
+      return;
+    }
+
+    if (pendingShot?.phase === 'offside_var') {
+      if (actor !== pendingShot.attacker || card.id !== 'var') {
+        addLog('Solo puedes responder al Offside con VAR.');
+        return;
+      }
+
+      consumeCard(actor, index, card);
+
+      if (hasCardInHand(pendingShot.defender, 'paq')) {
+        setPendingShot({ ...pendingShot, phase: 'save', allowOffside: false });
+        setCurrentTurn(pendingShot.defender);
+        setHasActedThisTurn(false);
+        setDiscardMode(false);
+        setSelectedForDiscard([]);
+        addLog('VAR anula el Offside. El rival aun puede usar Parada Arquero.');
+        return;
+      }
+
+      scoreGoal(actor, 'VAR anula el Offside. Gol: no hubo Parada Arquero.');
       return;
     }
 
@@ -1384,6 +1462,23 @@ export default function App() {
           }
         }
 
+      return;
+    }
+
+    if (card.id === 'sc') {
+      if (!hasCardInHand(actor, 'pa') || !hasCardInHand(actor, 'tg')) {
+        addLog('Saque de corner solo puede activarse si tienes Pase Aereo y Tirar a Gol en mano.');
+        return;
+      }
+
+      consumeCard(actor, index, card);
+      setActivePlay([]);
+      setPendingCombo({ actor, type: 'sc_followup', stage: 'pass' });
+      setCounterAttackReady(false);
+      setHasActedThisTurn(true);
+      setDiscardMode(false);
+      setSelectedForDiscard([]);
+      addLog('Saque de corner activado con posesion. Debes jugar Pase Aereo y luego Tirar a Gol.');
       return;
     }
 
