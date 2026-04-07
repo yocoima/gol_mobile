@@ -4,7 +4,6 @@ import {
   Bot,
   BookOpen,
   Coins,
-  History,
   Library,
   PlayCircle,
   RefreshCcw,
@@ -372,6 +371,87 @@ const CardItem = ({
   );
 };
 
+const DiscardLane = ({ title, pile }) => {
+  const archivedCards = pile.archive.slice(0, 4).reverse();
+  const currentCards = pile.current;
+
+  return (
+    <div className="w-full max-w-[280px] rounded-2xl border border-white/10 bg-slate-950/35 p-3 shadow-[0_10px_24px_rgba(0,0,0,0.2)] backdrop-blur-sm">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/45">{title}</span>
+        <span className="rounded-full border border-white/10 bg-slate-950/80 px-2 py-0.5 text-[9px] font-black text-white/70">
+          {pile.archive.length + pile.current.length}
+        </span>
+      </div>
+      <div className="relative min-h-[112px]">
+        {archivedCards.length > 0 ? (
+          <div className="absolute bottom-0 left-0 h-24 w-20">
+            {archivedCards.map((card, index) => (
+              <div
+                key={`archived-${card.visualId}`}
+                className="absolute left-0 top-0 h-24 w-16 overflow-hidden rounded-[14px] border border-white/10 shadow-[0_10px_22px_rgba(0,0,0,0.28)]"
+                style={{
+                  transform: `translateX(${index * 5}px) translateY(${index * 4}px) rotate(${(index - 1.5) * 2}deg)`,
+                  zIndex: index + 1
+                }}
+              >
+                {card.imageUrl ? (
+                  <>
+                    <img
+                      src={card.imageUrl}
+                      alt={card.name}
+                      className="absolute inset-0 h-full w-full object-cover object-center"
+                    />
+                    <div className="absolute inset-0 bg-black/18" />
+                  </>
+                ) : (
+                  <div className={`${card.color || 'bg-slate-800'} flex h-full w-full items-end justify-center px-2 pb-2 text-center text-[8px] font-black uppercase leading-tight text-white`}>
+                    {card.name}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {currentCards.length > 0 ? (
+          <div className="relative ml-20 flex min-h-[112px] flex-wrap items-end gap-2">
+            {currentCards.map((card, index) => (
+              <div
+                key={card.visualId}
+                className="relative h-24 w-16 overflow-hidden rounded-[14px] border border-white/10 shadow-[0_10px_24px_rgba(0,0,0,0.32)]"
+                style={{
+                  animation: 'discardCardSlideIn 320ms cubic-bezier(0.22,0.8,0.2,1) both',
+                  animationDelay: `${index * 60}ms`
+                }}
+              >
+                {card.imageUrl ? (
+                  <>
+                    <img
+                      src={card.imageUrl}
+                      alt={card.name}
+                      className="absolute inset-0 h-full w-full object-cover object-center"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-b from-black/14 via-transparent to-black/22" />
+                  </>
+                ) : (
+                  <div className={`${card.color || 'bg-slate-800'} flex h-full w-full items-end justify-center px-2 pb-2 text-center text-[8px] font-black uppercase leading-tight text-white`}>
+                    {card.name}
+                  </div>
+                )}
+                <div className="absolute inset-[3px] rounded-[11px] border border-white/12" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="ml-20 flex min-h-[112px] items-center text-[9px] font-black uppercase tracking-[0.18em] text-white/28">
+            Sin cartas en esta jugada
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const TutorialStepCard = ({ label }) => {
   const normalizedLabel = normalizeAssetName(label);
   const tutorialAliases = {
@@ -450,6 +530,12 @@ export default function App() {
   const [sanctions, setSanctions] = useState({ player: null, opponent: null });
   const [deck, setDeck] = useState([]);
   const [discardPile, setDiscardPile] = useState([]);
+  const [discardShowcase, setDiscardShowcase] = useState({
+    player: { current: [], archive: [] },
+    opponent: { current: [], archive: [] }
+  });
+  const [discardShowcasePendingArchive, setDiscardShowcasePendingArchive] = useState(false);
+  const [laneNotices, setLaneNotices] = useState({ player: '', opponent: '' });
   const [playerHand, setPlayerHand] = useState([]);
   const [opponentHand, setOpponentHand] = useState([]);
   const [activePlay, setActivePlay] = useState([]);
@@ -481,6 +567,10 @@ export default function App() {
 
   const addLog = (message) => {
     setGameLog((previousLog) => [message, ...previousLog].slice(0, 5));
+  };
+
+  const setLaneNotice = (actor, message) => {
+    setLaneNotices((previous) => ({ ...previous, [actor]: message }));
   };
 
   useEffect(() => {
@@ -806,6 +896,7 @@ export default function App() {
       : null;
 
   const clearTransientState = () => {
+    setDiscardShowcasePendingArchive(true);
     setActivePlay([]);
     setPendingShot(null);
     setPendingDefense(null);
@@ -815,6 +906,43 @@ export default function App() {
     setDiscardMode(false);
     setSelectedForDiscard([]);
     setHasActedThisTurn(false);
+  };
+
+  const registerDiscardShowcaseCards = (actor, cards) => {
+    if (!cards.length) {
+      return;
+    }
+
+    setDiscardShowcase((previous) => ({
+      ...(discardShowcasePendingArchive
+        ? {
+            player: {
+              current: [],
+              archive: [...previous.player.current, ...previous.player.archive].slice(0, 12)
+            },
+            opponent: {
+              current: [],
+              archive: [...previous.opponent.current, ...previous.opponent.archive].slice(0, 12)
+            }
+          }
+        : previous),
+      [actor]: {
+        ...(discardShowcasePendingArchive
+          ? {
+              current: [],
+              archive: [...previous[actor].current, ...previous[actor].archive].slice(0, 12)
+            }
+          : previous[actor]),
+        current: [
+          ...(discardShowcasePendingArchive ? [] : previous[actor].current),
+          ...cards.map((card, index) => ({
+            ...card,
+            visualId: `${card.instanceId ?? card.id}-${Date.now()}-${index}-${actor}`
+          }))
+        ]
+      }
+    }));
+    setDiscardShowcasePendingArchive(false);
   };
 
   const drawCardsFromPools = (currentDeck, currentDiscardPile, amount, heldBackCards = []) => {
@@ -866,6 +994,12 @@ export default function App() {
     setSanctions({ player: null, opponent: null });
     setDeck([]);
     setDiscardPile([]);
+    setDiscardShowcase({
+      player: { current: [], archive: [] },
+      opponent: { current: [], archive: [] }
+    });
+    setDiscardShowcasePendingArchive(false);
+    setLaneNotices({ player: '', opponent: '' });
     setPlayerHand([]);
     setOpponentHand([]);
     setPossession(null);
@@ -890,7 +1024,9 @@ export default function App() {
     );
 
     setDiscardPile(drawResult.discardPile);
+    registerDiscardShowcaseCards(actor, [card]);
     setDeck(drawResult.deck);
+    setLaneNotice(actor, `${actor === 'player' ? 'Jugador' : 'Rival'} juega ${card.name}.`);
 
     if (drawResult.reshuffled) {
       addLog('El mazo se vacio. Se barajo el descarte y se formo un nuevo mazo.');
@@ -934,6 +1070,8 @@ export default function App() {
     }
 
     setDiscardPile((previousPile) => [card, ...previousPile]);
+    registerDiscardShowcaseCards(actor, [card]);
+    setLaneNotice(actor, `${actor === 'player' ? 'Jugador' : 'Rival'} descarta 1 carta oculta.`);
 
     if (actor === 'player') {
       setPlayerHand((previousHand) => previousHand.filter((_, handIndex) => handIndex !== index));
@@ -973,8 +1111,11 @@ export default function App() {
     }
 
     setDiscardPile(drawResult.discardPile);
+    registerDiscardShowcaseCards(actor, cardsToDiscard);
     setDeck(drawResult.deck);
     applyRedCardTurnProgress(actor);
+    setDiscardShowcasePendingArchive(true);
+    setLaneNotice(actor, `${actor === 'player' ? 'Jugador' : 'Rival'} descarta ${cardsToDiscard.length} carta${cardsToDiscard.length === 1 ? '' : 's'}.`);
     setCurrentTurn(getOpponent(actor));
     setHasActedThisTurn(false);
     setSelectedForDiscard([]);
@@ -1058,6 +1199,7 @@ export default function App() {
       scorer,
       text: scorer === 'player' ? 'GOOOL DEL JUGADOR' : 'GOOOL DEL RIVAL'
     });
+    setLaneNotice(scorer, `${scorer === 'player' ? 'Jugador' : 'Rival'} anota gol.`);
 
     const nextActor = getOpponent(scorer);
     applyRedCardTurnProgress(scorer);
@@ -1072,7 +1214,6 @@ export default function App() {
       return;
     }
 
-    fillHandsToLimits();
     setPossession(nextActor);
     setCurrentTurn(nextActor);
     addLog(reason);
@@ -1080,7 +1221,7 @@ export default function App() {
 
   const startShotResolution = (attacker, shotType) => {
     const defender = getOpponent(attacker);
-    const unstoppable = shotType === 'chilena' || shotType === 'remate';
+    const unstoppable = shotType === 'chilena';
 
     setActivePlay([]);
     setCounterAttackReady(false);
@@ -1105,23 +1246,33 @@ export default function App() {
       return;
     }
 
-    if (hasCardInHand(defender, 'paq') || hasCardInHand(defender, 'off')) {
+    const canUseOffside = shotType !== 'remate' && hasCardInHand(defender, 'off');
+    const canUseArquero = hasCardInHand(defender, 'paq');
+
+    if (canUseArquero || canUseOffside) {
       setPendingShot({
         attacker,
         defender,
         shotType,
         phase: 'save',
-        allowOffside: hasCardInHand(defender, 'off')
+        allowOffside: canUseOffside
       });
       setCurrentTurn(defender);
       setHasActedThisTurn(false);
       setDiscardMode(false);
       setSelectedForDiscard([]);
-      addLog('Tiro al arco. El rival puede responder con Offside o Parada Arquero.');
+      addLog(
+        shotType === 'remate'
+          ? 'Remate al arco. El rival puede responder con Parada Arquero.'
+          : `Tiro al arco. El rival puede responder con ${canUseOffside ? 'Offside o Parada Arquero' : 'Parada Arquero'}.`
+      );
       return;
     }
 
-    scoreGoal(attacker, 'Gol: el rival no tenia Offside ni Parada Arquero.');
+    scoreGoal(
+      attacker,
+      shotType === 'remate' ? 'Remate convertido. No hubo Parada Arquero.' : 'Gol: el rival no tenia Offside ni Parada Arquero.'
+    );
   };
 
   const startDefenseResolution = (defender, defenseCard) => {
@@ -1220,6 +1371,12 @@ export default function App() {
 
   const handleDeal = () => {
     const newDeck = initDeck();
+    setDiscardShowcase({
+      player: { current: [], archive: [] },
+      opponent: { current: [], archive: [] }
+    });
+    setDiscardShowcasePendingArchive(false);
+    setLaneNotices({ player: '', opponent: '' });
     setPlayerHand(newDeck.splice(0, 5));
     setOpponentHand(newDeck.splice(0, 5));
     setDeck(newDeck);
@@ -1318,6 +1475,7 @@ export default function App() {
       applyRedCardTurnProgress(actor);
     }
 
+    setDiscardShowcasePendingArchive(true);
     setCurrentTurn(nextActor);
     setHasActedThisTurn(false);
     setSelectedForDiscard([]);
@@ -1371,6 +1529,13 @@ export default function App() {
 
   const playCard = (card, index, isFromPlayer) => {
     const actor = isFromPlayer ? 'player' : 'opponent';
+    const liveCard = getHand(actor)[index] ?? card;
+
+    if (!liveCard) {
+      return;
+    }
+
+    card = liveCard;
 
     if (pendingBlindDiscard) {
       if (actor !== pendingBlindDiscard.actor) {
@@ -1383,6 +1548,95 @@ export default function App() {
     }
 
     if (currentTurn !== actor || selectedForDiscard.length > 0) {
+      return;
+    }
+
+    if (pendingDefense?.defenseCardId === 'red_card_var') {
+      if (actor !== pendingDefense.defender || card.id !== 'var') {
+        addLog('Solo puedes responder con VAR para anular la Roja.');
+        return;
+      }
+
+      consumeCard(actor, index, card);
+      clearSanctionFor(actor);
+      clearTransientState();
+      setPossession(actor);
+      setCurrentTurn(actor);
+      addLog('VAR anula la Tarjeta Roja. La Falta Agresiva se mantiene.');
+      return;
+    }
+
+    if (pendingDefense && pendingDefense.defenseCardId !== 'pre_shot') {
+      if (actor !== pendingDefense.possessor) {
+        addLog('La respuesta a la contracarta debe jugarla quien tiene el balon.');
+        return;
+      }
+
+      if (pendingDefense.defenseCardId === 'ba' && card.id !== 'reg') {
+        addLog('La Barrida solo puede responderse con Regatear.');
+        return;
+      }
+
+      if (pendingDefense.defenseCardId === 'fa' && !['ta', 'tr'].includes(card.id)) {
+        addLog('La Falta Agresiva solo puede responderse con Amarilla o Roja.');
+        return;
+      }
+
+      consumeCard(actor, index, card);
+
+      if (card.id === 'tr' && hasCardInHand(pendingDefense.defender, 'var')) {
+        setPendingDefense({ ...pendingDefense, defenseCardId: 'red_card_var' });
+        setCurrentTurn(pendingDefense.defender);
+        setHasActedThisTurn(false);
+        setDiscardMode(false);
+        setSelectedForDiscard([]);
+        addLog('Tarjeta Roja jugada. El rival puede usar VAR para anularla.');
+        return;
+      }
+
+      if (card.id === 'reg') {
+        const defendingActor = pendingDefense.defender;
+        setPendingDefense(null);
+        setCurrentTurn(defendingActor);
+        setHasActedThisTurn(true);
+        setDiscardMode(false);
+        setSelectedForDiscard([]);
+        addLog('Regate exitoso. La jugada continua.');
+        return;
+      }
+
+      setPendingDefense(null);
+      setCurrentTurn(actor);
+      setHasActedThisTurn(true);
+      setDiscardMode(false);
+      setSelectedForDiscard([]);
+
+      setBonusTurnFor(actor);
+
+      if (card.id === 'ta') {
+        setSanctionFor(pendingDefense.defender, {
+          type: 'yellow',
+          title: 'Amarilla',
+          detail: 'Pierde la jugada y concede un turno extra.',
+          turnsRemaining: 1
+        });
+        addLog('Tarjeta Amarilla: mantienes la posesion y robas un turno.');
+        return;
+      }
+
+      openBlindDiscard(
+        pendingDefense.defender,
+        'Tarjeta Roja: el rival debe elegir una posicion de su mano para descartar una carta oculta.',
+        actor
+      );
+      setRedCardPenalty((previous) => ({ ...previous, [pendingDefense.defender]: 3 }));
+      setSanctionFor(pendingDefense.defender, {
+        type: 'red',
+        title: 'Roja',
+        detail: 'Descarta 1 y juega con 4 cartas durante 3 turnos.',
+        turnsRemaining: 3
+      });
+      addLog('Tarjeta Roja: mantienes la posesion y el rival jugara con 4 cartas durante 3 turnos.');
       return;
     }
 
@@ -1466,95 +1720,6 @@ export default function App() {
         setSelectedForDiscard([]);
         startDefenseResolution(actor, card);
         return;
-    }
-
-    if (pendingDefense?.defenseCardId === 'red_card_var') {
-      if (actor !== pendingDefense.defender || card.id !== 'var') {
-        addLog('Solo puedes responder con VAR para anular la Roja.');
-        return;
-      }
-
-        consumeCard(actor, index, card);
-        clearSanctionFor(actor);
-        clearTransientState();
-        setPossession(actor);
-        setCurrentTurn(actor);
-        addLog('VAR anula la Tarjeta Roja. La Falta Agresiva se mantiene.');
-        return;
-    }
-
-    if (pendingDefense) {
-      if (actor !== pendingDefense.possessor) {
-        addLog('La respuesta a la contracarta debe jugarla quien tiene el balon.');
-        return;
-      }
-
-      if (pendingDefense.defenseCardId === 'ba' && card.id !== 'reg') {
-        addLog('La Barrida solo puede responderse con Regatear.');
-        return;
-      }
-
-      if (pendingDefense.defenseCardId === 'fa' && !['ta', 'tr'].includes(card.id)) {
-        addLog('La Falta Agresiva solo puede responderse con Amarilla o Roja.');
-        return;
-      }
-
-      consumeCard(actor, index, card);
-
-      if (card.id === 'tr' && hasCardInHand(pendingDefense.defender, 'var')) {
-        setPendingDefense({ ...pendingDefense, defenseCardId: 'red_card_var' });
-        setCurrentTurn(pendingDefense.defender);
-        setHasActedThisTurn(false);
-        setDiscardMode(false);
-        setSelectedForDiscard([]);
-        addLog('Tarjeta Roja jugada. El rival puede usar VAR para anularla.');
-        return;
-      }
-
-      if (card.id === 'reg') {
-        const defendingActor = pendingDefense.defender;
-        setPendingDefense(null);
-        setCurrentTurn(defendingActor);
-        setHasActedThisTurn(true);
-        setDiscardMode(false);
-        setSelectedForDiscard([]);
-        addLog('Regate exitoso. La jugada continua.');
-        return;
-      }
-
-      setPendingDefense(null);
-      setCurrentTurn(actor);
-      setHasActedThisTurn(true);
-      setDiscardMode(false);
-      setSelectedForDiscard([]);
-
-      setBonusTurnFor(actor);
-
-      if (card.id === 'ta') {
-        setSanctionFor(pendingDefense.defender, {
-          type: 'yellow',
-          title: 'Amarilla',
-          detail: 'Pierde la jugada y concede un turno extra.',
-          turnsRemaining: 1
-        });
-        addLog('Tarjeta Amarilla: mantienes la posesion y robas un turno.');
-        return;
-      }
-
-      openBlindDiscard(
-        pendingDefense.defender,
-        'Tarjeta Roja: el rival debe elegir una posicion de su mano para descartar una carta oculta.',
-        actor
-      );
-      setRedCardPenalty((previous) => ({ ...previous, [pendingDefense.defender]: 3 }));
-      setSanctionFor(pendingDefense.defender, {
-        type: 'red',
-        title: 'Roja',
-        detail: 'Descarta 1 y juega con 4 cartas durante 3 turnos.',
-        turnsRemaining: 3
-      });
-      addLog('Tarjeta Roja: mantienes la posesion y el rival jugara con 4 cartas durante 3 turnos.');
-      return;
     }
 
     if (pendingShot?.phase === 'penalty_response') {
@@ -1963,6 +2128,11 @@ export default function App() {
             0%, 100% { transform: scale(1) rotate(0deg); }
             50% { transform: scale(1.22) rotate(10deg); }
           }
+
+          @keyframes discardCardSlideIn {
+            0% { transform: translateY(18px) scale(0.92); opacity: 0; }
+            100% { transform: translateY(0) scale(1); opacity: 1; }
+          }
         `}</style>
         <div className="z-20 border-b-2 border-emerald-500 bg-slate-900 p-2 shadow-2xl">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4">
@@ -2148,19 +2318,24 @@ export default function App() {
           </div>
         </div>
 
-        <div className="z-10 flex w-full max-w-4xl items-center justify-between px-4">
-          <div className="flex flex-col items-center gap-2">
-            <div className="relative flex h-28 w-20 flex-col items-center justify-center rounded-xl border-2 border-dashed border-white/20 bg-slate-900/80 text-white/20">
-              <History size={24} />
-              {discardPile.length > 0 && (
-                <div className="absolute inset-0 flex items-center justify-center rounded-xl border-2 border-white/40 bg-slate-800 shadow-xl">
-                  <span className="text-center text-[8px] font-black uppercase text-white/70">
-                    {discardPile.length}
-                  </span>
+        <div className="z-10 flex w-full max-w-4xl items-center justify-between gap-4 px-4">
+          <div className="flex w-full max-w-[300px] flex-col gap-3">
+            <div className="flex flex-col gap-2">
+              <DiscardLane title="Rival juega" pile={discardShowcase.opponent} />
+              {laneNotices.opponent ? (
+                <div className="self-start rounded-full border border-white/10 bg-black/55 px-4 py-2 text-[11px] font-bold text-emerald-300 backdrop-blur-sm">
+                  {laneNotices.opponent}
                 </div>
-              )}
+              ) : null}
             </div>
-            <span className="text-[9px] font-black uppercase text-white/40">Descartes</span>
+            <div className="flex flex-col gap-2">
+              <DiscardLane title="Jugador juega" pile={discardShowcase.player} />
+              {laneNotices.player ? (
+                <div className="self-start rounded-full border border-white/10 bg-black/55 px-4 py-2 text-[11px] font-bold text-emerald-300 backdrop-blur-sm">
+                  {laneNotices.player}
+                </div>
+              ) : null}
+            </div>
           </div>
 
           <div className="flex flex-1 justify-center gap-2 overflow-x-auto py-4">
@@ -2189,10 +2364,6 @@ export default function App() {
             <span className="text-[9px] font-black uppercase text-white/40">Mazo</span>
           </div>
         </div>
-
-          <div className="rounded-full border border-white/10 bg-black/60 px-6 py-2 text-[11px] font-bold text-emerald-400 backdrop-blur-sm">
-            {gameLog[0]}
-          </div>
 
             {statusBannerMessage && (
               <div className="mt-3 rounded-full border border-yellow-300/40 bg-yellow-500/15 px-5 py-2 text-center text-[10px] font-black uppercase tracking-[0.22em] text-yellow-200 shadow-[0_0_20px_rgba(250,204,21,0.18)]">
