@@ -1,18 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ArrowRightCircle,
   Bot,
   BookOpen,
-  Coins,
   Library,
   PlayCircle,
   RefreshCcw,
-  Shield,
   Trash2,
-  UserRound,
 } from 'lucide-react';
 import yellowCardImage from '../imagenes/Tarjeta amarilla.png';
 import redCardImage from '../imagenes/Tarjeta roja.png';
+import coinVideo from '../imagenes/Moneda.mp4';
 
 const CARD_IMAGE_MODULES = import.meta.glob('../imagenes/*.{png,jpg,jpeg,webp}', {
   eager: true,
@@ -41,6 +39,7 @@ const CARD_IMAGE_BY_ID = {
 const YELLOW_CARD_IMAGE = yellowCardImage;
 const RED_CARD_IMAGE = redCardImage;
 const BALL_IMAGE = CARD_IMAGE_BY_NAME.balon ?? null;
+const AI_STATUS_TIMEOUT_MS = 1900;
 
 const DECK_DEFINITION = [
   { id: 'pc', name: 'Pase Corto', value: 1, type: 'pass', color: 'bg-emerald-500', count: 12, detail: 'Suma valor x1' },
@@ -286,34 +285,6 @@ const SoccerBallIcon = ({ size, className }) =>
     </svg>
   );
 
-const getOppositeCoinFace = (face) => (face === 'Cara' ? 'Sello' : 'Cara');
-
-const CoinFace = ({ face, mirrored = false }) => {
-  const isCara = face === 'Cara';
-  const FaceIcon = isCara ? UserRound : Shield;
-
-  return (
-    <div
-      className="absolute inset-0 flex items-center justify-center rounded-full"
-      style={{
-        backfaceVisibility: 'hidden',
-        transform: mirrored ? 'rotateY(180deg)' : 'rotateY(0deg)'
-      }}
-    >
-      <div className="absolute inset-[7px] rounded-full border border-white/50 bg-[radial-gradient(circle_at_30%_24%,rgba(255,255,255,0.98)_0%,rgba(225,231,239,0.94)_30%,rgba(154,165,178,0.95)_62%,rgba(77,88,100,1)_100%)]" />
-      <div className="absolute inset-[15px] rounded-full border border-white/35 bg-[radial-gradient(circle_at_28%_26%,rgba(255,255,255,0.82)_0%,rgba(214,221,231,0.4)_22%,rgba(82,92,106,0.14)_72%,rgba(255,255,255,0.05)_100%)]" />
-      <div className="relative flex h-[74px] w-[74px] items-center justify-center rounded-full border border-slate-900/12 bg-slate-700/10 shadow-[inset_0_10px_18px_rgba(255,255,255,0.2),inset_0_-14px_24px_rgba(55,65,81,0.24)]">
-        <div className="absolute h-[54px] w-[54px] rounded-full border border-slate-900/10 bg-white/10 shadow-[inset_0_4px_10px_rgba(255,255,255,0.22)]" />
-        <FaceIcon className="relative h-8 w-8 text-slate-800/85" strokeWidth={2.2} />
-      </div>
-      <div className="absolute bottom-[21px] text-[8px] font-black uppercase tracking-[0.26em] text-slate-800/75">
-        {face}
-      </div>
-      <div className="pointer-events-none absolute inset-[4px] rounded-full border border-white/18" />
-    </div>
-  );
-};
-
 const CardItem = ({
   card,
   onClick,
@@ -525,6 +496,11 @@ export default function App() {
     winner: null,
     isFlipping: false
   });
+  const [coinFlipPlaybackId, setCoinFlipPlaybackId] = useState(0);
+  const coinFlipVideoRef = useRef(null);
+  const coinFlipFinalizeTimeoutRef = useRef(null);
+  const coinFlipOutcomeRef = useRef(null);
+  const coinFlipResolvedRef = useRef(false);
   const [playerScore, setPlayerScore] = useState(0);
   const [opponentScore, setOpponentScore] = useState(0);
   const [sanctions, setSanctions] = useState({ player: null, opponent: null });
@@ -592,10 +568,16 @@ export default function App() {
 
     const timeoutId = window.setTimeout(() => {
       setAiStatus('');
-    }, 1900);
+    }, AI_STATUS_TIMEOUT_MS);
 
     return () => window.clearTimeout(timeoutId);
   }, [aiStatus]);
+
+  useEffect(() => () => {
+    if (coinFlipFinalizeTimeoutRef.current) {
+      window.clearTimeout(coinFlipFinalizeTimeoutRef.current);
+    }
+  }, []);
 
   const getOpponent = (actor) => (actor === 'player' ? 'opponent' : 'player');
   const getHand = (actor) => (actor === 'player' ? playerHand : opponentHand);
@@ -981,6 +963,12 @@ export default function App() {
   };
 
   const resetMatch = () => {
+    if (coinFlipFinalizeTimeoutRef.current) {
+      window.clearTimeout(coinFlipFinalizeTimeoutRef.current);
+      coinFlipFinalizeTimeoutRef.current = null;
+    }
+    coinFlipOutcomeRef.current = null;
+    coinFlipResolvedRef.current = false;
     setGameState('menu');
     setTutorialPage(0);
     setCoinFlipState({
@@ -1345,31 +1333,76 @@ export default function App() {
       return;
     }
 
+    if (coinFlipFinalizeTimeoutRef.current) {
+      window.clearTimeout(coinFlipFinalizeTimeoutRef.current);
+      coinFlipFinalizeTimeoutRef.current = null;
+    }
+
     const result = Math.random() > 0.5 ? 'Cara' : 'Sello';
     const winner = choice === result ? 'player' : 'opponent';
+    coinFlipOutcomeRef.current = { choice, result, winner };
+    coinFlipResolvedRef.current = false;
 
     setCoinFlipState({
       choice,
       result: null,
-      winner: null,
+      winner,
       isFlipping: true
     });
+    setCoinFlipPlaybackId((previous) => previous + 1);
+  };
 
-    window.setTimeout(() => {
-      setCoinFlipState({
-        choice,
-        result,
-        winner,
-        isFlipping: false
-      });
-      setPossession(winner);
-      setCurrentTurn(winner);
-      setGameState('dealing');
-      addLog(`Salio ${result}. El ${winner === 'player' ? 'Jugador' : 'Rival'} tiene el balon.`);
-    }, 1900);
+  const scheduleCoinFlipFinalize = () => {
+    if (!coinFlipOutcomeRef.current || coinFlipResolvedRef.current) {
+      return;
+    }
+
+    const durationSeconds = coinFlipVideoRef.current?.duration;
+    const durationMs = Number.isFinite(durationSeconds) && durationSeconds > 0
+      ? Math.ceil(durationSeconds * 1000) + 120
+      : 7000;
+
+    if (coinFlipFinalizeTimeoutRef.current) {
+      window.clearTimeout(coinFlipFinalizeTimeoutRef.current);
+    }
+
+    coinFlipFinalizeTimeoutRef.current = window.setTimeout(() => {
+      finalizeCoinFlip();
+    }, durationMs);
+  };
+
+  const finalizeCoinFlip = () => {
+    const outcome = coinFlipOutcomeRef.current;
+
+    if (!outcome || coinFlipResolvedRef.current) {
+      return;
+    }
+    coinFlipResolvedRef.current = true;
+
+    if (coinFlipFinalizeTimeoutRef.current) {
+      window.clearTimeout(coinFlipFinalizeTimeoutRef.current);
+      coinFlipFinalizeTimeoutRef.current = null;
+    }
+
+    setCoinFlipState((previous) => ({
+      ...previous,
+      result: outcome.result,
+      winner: outcome.winner,
+      isFlipping: false
+    }));
+    setPossession(outcome.winner);
+    setCurrentTurn(outcome.winner);
+    setGameState('dealing');
+    addLog(`Salio ${outcome.result}. El ${outcome.winner === 'player' ? 'Jugador' : 'Rival'} tiene el balon.`);
   };
 
   const handleDeal = () => {
+    if (coinFlipFinalizeTimeoutRef.current) {
+      window.clearTimeout(coinFlipFinalizeTimeoutRef.current);
+      coinFlipFinalizeTimeoutRef.current = null;
+    }
+    coinFlipOutcomeRef.current = null;
+    coinFlipResolvedRef.current = false;
     const newDeck = initDeck();
     setDiscardShowcase({
       player: { current: [], archive: [] },
@@ -1873,6 +1906,30 @@ export default function App() {
     }
 
     if (card.type === 'pass') {
+      if (pendingCombo?.type === 'chilena_followup') {
+        if (pendingCombo.stage === 'pass' && card.id !== 'pa') {
+          addLog('La combinacion de Chilena solo acepta Pase Aereo en este paso.');
+          return;
+        }
+
+        if (pendingCombo.stage === 'shot') {
+          addLog('La combinacion de Chilena ya quedo lista para cerrar con Tirar a Gol.');
+          return;
+        }
+      }
+
+      if (pendingCombo?.type === 'sc_followup') {
+        if (pendingCombo.stage === 'pass' && card.id !== 'pa') {
+          addLog('La secuencia de Saque de Corner solo acepta Pase Aereo en este paso.');
+          return;
+        }
+
+        if (pendingCombo.stage === 'shot') {
+          addLog('La secuencia de Saque de Corner debe cerrarse con Tirar a Gol.');
+          return;
+        }
+      }
+
       const nextPassTotal = currentPassTotal + card.value;
 
       if (nextPassTotal > 4) {
@@ -1984,6 +2041,7 @@ export default function App() {
       }
 
       consumeCard(actor, index, card);
+      setActivePlay([]);
       setHasActedThisTurn(true);
       setPendingCombo({
         actor,
@@ -2090,31 +2148,6 @@ export default function App() {
           @keyframes fieldBallBounce {
             0%, 100% { transform: translate(-50%, 0); }
             50% { transform: translate(-50%, -12px); }
-          }
-
-          @keyframes coinTossArc {
-            0% { transform: translateY(170px) scale(0.78); opacity: 0; }
-            12% { opacity: 1; }
-            28% { transform: translateY(-56px) scale(1.01); }
-            52% { transform: translateY(-166px) scale(1.08); }
-            74% { transform: translateY(-34px) scale(0.96); }
-            100% { transform: translateY(0) scale(1); opacity: 1; }
-          }
-
-          @keyframes coinSpinFace {
-            0% { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
-            18% { transform: rotateX(620deg) rotateY(120deg) rotateZ(-12deg); }
-            52% { transform: rotateX(1680deg) rotateY(360deg) rotateZ(10deg); }
-            82% { transform: rotateX(2440deg) rotateY(580deg) rotateZ(-5deg); }
-            100% { transform: rotateX(2880deg) rotateY(720deg) rotateZ(0deg); }
-          }
-
-          @keyframes coinShadowPulse {
-            0% { transform: scale(0.54); opacity: 0; }
-            24% { transform: scale(0.88); opacity: 0.22; }
-            52% { transform: scale(0.38); opacity: 0.08; }
-            78% { transform: scale(0.92); opacity: 0.18; }
-            100% { transform: scale(1); opacity: 0.24; }
           }
 
           @keyframes goalPulse {
@@ -2637,49 +2670,26 @@ export default function App() {
                   Elige cara o sello y lanza la moneda al aire para definir quien arranca con el balon.
                 </p>
 
-                {(() => {
-                  const shownFace = coinFlipState.result ?? coinFlipState.choice ?? 'Cara';
-                  const hiddenFace = getOppositeCoinFace(shownFace);
-                  const restingTransform = coinFlipState.result
-                    ? coinFlipState.result === 'Cara'
-                      ? 'rotateY(0deg)'
-                      : 'rotateY(180deg)'
-                    : coinFlipState.choice === 'Sello'
-                      ? 'rotateY(180deg)'
-                      : 'rotateY(0deg)';
-
-                  return (
-                <div className="relative mx-auto mb-7 flex h-52 w-full max-w-[220px] items-end justify-center overflow-hidden">
-                  <div
-                    className="absolute bottom-4 h-5 w-28 rounded-full bg-black/50 blur-md"
-                    style={{
-                      animation: coinFlipState.isFlipping ? 'coinShadowPulse 1.9s ease-in-out forwards' : 'none'
-                    }}
+                <div className="relative mx-auto mb-7 flex w-full max-w-[320px] items-center justify-center">
+                  <video
+                    key={coinFlipPlaybackId}
+                    ref={coinFlipVideoRef}
+                    src={coinVideo}
+                    autoPlay={coinFlipState.isFlipping}
+                    controls={false}
+                    onEnded={finalizeCoinFlip}
+                    onLoadedMetadata={scheduleCoinFlipFinalize}
+                    onError={scheduleCoinFlipFinalize}
+                    playsInline
+                    preload="auto"
+                    className="h-auto w-full rounded-[1.75rem] shadow-[0_22px_45px_rgba(0,0,0,0.4)]"
                   />
-                  <div
-                    className="relative flex h-32 w-32 items-center justify-center"
-                    style={{
-                      perspective: '1200px',
-                      animation: coinFlipState.isFlipping ? 'coinTossArc 1.9s cubic-bezier(0.2,0.7,0.18,1) forwards' : 'none'
-                    }}
-                  >
-                    <div
-                      className="relative h-full w-full"
-                      style={{
-                        transformStyle: 'preserve-3d',
-                        transform: coinFlipState.isFlipping ? undefined : restingTransform,
-                        animation: coinFlipState.isFlipping ? 'coinSpinFace 1.9s cubic-bezier(0.18,0.72,0.16,1) forwards' : 'none'
-                      }}
-                    >
-                      <div className="absolute inset-y-[10px] left-1/2 w-[12px] -translate-x-1/2 rounded-full bg-[linear-gradient(180deg,#7a4b00_0%,#d9a419_26%,#fff0a2_50%,#d29c11_74%,#6f4300_100%)] shadow-[0_0_0_1px_rgba(255,240,170,0.24),inset_0_0_8px_rgba(255,255,255,0.22)] [transform:translateX(-50%)_rotateY(90deg)]" />
-                      <div className="absolute inset-0 rounded-full border-[5px] border-yellow-100/70 shadow-[inset_0_8px_18px_rgba(255,255,255,0.34),inset_0_-18px_26px_rgba(92,54,0,0.42),0_18px_35px_rgba(0,0,0,0.45)]" />
-                      <CoinFace face={shownFace} />
-                      <CoinFace face={hiddenFace} mirrored />
+                  {coinFlipState.result ? (
+                    <div className="pointer-events-none absolute right-3 top-3 rounded-full border border-yellow-300/30 bg-black/60 px-4 py-2 text-[11px] font-black uppercase tracking-[0.28em] text-yellow-200 backdrop-blur-sm">
+                      {coinFlipState.result}
                     </div>
-                  </div>
+                  ) : null}
                 </div>
-                  );
-                })()}
 
                 <div className="mb-6 min-h-[56px]">
                   {coinFlipState.isFlipping ? (
