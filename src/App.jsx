@@ -556,7 +556,7 @@ export default function App() {
     onlineCoinFlipTimeoutRef.current = window.setTimeout(() => {
       setOnlineCoinFlipReveal(null);
       onlineCoinFlipTimeoutRef.current = null;
-    }, 8000);
+    }, 30000);
   };
 
   const closeOnlineCoinFlipReveal = () => {
@@ -2967,10 +2967,9 @@ export default function App() {
             )}
 
             {onlineCoinFlipReveal && (
-              <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
+              <div className="pointer-events-none fixed inset-x-0 top-16 z-50 flex justify-center px-4">
                 <div
-                  className="w-full max-w-sm rounded-[1.8rem] border border-yellow-300/40 bg-slate-950/90 p-5 text-center shadow-[0_24px_60px_rgba(0,0,0,0.55)]"
-                  style={{ animation: 'goalPulse 1.8s ease-out forwards' }}
+                  className="w-full max-w-sm rounded-[1.8rem] border border-yellow-300/40 bg-slate-950/92 p-5 text-center shadow-[0_24px_60px_rgba(0,0,0,0.55)]"
                 >
                   <video
                     key={`${onlineCoinFlipReveal.result}-${onlineCoinFlipReveal.winner}`}

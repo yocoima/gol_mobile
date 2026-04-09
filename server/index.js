@@ -810,11 +810,6 @@ io.on('connection', (socket) => {
       return;
     }
 
-    if (room.matchState.hasActedThisTurn) {
-      socket.emit('match:error', { message: 'No puedes descartar despues de jugar una carta.' });
-      return;
-    }
-
     if (room.matchState.pendingShot || room.matchState.pendingDefense || room.matchState.pendingBlindDiscard || room.matchState.pendingCombo) {
       socket.emit('match:error', { message: 'No puedes descartar mientras hay una respuesta pendiente.' });
       return;
