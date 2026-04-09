@@ -518,6 +518,7 @@ export default function App() {
   const [opponentDisplayName, setOpponentDisplayName] = useState('RIVAL');
   const [fieldEventAnimation, setFieldEventAnimation] = useState(null);
   const [onlineCoinFlipReveal, setOnlineCoinFlipReveal] = useState(null);
+  const onlineCoinFlipTimeoutRef = useRef(null);
   const lastOnlineEventRef = useRef(null);
 
   const isPlayerTurn = currentTurn === 'player';
@@ -543,6 +544,27 @@ export default function App() {
 
   const addLog = (message) => {
     setGameLog((previousLog) => [message, ...previousLog].slice(0, 5));
+  };
+
+  const showOnlineCoinFlipReveal = (nextReveal) => {
+    if (onlineCoinFlipTimeoutRef.current) {
+      window.clearTimeout(onlineCoinFlipTimeoutRef.current);
+      onlineCoinFlipTimeoutRef.current = null;
+    }
+
+    setOnlineCoinFlipReveal(nextReveal);
+    onlineCoinFlipTimeoutRef.current = window.setTimeout(() => {
+      setOnlineCoinFlipReveal(null);
+      onlineCoinFlipTimeoutRef.current = null;
+    }, 8000);
+  };
+
+  const closeOnlineCoinFlipReveal = () => {
+    if (onlineCoinFlipTimeoutRef.current) {
+      window.clearTimeout(onlineCoinFlipTimeoutRef.current);
+      onlineCoinFlipTimeoutRef.current = null;
+    }
+    closeOnlineCoinFlipReveal();
   };
 
   const setLaneNotice = (actor, message) => {
@@ -585,17 +607,12 @@ export default function App() {
     return () => window.clearTimeout(timeoutId);
   }, [systemNotice]);
 
-  useEffect(() => {
-    if (!onlineCoinFlipReveal) {
-      return undefined;
+  useEffect(() => () => {
+    if (onlineCoinFlipTimeoutRef.current) {
+      window.clearTimeout(onlineCoinFlipTimeoutRef.current);
+      onlineCoinFlipTimeoutRef.current = null;
     }
-
-    const timeoutId = window.setTimeout(() => {
-      setOnlineCoinFlipReveal(null);
-    }, 2600);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [onlineCoinFlipReveal]);
+  }, []);
 
   useEffect(() => {
     if (!aiStatus) {
@@ -667,7 +684,7 @@ export default function App() {
       setOnlineRoom(room);
       setOnlineRole(matchState.playerRole);
       hydrateFromOnlineState(matchState);
-      setOnlineCoinFlipReveal({
+      showOnlineCoinFlipReveal({
         result: matchState.startingPlayer === 'player' ? 'Cara' : 'Sello',
         winner: matchState.startingPlayer === 'player'
           ? (matchState.playerName || 'JUGADOR')
@@ -1249,7 +1266,7 @@ export default function App() {
 
       if (event.type === 'coin_flip') {
         addLog(`Moneda: ${event.result}. Inicia ${event.winner === 'player' ? localPlayerLabel : localOpponentLabel}.`);
-        setOnlineCoinFlipReveal({
+        showOnlineCoinFlipReveal({
           result: event.result,
           winner: event.winner === 'player' ? localPlayerLabel : localOpponentLabel
         });
@@ -1865,6 +1882,13 @@ export default function App() {
       setDiscardMode(false);
       setSelectedForDiscard([]);
       addLog('Descarte cancelado.');
+      return;
+    }
+
+    if (onlineEnabled && socketRef.current) {
+      socketRef.current.emit('match:discard', { indexes: selectedForDiscard });
+      setDiscardMode(false);
+      setSelectedForDiscard([]);
       return;
     }
 
@@ -2953,6 +2977,8 @@ export default function App() {
                     src={coinVideo}
                     autoPlay
                     muted
+                    onEnded={closeOnlineCoinFlipReveal}
+                    onError={closeOnlineCoinFlipReveal}
                     playsInline
                     className="mx-auto mb-4 h-auto w-full rounded-2xl"
                   />

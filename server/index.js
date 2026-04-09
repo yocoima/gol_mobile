@@ -796,6 +796,74 @@ io.on('connection', (socket) => {
     socket.emit('match:error', { message: 'La accion aun no esta soportada por el backend.' });
   });
 
+  socket.on('match:discard', ({ indexes } = {}) => {
+    const room = findPlayerRoom(socket.id);
+
+    if (!room || !room.matchState) {
+      socket.emit('room:error', { message: 'No hay una partida activa en esta sala.' });
+      return;
+    }
+
+    const actor = getPlayerRole(room, socket.id);
+    if (!actor || room.matchState.currentTurn !== actor) {
+      socket.emit('match:error', { message: 'No es tu turno para descartar.' });
+      return;
+    }
+
+    if (room.matchState.hasActedThisTurn) {
+      socket.emit('match:error', { message: 'No puedes descartar despues de jugar una carta.' });
+      return;
+    }
+
+    if (room.matchState.pendingShot || room.matchState.pendingDefense || room.matchState.pendingBlindDiscard || room.matchState.pendingCombo) {
+      socket.emit('match:error', { message: 'No puedes descartar mientras hay una respuesta pendiente.' });
+      return;
+    }
+
+    const handKey = getHandKey(actor);
+    const hand = [...room.matchState[handKey]];
+    const uniqueIndexes = Array.isArray(indexes)
+      ? [...new Set(indexes)].filter((index) => Number.isInteger(index) && index >= 0 && index < hand.length).sort((a, b) => a - b)
+      : [];
+
+    if (uniqueIndexes.length === 0) {
+      socket.emit('match:error', { message: 'Selecciona al menos una carta para descartar.' });
+      return;
+    }
+
+    const cardsToDiscard = hand.filter((_, idx) => uniqueIndexes.includes(idx));
+    const nextHand = hand.filter((_, idx) => !uniqueIndexes.includes(idx));
+    const drawResult = drawCardsFromPools(
+      room.matchState.deck,
+      room.matchState.discardPile,
+      Math.max(0, getHandLimit(room.matchState.redCardPenalty, actor) - nextHand.length),
+      cardsToDiscard
+    );
+
+    room.matchState[handKey] = [...nextHand, ...drawResult.drawnCards];
+    room.matchState.deck = drawResult.deck;
+    room.matchState.discardPile = drawResult.discardPile;
+    room.matchState.currentTurn = getOpponent(actor);
+    room.matchState.hasActedThisTurn = false;
+    applyRedCardTurnProgress(room.matchState, actor);
+
+    for (const card of cardsToDiscard) {
+      pushRecentAction(room.matchState, {
+        actor,
+        type: 'discard',
+        card: {
+          id: card.id,
+          name: card.name,
+          color: card.color ?? 'bg-slate-800',
+          value: card.value ?? 0,
+          imageUrl: card.imageUrl ?? null
+        }
+      });
+    }
+
+    emitMatchState(io, room);
+  });
+
   socket.on('room:leave', () => {
     const room = findPlayerRoom(socket.id);
 
