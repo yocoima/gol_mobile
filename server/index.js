@@ -78,6 +78,28 @@ const getPlayerRole = (room, socketId) => {
 };
 
 const clearTransientState = (matchState) => {
+  const autoCardsFromTable = (matchState.activePlay || []).filter((card) =>
+    typeof card?.id === 'string' && card.id.endsWith('_auto')
+  );
+  const actor = matchState.currentTurn || matchState.possession || 'player';
+
+  if (autoCardsFromTable.length > 0) {
+    matchState.discardPile = [...autoCardsFromTable, ...matchState.discardPile];
+    for (const card of autoCardsFromTable) {
+      pushRecentAction(matchState, {
+        actor,
+        type: 'table_collect',
+        card: {
+          id: card.id,
+          name: card.name,
+          color: card.color ?? 'bg-slate-800',
+          value: card.value ?? 0,
+          imageUrl: card.imageUrl ?? null
+        }
+      });
+    }
+  }
+
   matchState.activePlay = [];
   matchState.pendingShot = null;
   matchState.pendingDefense = null;

@@ -1002,6 +1002,14 @@ export default function App() {
       : null;
 
   const clearTransientState = () => {
+    const autoCardsFromTable = activePlay.filter((card) =>
+      typeof card?.id === 'string' && card.id.endsWith('_auto')
+    );
+    if (autoCardsFromTable.length > 0) {
+      setDiscardPile((previous) => [...autoCardsFromTable, ...previous]);
+      registerDiscardShowcaseCards(currentTurn ?? possession ?? 'player', autoCardsFromTable);
+    }
+
     setDiscardShowcasePendingArchive(true);
     setActivePlay([]);
     setPendingShot(null);
@@ -2370,22 +2378,7 @@ export default function App() {
           <div className="mb-2 text-center text-[10px] font-black uppercase tracking-[0.25em] text-white/60">
             Rival {DEV_SHOW_OPPONENT_HAND ? '(debug visible)' : ''}
           </div>
-          <div className="mb-3 flex flex-wrap items-center justify-center gap-4">
-              {canUseDiscard && isOpponentTurn && (
-              <button
-                onClick={handleDiscard}
-                className={`flex items-center gap-2 rounded-full px-6 py-2.5 text-[10px] font-black transition-all ${
-                  discardMode
-                    ? selectedForDiscard.length === 2
-                      ? 'scale-105 bg-orange-600 shadow-lg'
-                      : 'bg-slate-700'
-                    : 'bg-orange-700 shadow-lg hover:bg-orange-600'
-                }`}
-              >
-                <RefreshCcw size={14} /> {discardMode ? `CONFIRMAR DESCARTE (${selectedForDiscard.length}/2)` : 'DESCARTAR 2 DEL RIVAL'}
-              </button>
-            )}
-          </div>
+          <div className="mb-3 flex flex-wrap items-center justify-center gap-4" />
           <div className="grid w-full grid-cols-5 justify-items-center gap-1.5 sm:flex sm:flex-wrap sm:justify-center sm:gap-2">
             {opponentHand.map((card, index) =>
               DEV_SHOW_OPPONENT_HAND ? (
@@ -2393,10 +2386,10 @@ export default function App() {
                   key={`${card.id}-${index}`}
                   card={card}
                   isSelected={selectedForDiscard.includes(index)}
-                  onSelect={(event) => toggleDiscardSelection(event, index)}
-                  onClick={() => playCard(card, index, false)}
-                  disabled={!isOpponentTurn}
-                    canSelectDiscard={canUseDiscard}
+                    onSelect={(event) => toggleDiscardSelection(event, index)}
+                    onClick={() => playCard(card, index, false)}
+                    disabled={!isOpponentTurn}
+                    canSelectDiscard={false}
                   isDiscardMode={discardMode}
                   hideContent={pendingBlindDiscard?.actor === 'opponent'}
                 />
