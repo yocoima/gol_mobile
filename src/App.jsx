@@ -59,32 +59,43 @@ const RED_CARD_IMAGE = redCardImage;
 const BALL_IMAGE = CARD_IMAGE_BY_NAME.balon ?? null;
 const AI_STATUS_TIMEOUT_MS = 1900;
 const ONLINE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const CARD_IMAGE_ALIASES = {
+  'barrida': ['barrida'],
+  'saque banda': ['saque de banda', 'saque banda'],
+  'pase corto': ['pase corto'],
+  'pase largo': ['pase largo'],
+  'pase aereo': ['pase aereo'],
+  'falta agresiva': ['falta agresiva'],
+  'offside': ['offside'],
+  'parada arquero': ['parada del arquero'],
+  'saque corner': ['saque de corner', 'saque corner'],
+  'tarj. amarilla': ['tarj. amarilla', 'tarjeta amarilla', 'tarjea amarilla'],
+  'tarj. roja': ['tarj. roja', 'tarjeta roja'],
+  'tirar a gol': ['tirar a gol'],
+  'var': ['var']
+};
 
-const DECK_DEFINITION = BASE_DECK_DEFINITION.map((card) => {
-  const imageAliases = {
-    'barrida': ['barrida'],
-    'saque banda': ['saque de banda', 'saque banda'],
-    'pase corto': ['pase corto'],
-    'pase largo': ['pase largo'],
-    'pase aereo': ['pase aereo', 'pase aéreo'],
-    'falta agresiva': ['falta agresiva'],
-    'offside': ['offside'],
-    'parada arquero': ['parada del arquero'],
-    'saque corner': ['saque de corner', 'saque corner'],
-    'tarj. amarilla': ['tarj. amarilla', 'tarjeta amarilla', 'tarjea amarilla'],
-    'tarj. roja': ['tarj. roja', 'tarjeta roja'],
-    'tirar a gol': ['tirar a gol'],
-    'var': ['var']
-  };
+const withCardImage = (card) => {
+  if (!card || card.imageUrl) {
+    return card;
+  }
 
-  const normalizedCardName = normalizeAssetName(card.name);
-  const aliasCandidates = imageAliases[normalizedCardName] ?? [normalizedCardName];
+  const normalizedCardName = normalizeAssetName(card.name ?? '');
+  const aliasCandidates = CARD_IMAGE_ALIASES[normalizedCardName] ?? [normalizedCardName];
   const imageUrl = aliasCandidates
     .map((candidate) => CARD_IMAGE_BY_NAME[normalizeAssetName(candidate)])
     .find(Boolean);
 
+  if (!imageUrl && !CARD_IMAGE_BY_ID[card.id]) {
+    return card;
+  }
+
   return { ...card, imageUrl: CARD_IMAGE_BY_ID[card.id] ?? imageUrl ?? null };
-});
+};
+
+const withCardsImage = (cards = []) => cards.map((card) => withCardImage(card));
+
+const DECK_DEFINITION = BASE_DECK_DEFINITION.map((card) => withCardImage(card));
 
 const DEV_SHOW_OPPONENT_HAND = true;
 
@@ -449,6 +460,7 @@ const TutorialStepCard = ({ label }) => {
 
 export default function App() {
   const socketRef = useRef(null);
+  const pendingOnlineActionRef = useRef(null);
   const [gameState, setGameState] = useState('menu');
   const [tutorialPage, setTutorialPage] = useState(0);
   const [coinFlipState, setCoinFlipState] = useState({
@@ -571,9 +583,18 @@ export default function App() {
     }
 
     const socket = io(ONLINE_API_URL, {
-      transports: ['websocket']
+      transports: ['websocket', 'polling']
     });
     socketRef.current = socket;
+
+    socket.on('connect', () => {
+      setOnlineSocketId(socket.id);
+      const pendingAction = pendingOnlineActionRef.current;
+      if (pendingAction) {
+        socket.emit(pendingAction.event, pendingAction.payload);
+        pendingOnlineActionRef.current = null;
+      }
+    });
 
     socket.on('server:ready', ({ socketId }) => {
       setOnlineSocketId(socketId);
@@ -589,10 +610,11 @@ export default function App() {
     socket.on('room:updated', ({ room }) => {
       setOnlineRoom(room);
       setOnlineRoomCode(room.code);
-      if (onlineSocketId) {
-        const localPlayer = room.players?.find((player) => player.id === onlineSocketId);
+      const localSocketId = socket.id || onlineSocketId;
+      if (localSocketId) {
+        const localPlayer = room.players?.find((player) => player.id === localSocketId);
         if (localPlayer) {
-          const roleIndex = room.players.findIndex((player) => player.id === onlineSocketId);
+          const roleIndex = room.players.findIndex((player) => player.id === localSocketId);
           setOnlineRole(roleIndex === 0 ? 'player' : roleIndex === 1 ? 'opponent' : null);
         }
       }
@@ -621,13 +643,17 @@ export default function App() {
       addLog(message);
     });
 
+    socket.on('connect_error', () => {
+      setOnlineError('No se pudo conectar con el servidor online.');
+    });
+
     return () => {
       socket.disconnect();
       if (socketRef.current === socket) {
         socketRef.current = null;
       }
     };
-  }, [onlineEnabled, onlineSocketId]);
+  }, [onlineEnabled]);
 
   const { getHand, hasCardInHand } = engineContext;
   const setSanctionFor = (actor, sanction) => {
@@ -1068,7 +1094,7 @@ export default function App() {
           matchWinner: swapActor(matchState.matchWinner)
         };
 
-    const visiblePlayerHand = localMatchState.yourHand || [];
+    const visiblePlayerHand = withCardsImage(localMatchState.yourHand || []);
     const visibleOpponentHand = Array.from(
       { length: localMatchState.opponentHandCount || 0 },
       (_, index) => ({
@@ -1081,19 +1107,25 @@ export default function App() {
     setGameState(localMatchState.gameState || 'playing');
     setPlayerHand(visiblePlayerHand);
     setOpponentHand(visibleOpponentHand);
-    setDeck(localMatchState.deck || []);
-    setDiscardPile(localMatchState.discardPile || []);
+    setDeck(withCardsImage(localMatchState.deck || []));
+    setDiscardPile(withCardsImage(localMatchState.discardPile || []));
     setPlayerScore(localMatchState.playerScore ?? 0);
     setOpponentScore(localMatchState.opponentScore ?? 0);
     setSanctions(localMatchState.sanctions || { player: null, opponent: null });
     setRedCardPenalty(localMatchState.redCardPenalty || { player: 0, opponent: 0 });
     setPossession(localMatchState.possession ?? null);
     setCurrentTurn(localMatchState.currentTurn ?? null);
-    setPendingShot(localMatchState.pendingShot ?? null);
-    setPendingDefense(localMatchState.pendingDefense ?? null);
+    setPendingShot(localMatchState.pendingShot ? {
+      ...localMatchState.pendingShot,
+      card: withCardImage(localMatchState.pendingShot.card)
+    } : null);
+    setPendingDefense(localMatchState.pendingDefense ? {
+      ...localMatchState.pendingDefense,
+      card: withCardImage(localMatchState.pendingDefense.card)
+    } : null);
     setPendingCombo(localMatchState.pendingCombo ?? null);
     setPendingBlindDiscard(localMatchState.pendingBlindDiscard ?? null);
-    setActivePlay(localMatchState.activePlay || []);
+    setActivePlay(withCardsImage(localMatchState.activePlay || []));
     setBonusTurnFor(localMatchState.bonusTurnFor ?? null);
     setMatchWinner(localMatchState.matchWinner ?? null);
     setHasActedThisTurn(localMatchState.hasActedThisTurn ?? false);
@@ -1106,43 +1138,45 @@ export default function App() {
     }
 
     setOnlineEnabled(true);
-    return null;
+    return socketRef.current;
+  };
+
+  const emitOnlineEvent = (event, payload) => {
+    const socket = connectOnline();
+
+    if (socket?.connected) {
+      socket.emit(event, payload);
+      return;
+    }
+
+    pendingOnlineActionRef.current = { event, payload };
+    socketRef.current?.connect?.();
   };
 
   const createOnlineRoom = () => {
-    const existingSocket = connectOnline();
-
-    if (existingSocket) {
-      existingSocket.emit('room:create', { playerName: onlinePlayerName });
-      return;
-    }
-
-    window.setTimeout(() => {
-      socketRef.current?.emit('room:create', { playerName: onlinePlayerName });
-    }, 150);
+    const normalizedName = onlinePlayerName.trim() || 'Jugador 1';
+    setOnlinePlayerName(normalizedName);
+    emitOnlineEvent('room:create', { playerName: normalizedName });
   };
 
   const joinOnlineRoom = () => {
-    const existingSocket = connectOnline();
-
-    if (existingSocket) {
-      existingSocket.emit('room:join', {
-        code: onlineJoinCode,
-        playerName: onlinePlayerName
-      });
+    const normalizedName = onlinePlayerName.trim() || 'Jugador 1';
+    const normalizedCode = onlineJoinCode.trim().toUpperCase();
+    if (!normalizedCode) {
+      setOnlineError('Ingresa un codigo de sala.');
       return;
     }
-
-    window.setTimeout(() => {
-      socketRef.current?.emit('room:join', {
-        code: onlineJoinCode,
-        playerName: onlinePlayerName
-      });
-    }, 150);
+    setOnlinePlayerName(normalizedName);
+    setOnlineJoinCode(normalizedCode);
+    emitOnlineEvent('room:join', {
+      code: normalizedCode,
+      playerName: normalizedName
+    });
   };
 
   const leaveOnlineRoom = () => {
     socketRef.current?.emit('room:leave');
+    pendingOnlineActionRef.current = null;
     setOnlineEnabled(false);
     setOnlineRoomCode('');
     setOnlineRoom(null);
@@ -1151,6 +1185,7 @@ export default function App() {
   };
 
   const resetMatch = () => {
+    pendingOnlineActionRef.current = null;
     if (coinFlipFinalizeTimeoutRef.current) {
       window.clearTimeout(coinFlipFinalizeTimeoutRef.current);
       coinFlipFinalizeTimeoutRef.current = null;
@@ -1557,17 +1592,20 @@ export default function App() {
     }
     coinFlipOutcomeRef.current = null;
     coinFlipResolvedRef.current = false;
-    const matchSnapshot = createLocalMatchSnapshot({ startingPlayer: coinFlipState.winner });
+    const matchSnapshot = createLocalMatchSnapshot({
+      startingPlayer: coinFlipState.winner,
+      deckDefinition: DECK_DEFINITION
+    });
     setDiscardShowcase({
       player: { current: [], archive: [] },
       opponent: { current: [], archive: [] }
     });
     setDiscardShowcasePendingArchive(false);
     setLaneNotices({ player: '', opponent: '' });
-    setPlayerHand(matchSnapshot.playerHand);
-    setOpponentHand(matchSnapshot.opponentHand);
-    setDeck(matchSnapshot.deck);
-    setDiscardPile(matchSnapshot.discardPile);
+    setPlayerHand(withCardsImage(matchSnapshot.playerHand));
+    setOpponentHand(withCardsImage(matchSnapshot.opponentHand));
+    setDeck(withCardsImage(matchSnapshot.deck));
+    setDiscardPile(withCardsImage(matchSnapshot.discardPile));
     setPlayerScore(matchSnapshot.playerScore);
     setOpponentScore(matchSnapshot.opponentScore);
     setSanctions(matchSnapshot.sanctions);
@@ -2751,3 +2789,4 @@ export default function App() {
     </div>
   );
 }
+

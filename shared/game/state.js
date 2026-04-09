@@ -39,8 +39,8 @@ export const drawCardsFromPools = (currentDeck, currentDiscardPile, amount, held
   };
 };
 
-export const createLocalMatchSnapshot = ({ startingPlayer = 'player' } = {}) => {
-  const matchState = createInitialMatchState({ startingPlayer });
+export const createLocalMatchSnapshot = ({ startingPlayer = 'player', deckDefinition } = {}) => {
+  const matchState = createInitialMatchState({ startingPlayer, deckDefinition });
 
   return {
     deck: matchState.deck,

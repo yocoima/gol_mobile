@@ -70,8 +70,8 @@ export const initDeck = (deckDefinition = BASE_DECK_DEFINITION) => {
   return shuffleCards(fullDeck);
 };
 
-export const createInitialMatchState = ({ startingPlayer = 'player' } = {}) => {
-  const deck = initDeck();
+export const createInitialMatchState = ({ startingPlayer = 'player', deckDefinition = BASE_DECK_DEFINITION } = {}) => {
+  const deck = initDeck(deckDefinition);
   const playerHand = deck.splice(0, 5);
   const opponentHand = deck.splice(0, 5);
 
