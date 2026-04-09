@@ -21,7 +21,7 @@ const httpServer = createServer(app);
 const port = Number(process.env.PORT || 3001);
 const allowedOrigins = (process.env.CLIENT_ORIGIN || 'http://localhost:5173')
   .split(',')
-  .map((origin) => origin.trim())
+  .map((origin) => origin.trim().replace(/\/$/, ''))
   .filter(Boolean);
 
 const isOriginAllowed = (origin) => {
@@ -29,7 +29,22 @@ const isOriginAllowed = (origin) => {
     return true;
   }
 
-  return allowedOrigins.includes(origin);
+  const normalizedOrigin = origin.trim().replace(/\/$/, '');
+  if (allowedOrigins.includes(normalizedOrigin)) {
+    return true;
+  }
+
+  try {
+    const originUrl = new URL(normalizedOrigin);
+
+    if (originUrl.hostname.endsWith('.vercel.app')) {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+
+  return false;
 };
 
 const corsOptions = {
