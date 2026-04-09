@@ -513,10 +513,15 @@ export default function App() {
   const [onlineRole, setOnlineRole] = useState(null);
   const [onlineSocketId, setOnlineSocketId] = useState(null);
   const [onlineError, setOnlineError] = useState('');
+  const [playerDisplayName, setPlayerDisplayName] = useState('JUGADOR');
+  const [opponentDisplayName, setOpponentDisplayName] = useState('RIVAL');
+  const [fieldEventAnimation, setFieldEventAnimation] = useState(null);
+  const [onlineCoinFlipReveal, setOnlineCoinFlipReveal] = useState(null);
+  const lastOnlineEventRef = useRef(null);
 
   const isPlayerTurn = currentTurn === 'player';
   const isOpponentTurn = currentTurn === 'opponent';
-  const currentTurnLabel = isPlayerTurn ? 'Jugador' : isOpponentTurn ? 'Rival' : 'Nadie';
+  const currentTurnLabel = isPlayerTurn ? playerDisplayName : isOpponentTurn ? opponentDisplayName : 'Nadie';
   const engineContext = createEngineContext({
     playerHand,
     opponentHand,
@@ -554,6 +559,30 @@ export default function App() {
 
     return () => window.clearTimeout(timeoutId);
   }, [goalCelebration]);
+
+  useEffect(() => {
+    if (!fieldEventAnimation) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setFieldEventAnimation(null);
+    }, 1600);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [fieldEventAnimation]);
+
+  useEffect(() => {
+    if (!onlineCoinFlipReveal) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setOnlineCoinFlipReveal(null);
+    }, 2600);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [onlineCoinFlipReveal]);
 
   useEffect(() => {
     if (!aiStatus) {
@@ -1046,6 +1075,30 @@ export default function App() {
 
   const hydrateFromOnlineState = (matchState) => {
     const swapActor = (actor) => (actor === 'player' ? 'opponent' : actor === 'opponent' ? 'player' : actor);
+    const buildShowcaseFromActions = (actions = []) => {
+      const mapped = {
+        player: { current: [], archive: [] },
+        opponent: { current: [], archive: [] }
+      };
+
+      for (const action of actions) {
+        const actor = action.actor === 'player' ? 'player' : 'opponent';
+        const baseCard = withCardImage(action.card);
+        const visualCard = {
+          ...baseCard,
+          visualId: `${action.id ?? action.at ?? Date.now()}-${baseCard?.id ?? 'card'}`
+        };
+
+        if (mapped[actor].current.length < 4) {
+          mapped[actor].current.push(visualCard);
+        } else if (mapped[actor].archive.length < 4) {
+          mapped[actor].archive.push(visualCard);
+        }
+      }
+
+      return mapped;
+    };
+
     const isLocalPlayerOne = matchState.playerRole === 'player';
     const localMatchState = isLocalPlayerOne
       ? matchState
@@ -1091,7 +1144,19 @@ export default function App() {
               }
             : null,
           bonusTurnFor: swapActor(matchState.bonusTurnFor),
-          matchWinner: swapActor(matchState.matchWinner)
+          matchWinner: swapActor(matchState.matchWinner),
+          recentActions: (matchState.recentActions || []).map((action) => ({
+            ...action,
+            actor: swapActor(action.actor)
+          })),
+          lastEvent: matchState.lastEvent
+            ? {
+                ...matchState.lastEvent,
+                actor: swapActor(matchState.lastEvent.actor),
+                scorer: swapActor(matchState.lastEvent.scorer),
+                winner: swapActor(matchState.lastEvent.winner)
+              }
+            : null
         };
 
     const visiblePlayerHand = withCardsImage(localMatchState.yourHand || []);
@@ -1130,6 +1195,48 @@ export default function App() {
     setMatchWinner(localMatchState.matchWinner ?? null);
     setHasActedThisTurn(localMatchState.hasActedThisTurn ?? false);
     setCounterAttackReady(localMatchState.counterAttackReady ?? false);
+    setPlayerDisplayName((localMatchState.playerName || 'Jugador').toUpperCase());
+    setOpponentDisplayName((localMatchState.opponentName || 'Rival').toUpperCase());
+
+    if (Array.isArray(localMatchState.recentActions)) {
+      setDiscardShowcase(buildShowcaseFromActions(localMatchState.recentActions));
+    }
+
+    if (localMatchState.lastEvent?.id && localMatchState.lastEvent.id !== lastOnlineEventRef.current) {
+      lastOnlineEventRef.current = localMatchState.lastEvent.id;
+      const event = localMatchState.lastEvent;
+      const localPlayerLabel = (localMatchState.playerName || 'Jugador').toUpperCase();
+      const localOpponentLabel = (localMatchState.opponentName || 'Rival').toUpperCase();
+
+      if (event.type === 'goal') {
+        setGoalCelebration({
+          scorer: event.scorer,
+          text: `GOOL ${event.scorer === 'player' ? localPlayerLabel : localOpponentLabel}`
+        });
+      }
+
+      if (event.type === 'coin_flip') {
+        addLog(`Moneda: ${event.result}. Inicia ${event.winner === 'player' ? localPlayerLabel : localOpponentLabel}.`);
+        setOnlineCoinFlipReveal({
+          result: event.result,
+          winner: event.winner === 'player' ? localPlayerLabel : localOpponentLabel
+        });
+      }
+
+      if (event.type === 'barrida_success') {
+        setFieldEventAnimation({
+          actor: event.actor,
+          text: `${event.actor === 'player' ? localPlayerLabel : localOpponentLabel} recupera con Barrida`
+        });
+      }
+
+      if (event.type === 'save_success') {
+        setFieldEventAnimation({
+          actor: event.actor,
+          text: `Atajada de ${event.actor === 'player' ? localPlayerLabel : localOpponentLabel}`
+        });
+      }
+    }
   };
 
   const connectOnline = () => {
@@ -1177,6 +1284,7 @@ export default function App() {
   const leaveOnlineRoom = () => {
     socketRef.current?.emit('room:leave');
     pendingOnlineActionRef.current = null;
+    lastOnlineEventRef.current = null;
     setOnlineEnabled(false);
     setOnlineRoomCode('');
     setOnlineRoom(null);
@@ -1193,6 +1301,7 @@ export default function App() {
 
   const resetMatch = () => {
     pendingOnlineActionRef.current = null;
+    lastOnlineEventRef.current = null;
     if (coinFlipFinalizeTimeoutRef.current) {
       window.clearTimeout(coinFlipFinalizeTimeoutRef.current);
       coinFlipFinalizeTimeoutRef.current = null;
@@ -1233,6 +1342,10 @@ export default function App() {
     setOnlineRoom(null);
     setOnlineRole(null);
     setOnlineError('');
+    setPlayerDisplayName('JUGADOR');
+    setOpponentDisplayName('RIVAL');
+    setFieldEventAnimation(null);
+    setOnlineCoinFlipReveal(null);
     setGameLog(['Posesion persistente activada']);
     clearTransientState();
   };
@@ -1626,6 +1739,8 @@ export default function App() {
     setActivePlay(matchSnapshot.activePlay);
     setBonusTurnFor(matchSnapshot.bonusTurnFor);
     setGameState(matchSnapshot.gameState);
+    setPlayerDisplayName('JUGADOR');
+    setOpponentDisplayName('RIVAL');
   };
 
   const endTurn = () => {
@@ -2089,7 +2204,7 @@ export default function App() {
           }`}>
             {possession === 'player' && <SoccerBallIcon size={20} className="animate-bounce" />}
             <div className="text-center">
-              <span className="block text-[10px] font-black text-blue-400">JUGADOR</span>
+              <span className="block text-[10px] font-black text-blue-400">{playerDisplayName}</span>
               <span className="text-3xl font-black">{playerScore}</span>
               <div className="mt-1 flex justify-center gap-1.5">
                 {[1, 2, 3, 4].map((point) => (
@@ -2137,7 +2252,16 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex-1" />
+          <div className="flex flex-1 justify-center">
+            {(gameState === 'playing' || gameState === 'dealing' || gameState === 'coin-flip') ? (
+              <button
+                onClick={finishMatchAndReturnToMenu}
+                className="rounded-full border border-red-200/40 bg-red-500/20 px-5 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-red-100 shadow-xl transition-all hover:bg-red-500/30"
+              >
+                Terminar partida
+              </button>
+            ) : null}
+          </div>
 
           <div className={`flex items-center gap-4 rounded-2xl p-3 transition-all ${
             possession === 'opponent'
@@ -2148,7 +2272,7 @@ export default function App() {
           }`}>
             {possession === 'opponent' && <SoccerBallIcon size={20} className="animate-bounce" />}
             <div className="text-center">
-              <span className="block text-[10px] font-black text-red-400">RIVAL</span>
+              <span className="block text-[10px] font-black text-red-400">{opponentDisplayName}</span>
               <span className="text-3xl font-black">{opponentScore}</span>
               <div className="mt-1 flex justify-center gap-1.5">
                 {[1, 2, 3, 4].map((point) => (
@@ -2398,12 +2522,6 @@ export default function App() {
                 }`}
               >
                 <ArrowRightCircle size={14} /> FINALIZAR TURNO
-              </button>
-              <button
-                onClick={finishMatchAndReturnToMenu}
-                className="rounded-full border border-red-200/40 bg-red-500/20 px-6 py-2.5 text-[10px] font-black text-red-100 shadow-xl transition-all hover:bg-red-500/30"
-              >
-                TERMINAR PARTIDA
               </button>
           </div>
 
@@ -2784,6 +2902,47 @@ export default function App() {
                     <SoccerBallIcon size={30} className="text-white" />
                   </div>
                   <div className="text-3xl font-black uppercase tracking-[0.28em]">{goalCelebration.text}</div>
+                </div>
+              </div>
+            )}
+
+            {fieldEventAnimation && (
+              <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center">
+                <div
+                  className={`rounded-[1.6rem] border px-8 py-5 text-center shadow-[0_0_45px_rgba(255,255,255,0.1)] ${
+                    fieldEventAnimation.actor === 'player'
+                      ? 'border-blue-300/50 bg-blue-500/20 text-blue-100'
+                      : 'border-red-300/50 bg-red-500/20 text-red-100'
+                  }`}
+                  style={{ animation: 'goalPulse 1.4s ease-out forwards' }}
+                >
+                  <div className="text-sm font-black uppercase tracking-[0.24em]">
+                    {fieldEventAnimation.text}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {onlineCoinFlipReveal && (
+              <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
+                <div
+                  className="w-full max-w-sm rounded-[1.8rem] border border-yellow-300/40 bg-slate-950/90 p-5 text-center shadow-[0_24px_60px_rgba(0,0,0,0.55)]"
+                  style={{ animation: 'goalPulse 1.8s ease-out forwards' }}
+                >
+                  <video
+                    key={`${onlineCoinFlipReveal.result}-${onlineCoinFlipReveal.winner}`}
+                    src={coinVideo}
+                    autoPlay
+                    muted
+                    playsInline
+                    className="mx-auto mb-4 h-auto w-full rounded-2xl"
+                  />
+                  <div className="text-xs font-black uppercase tracking-[0.25em] text-yellow-300">
+                    Salio {onlineCoinFlipReveal.result}
+                  </div>
+                  <div className="mt-2 text-sm font-semibold text-white/85">
+                    Inicia {onlineCoinFlipReveal.winner}
+                  </div>
                 </div>
               </div>
             )}

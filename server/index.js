@@ -113,6 +113,15 @@ const refillActorHandToLimit = (matchState, actor, targetLimit) => {
 };
 
 const getHandKey = (actor) => (actor === 'player' ? 'playerHand' : 'opponentHand');
+const createEventId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+const pushRecentAction = (matchState, action) => {
+  const actions = Array.isArray(matchState.recentActions) ? matchState.recentActions : [];
+  matchState.recentActions = [
+    { ...action, id: createEventId(), at: new Date().toISOString() },
+    ...actions
+  ].slice(0, 24);
+};
 
 const applyStatePatch = (matchState, statePatch) => {
   if (!statePatch) {
@@ -124,7 +133,7 @@ const applyStatePatch = (matchState, statePatch) => {
   }
 };
 
-const consumeCard = (matchState, actor, index, card) => {
+const consumeCard = (matchState, actor, index, card, actionType = 'play') => {
   const handKey = getHandKey(actor);
   const currentHand = matchState[handKey];
   const nextHand = currentHand.filter((_, handIndex) => handIndex !== index);
@@ -138,6 +147,17 @@ const consumeCard = (matchState, actor, index, card) => {
   matchState[handKey] = [...nextHand, ...drawResult.drawnCards];
   matchState.deck = drawResult.deck;
   matchState.discardPile = drawResult.discardPile;
+  pushRecentAction(matchState, {
+    actor,
+    type: actionType,
+    card: {
+      id: card.id,
+      name: card.name,
+      color: card.color ?? 'bg-slate-800',
+      value: card.value ?? 0,
+      imageUrl: card.imageUrl ?? null
+    }
+  });
 };
 
 const applyRedCardTurnProgress = (matchState, actor) => {
@@ -171,6 +191,7 @@ const applyGoal = (matchState, scorer, reason) => {
 
   matchState.playerScore = goalOutcome.nextPlayerScore;
   matchState.opponentScore = goalOutcome.nextOpponentScore;
+  matchState.lastEvent = { id: createEventId(), type: 'goal', scorer, reason };
   applyRedCardTurnProgress(matchState, scorer);
   clearTransientState(matchState);
 
@@ -221,6 +242,17 @@ const resolveBlindDiscard = (matchState, actor, index) => {
   }
 
   matchState.discardPile = [plan.discardedCard, ...matchState.discardPile];
+  pushRecentAction(matchState, {
+    actor,
+    type: 'discard',
+    card: {
+      id: plan.discardedCard.id,
+      name: plan.discardedCard.name,
+      color: plan.discardedCard.color ?? 'bg-slate-800',
+      value: plan.discardedCard.value ?? 0,
+      imageUrl: plan.discardedCard.imageUrl ?? null
+    }
+  });
   matchState[handKey] = plan.nextHand;
   matchState.pendingBlindDiscard = null;
   matchState.currentTurn = plan.nextTurn;
@@ -273,6 +305,9 @@ const startDefenseResolution = (matchState, defender, defenseCard) => {
   matchState.possession = defensePlan.nextPossession;
   matchState.currentTurn = defensePlan.nextTurn;
   matchState.hasActedThisTurn = true;
+  if (defenseCard.id === 'ba' && defensePlan.nextPossession === defender) {
+    matchState.lastEvent = { id: createEventId(), type: 'barrida_success', actor: defender };
+  }
 
   if (defensePlan.clearActivePlay) {
     matchState.activePlay = [];
@@ -323,10 +358,16 @@ const sanitizeMatchStateForPlayer = (matchState, role) => {
 
   const ownHand = role === 'player' ? matchState.playerHand : matchState.opponentHand;
   const rivalHand = role === 'player' ? matchState.opponentHand : matchState.playerHand;
+  const playerName =
+    role === 'player' ? matchState.playerNames?.player ?? 'Jugador' : matchState.playerNames?.opponent ?? 'Jugador';
+  const opponentName =
+    role === 'player' ? matchState.playerNames?.opponent ?? 'Rival' : matchState.playerNames?.player ?? 'Rival';
 
   return {
     ...matchState,
     playerRole: role,
+    playerName,
+    opponentName,
     yourHand: ownHand,
     opponentHandCount: rivalHand.length,
     playerHand: undefined,
@@ -465,7 +506,19 @@ io.on('connection', (socket) => {
       return;
     }
 
-    room.matchState = createInitialMatchState({ startingPlayer: 'player' });
+    const starter = Math.random() > 0.5 ? 'player' : 'opponent';
+    room.matchState = createInitialMatchState({ startingPlayer: starter });
+    room.matchState.playerNames = {
+      player: room.players[0]?.name ?? 'Jugador 1',
+      opponent: room.players[1]?.name ?? 'Jugador 2'
+    };
+    room.matchState.recentActions = [];
+    room.matchState.lastEvent = {
+      id: createEventId(),
+      type: 'coin_flip',
+      result: starter === 'player' ? 'Cara' : 'Sello',
+      winner: starter
+    };
     room.status = 'in_match';
 
     for (const player of room.players) {
@@ -644,6 +697,9 @@ io.on('connection', (socket) => {
     if (playCardAction.type === 'penalty-response' || playCardAction.type === 'save-response') {
       if (playCardAction.plan.type === 'turn-change' && playCardAction.plan.clearTransientState) {
         clearTransientState(room.matchState);
+      }
+      if (playCardAction.type === 'save-response' && card.id === 'paq' && playCardAction.plan.type === 'turn-change') {
+        room.matchState.lastEvent = { id: createEventId(), type: 'save_success', actor };
       }
       applyStatePatch(room.matchState, playCardAction.statePatch);
       emitMatchState(io, room);
