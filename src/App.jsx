@@ -8,23 +8,41 @@ import {
   RefreshCcw,
   Trash2,
 } from 'lucide-react';
+import { io } from 'socket.io-client';
 import yellowCardImage from '../imagenes/Tarjeta amarilla.png';
 import redCardImage from '../imagenes/Tarjeta roja.png';
 import coinVideo from '../imagenes/Moneda.mp4';
+import {
+  AUTO_PASS_BY_DEFENSE,
+  BASE_DECK_DEFINITION,
+  PRE_SHOT_DEFENSE_CARD_IDS,
+  normalizeAssetName
+} from '../shared/game/core.js';
+import {
+  createLocalMatchSnapshot,
+  drawCardsFromPools,
+  getHandLimit,
+  getOpponent
+} from '../shared/game/state.js';
+import {
+  applyEndTurnAction,
+  applyPlayCardAction,
+  createEngineContext
+} from '../shared/game/engine.js';
+import {
+  getBlindDiscardPlan,
+  getBlindDiscardResolutionPlan,
+  getCardPenaltyResponsePlan,
+  getDefenseResolutionPlan,
+  getGoalOutcome,
+  getRedCardProgressPlan,
+  getShotResolutionPlan
+} from '../shared/game/rules.js';
 
 const CARD_IMAGE_MODULES = import.meta.glob('../imagenes/*.{png,jpg,jpeg,webp}', {
   eager: true,
   import: 'default'
 });
-
-const normalizeAssetName = (value) =>
-  value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\.(png|jpe?g|webp|gif|bmp)$/i, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
 
 const CARD_IMAGE_BY_NAME = Object.fromEntries(
   Object.entries(CARD_IMAGE_MODULES).map(([path, assetUrl]) => {
@@ -40,27 +58,9 @@ const YELLOW_CARD_IMAGE = yellowCardImage;
 const RED_CARD_IMAGE = redCardImage;
 const BALL_IMAGE = CARD_IMAGE_BY_NAME.balon ?? null;
 const AI_STATUS_TIMEOUT_MS = 1900;
+const ONLINE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
-const DECK_DEFINITION = [
-  { id: 'pc', name: 'Pase Corto', value: 1, type: 'pass', color: 'bg-emerald-500', count: 12, detail: 'Suma valor x1' },
-  { id: 'pl', name: 'Pase Largo', value: 2, type: 'pass', color: 'bg-blue-500', count: 8, detail: 'Suma valor x2' },
-  { id: 'pa', name: 'Pase Aereo', value: 3, type: 'pass', color: 'bg-cyan-500', count: 8, detail: 'Suma valor x3' },
-  { id: 'cont', name: 'Contraataque', value: 0, type: 'defense', color: 'bg-indigo-600', count: 4, detail: 'Recupera durante pases' },
-  { id: 'reg', name: 'Regatear', value: 0, type: 'counter', color: 'bg-teal-400', count: 6, detail: 'Responde a Barrida' },
-  { id: 'tg', name: 'Tirar a Gol', value: 0, type: 'shoot', color: 'bg-red-600', count: 8, detail: 'Intenta anotar' },
-  { id: 'ch', name: 'Chilena', value: 0, type: 'shoot_special', color: 'bg-orange-500', count: 3, detail: 'Tras Pase Aereo' },
-  { id: 'ba', name: 'Barrida', value: 0, type: 'defense', color: 'bg-slate-700', count: 6, detail: 'Quita posesion' },
-  { id: 'fa', name: 'Falta Agresiva', value: 0, type: 'defense', color: 'bg-orange-800', count: 4, detail: 'Responde con tarjeta' },
-  { id: 'pe', name: 'Penalti', value: 0, type: 'shoot_direct', color: 'bg-yellow-500', count: 3, detail: 'Tiro directo' },
-  { id: 'off', name: 'Offside', value: 0, type: 'save', color: 'bg-amber-600', count: 4, detail: 'Anula Tiro a Gol' },
-  { id: 'paq', name: 'Parada Arquero', value: 0, type: 'save', color: 'bg-stone-500', count: 6, detail: 'Evita un gol' },
-  { id: 'rem', name: 'Remate', value: 0, type: 'special', color: 'bg-pink-600', count: 4, detail: 'Tras Parada Arquero' },
-  { id: 'sb', name: 'Saque Banda', value: 0, type: 'defense', color: 'bg-lime-600', count: 4, detail: 'Recupera + Pase Corto' },
-  { id: 'sc', name: 'Saque Corner', value: 0, type: 'defense', color: 'bg-sky-700', count: 4, detail: 'Recupera + Pase Aereo' },
-  { id: 'ta', name: 'Tarj. Amarilla', value: 0, type: 'card', color: 'bg-yellow-400', count: 4, detail: 'Contra Falta Agresiva' },
-  { id: 'tr', name: 'Tarj. Roja', value: 0, type: 'card_hard', color: 'bg-red-500', count: 2, detail: 'Contra Falta Agresiva' },
-  { id: 'var', name: 'VAR', value: 0, type: 'var', color: 'bg-purple-600', count: 2, detail: 'Anula Roja o Penalti' }
-].map((card) => {
+const DECK_DEFINITION = BASE_DECK_DEFINITION.map((card) => {
   const imageAliases = {
     'barrida': ['barrida'],
     'saque banda': ['saque de banda', 'saque banda'],
@@ -87,46 +87,6 @@ const DECK_DEFINITION = [
 });
 
 const DEV_SHOW_OPPONENT_HAND = true;
-const AUTO_PASS_BY_DEFENSE = {
-  sb: { id: 'pc_auto', name: 'Pase Corto', value: 1, color: 'bg-emerald-500' }
-};
-const PRE_SHOT_DEFENSE_CARD_IDS = ['ba', 'fa', 'sb', 'sc', 'cont'];
-
-const getRandomIndex = (maxExclusive) => {
-  if (maxExclusive <= 0) {
-    return 0;
-  }
-
-  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
-    const values = new Uint32Array(1);
-    crypto.getRandomValues(values);
-    return values[0] % maxExclusive;
-  }
-
-  return Math.floor(Math.random() * maxExclusive);
-};
-
-const shuffleCards = (cards) => {
-  const shuffled = [...cards];
-
-  for (let currentIndex = shuffled.length - 1; currentIndex > 0; currentIndex -= 1) {
-    const randomIndex = getRandomIndex(currentIndex + 1);
-    [shuffled[currentIndex], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[currentIndex]];
-  }
-
-  return shuffled;
-};
-
-const initDeck = () => {
-  const fullDeck = DECK_DEFINITION.flatMap((card) =>
-    Array.from({ length: card.count }, (_, instanceIndex) => ({
-      ...card,
-      instanceId: `${card.id}-${instanceIndex}-${getRandomIndex(1_000_000)}`
-    }))
-  );
-
-  return shuffleCards(fullDeck);
-};
 
 const TUTORIAL_SEQUENCES = [
   {
@@ -488,6 +448,7 @@ const TutorialStepCard = ({ label }) => {
 };
 
 export default function App() {
+  const socketRef = useRef(null);
   const [gameState, setGameState] = useState('menu');
   const [tutorialPage, setTutorialPage] = useState(0);
   const [coinFlipState, setCoinFlipState] = useState({
@@ -532,12 +493,33 @@ export default function App() {
   const [matchWinner, setMatchWinner] = useState(null);
   const [aiMode, setAiMode] = useState(false);
   const [aiStatus, setAiStatus] = useState('');
+  const [onlineEnabled, setOnlineEnabled] = useState(false);
+  const [onlineRoomCode, setOnlineRoomCode] = useState('');
+  const [onlineJoinCode, setOnlineJoinCode] = useState('');
+  const [onlinePlayerName, setOnlinePlayerName] = useState('Jugador 1');
+  const [onlineRoom, setOnlineRoom] = useState(null);
+  const [onlineRole, setOnlineRole] = useState(null);
+  const [onlineSocketId, setOnlineSocketId] = useState(null);
+  const [onlineError, setOnlineError] = useState('');
 
   const isPlayerTurn = currentTurn === 'player';
   const isOpponentTurn = currentTurn === 'opponent';
   const currentTurnLabel = isPlayerTurn ? 'Jugador' : isOpponentTurn ? 'Rival' : 'Nadie';
-  const currentPassTotal = activePlay.reduce((sum, card) => sum + (card.value || 0), 0);
-  const getPassTrackerTotal = (actor) => (possession === actor ? currentPassTotal : 0);
+  const engineContext = createEngineContext({
+    playerHand,
+    opponentHand,
+    activePlay,
+    possession,
+    currentTurn,
+    pendingShot,
+    pendingDefense,
+    pendingBlindDiscard,
+    pendingCombo,
+    hasActedThisTurn,
+    bonusTurnFor,
+    redCardPenalty
+  });
+  const { currentPassTotal, getPassTrackerTotal, hasReactionWindow, canUseDiscard } = engineContext;
   const lastActiveCard = activePlay[activePlay.length - 1];
   const currentTutorial = TUTORIAL_SEQUENCES[tutorialPage] ?? TUTORIAL_SEQUENCES[0];
 
@@ -579,10 +561,75 @@ export default function App() {
     }
   }, []);
 
-  const getOpponent = (actor) => (actor === 'player' ? 'opponent' : 'player');
-  const getHand = (actor) => (actor === 'player' ? playerHand : opponentHand);
-  const getHandLimit = (actor) => (redCardPenalty[actor] > 0 ? 4 : 5);
-  const hasCardInHand = (actor, cardId) => getHand(actor).some((card) => card.id === cardId);
+  useEffect(() => {
+    if (!onlineEnabled) {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+      return undefined;
+    }
+
+    const socket = io(ONLINE_API_URL, {
+      transports: ['websocket']
+    });
+    socketRef.current = socket;
+
+    socket.on('server:ready', ({ socketId }) => {
+      setOnlineSocketId(socketId);
+    });
+
+    socket.on('room:created', ({ room, youAreHost }) => {
+      setOnlineRoom(room);
+      setOnlineRoomCode(room.code);
+      setOnlineRole(youAreHost ? 'player' : null);
+      setOnlineError('');
+    });
+
+    socket.on('room:updated', ({ room }) => {
+      setOnlineRoom(room);
+      setOnlineRoomCode(room.code);
+      if (onlineSocketId) {
+        const localPlayer = room.players?.find((player) => player.id === onlineSocketId);
+        if (localPlayer) {
+          const roleIndex = room.players.findIndex((player) => player.id === onlineSocketId);
+          setOnlineRole(roleIndex === 0 ? 'player' : roleIndex === 1 ? 'opponent' : null);
+        }
+      }
+      setOnlineError('');
+    });
+
+    socket.on('match:started', ({ room, matchState }) => {
+      setOnlineRoom(room);
+      setOnlineRole(matchState.playerRole);
+      hydrateFromOnlineState(matchState);
+    });
+
+    socket.on('match:updated', ({ room, matchState }) => {
+      setOnlineRoom(room);
+      setOnlineRole(matchState.playerRole);
+      hydrateFromOnlineState(matchState);
+    });
+
+    socket.on('room:error', ({ message }) => {
+      setOnlineError(message);
+      addLog(message);
+    });
+
+    socket.on('match:error', ({ message }) => {
+      setOnlineError(message);
+      addLog(message);
+    });
+
+    return () => {
+      socket.disconnect();
+      if (socketRef.current === socket) {
+        socketRef.current = null;
+      }
+    };
+  }, [onlineEnabled, onlineSocketId]);
+
+  const { getHand, hasCardInHand } = engineContext;
   const setSanctionFor = (actor, sanction) => {
     setSanctions((previous) => ({ ...previous, [actor]: sanction }));
   };
@@ -786,8 +833,6 @@ export default function App() {
 
     return getDiscardAction('opponent') ?? { type: 'end' };
   };
-  const hasReactionWindow = Boolean(pendingShot || pendingDefense || pendingBlindDiscard || pendingCombo);
-  const canUseDiscard = !hasActedThisTurn && !hasReactionWindow;
   const reactionBannerMessage =
     pendingBlindDiscard
       ? `DESCARTE OCULTO EN CURSO: ${pendingBlindDiscard.actor === 'player' ? 'JUGADOR' : 'RIVAL'}`
@@ -927,39 +972,182 @@ export default function App() {
     setDiscardShowcasePendingArchive(false);
   };
 
-  const drawCardsFromPools = (currentDeck, currentDiscardPile, amount, heldBackCards = []) => {
-    let workingDeck = [...currentDeck];
-    let workingDiscardPile = [...currentDiscardPile];
-    const reservedDiscardCards = [...heldBackCards];
-    const drawnCards = [];
-    let reshuffled = false;
-
-    while (drawnCards.length < amount) {
-      if (workingDeck.length === 0) {
-        if (workingDiscardPile.length === 0) {
-          break;
-        }
-
-        workingDeck = shuffleCards(workingDiscardPile);
-        workingDiscardPile = [];
-        reshuffled = true;
-      }
-
-      const nextCard = workingDeck.shift();
-
-      if (!nextCard) {
-        break;
-      }
-
-      drawnCards.push(nextCard);
+  const applyEngineStatePatch = (statePatch) => {
+    if (!statePatch) {
+      return;
     }
 
-    return {
-      deck: workingDeck,
-      discardPile: [...reservedDiscardCards, ...workingDiscardPile],
-      drawnCards,
-      reshuffled
-    };
+    if ('activePlay' in statePatch) {
+      setActivePlay(statePatch.activePlay);
+    }
+
+    if ('pendingCombo' in statePatch) {
+      setPendingCombo(statePatch.pendingCombo);
+    }
+
+    if ('pendingDefense' in statePatch) {
+      setPendingDefense(statePatch.pendingDefense);
+    }
+
+    if ('pendingShot' in statePatch) {
+      setPendingShot(statePatch.pendingShot);
+    }
+
+    if ('counterAttackReady' in statePatch) {
+      setCounterAttackReady(statePatch.counterAttackReady);
+    }
+
+    if ('hasActedThisTurn' in statePatch) {
+      setHasActedThisTurn(statePatch.hasActedThisTurn);
+    }
+
+    if ('discardMode' in statePatch) {
+      setDiscardMode(statePatch.discardMode);
+    }
+
+    if ('selectedForDiscard' in statePatch) {
+      setSelectedForDiscard(statePatch.selectedForDiscard);
+    }
+
+    if ('currentTurn' in statePatch) {
+      setCurrentTurn(statePatch.currentTurn);
+    }
+
+    if ('possession' in statePatch) {
+      setPossession(statePatch.possession);
+    }
+  };
+
+  const hydrateFromOnlineState = (matchState) => {
+    const swapActor = (actor) => (actor === 'player' ? 'opponent' : actor === 'opponent' ? 'player' : actor);
+    const isLocalPlayerOne = matchState.playerRole === 'player';
+    const localMatchState = isLocalPlayerOne
+      ? matchState
+      : {
+          ...matchState,
+          playerScore: matchState.opponentScore,
+          opponentScore: matchState.playerScore,
+          sanctions: {
+            player: matchState.sanctions?.opponent ?? null,
+            opponent: matchState.sanctions?.player ?? null
+          },
+          redCardPenalty: {
+            player: matchState.redCardPenalty?.opponent ?? 0,
+            opponent: matchState.redCardPenalty?.player ?? 0
+          },
+          possession: swapActor(matchState.possession),
+          currentTurn: swapActor(matchState.currentTurn),
+          pendingShot: matchState.pendingShot
+            ? {
+                ...matchState.pendingShot,
+                attacker: swapActor(matchState.pendingShot.attacker),
+                defender: swapActor(matchState.pendingShot.defender)
+              }
+            : null,
+          pendingDefense: matchState.pendingDefense
+            ? {
+                ...matchState.pendingDefense,
+                defender: swapActor(matchState.pendingDefense.defender),
+                possessor: swapActor(matchState.pendingDefense.possessor)
+              }
+            : null,
+          pendingCombo: matchState.pendingCombo
+            ? {
+                ...matchState.pendingCombo,
+                actor: swapActor(matchState.pendingCombo.actor)
+              }
+            : null,
+          pendingBlindDiscard: matchState.pendingBlindDiscard
+            ? {
+                ...matchState.pendingBlindDiscard,
+                actor: swapActor(matchState.pendingBlindDiscard.actor),
+                returnTurnTo: swapActor(matchState.pendingBlindDiscard.returnTurnTo)
+              }
+            : null,
+          bonusTurnFor: swapActor(matchState.bonusTurnFor),
+          matchWinner: swapActor(matchState.matchWinner)
+        };
+
+    const visiblePlayerHand = localMatchState.yourHand || [];
+    const visibleOpponentHand = Array.from(
+      { length: localMatchState.opponentHandCount || 0 },
+      (_, index) => ({
+        id: `hidden-opponent-${index}`,
+        name: 'Carta oculta',
+        color: 'bg-slate-800'
+      })
+    );
+
+    setGameState(localMatchState.gameState || 'playing');
+    setPlayerHand(visiblePlayerHand);
+    setOpponentHand(visibleOpponentHand);
+    setDeck(localMatchState.deck || []);
+    setDiscardPile(localMatchState.discardPile || []);
+    setPlayerScore(localMatchState.playerScore ?? 0);
+    setOpponentScore(localMatchState.opponentScore ?? 0);
+    setSanctions(localMatchState.sanctions || { player: null, opponent: null });
+    setRedCardPenalty(localMatchState.redCardPenalty || { player: 0, opponent: 0 });
+    setPossession(localMatchState.possession ?? null);
+    setCurrentTurn(localMatchState.currentTurn ?? null);
+    setPendingShot(localMatchState.pendingShot ?? null);
+    setPendingDefense(localMatchState.pendingDefense ?? null);
+    setPendingCombo(localMatchState.pendingCombo ?? null);
+    setPendingBlindDiscard(localMatchState.pendingBlindDiscard ?? null);
+    setActivePlay(localMatchState.activePlay || []);
+    setBonusTurnFor(localMatchState.bonusTurnFor ?? null);
+    setMatchWinner(localMatchState.matchWinner ?? null);
+    setHasActedThisTurn(localMatchState.hasActedThisTurn ?? false);
+    setCounterAttackReady(localMatchState.counterAttackReady ?? false);
+  };
+
+  const connectOnline = () => {
+    if (socketRef.current?.connected) {
+      return socketRef.current;
+    }
+
+    setOnlineEnabled(true);
+    return null;
+  };
+
+  const createOnlineRoom = () => {
+    const existingSocket = connectOnline();
+
+    if (existingSocket) {
+      existingSocket.emit('room:create', { playerName: onlinePlayerName });
+      return;
+    }
+
+    window.setTimeout(() => {
+      socketRef.current?.emit('room:create', { playerName: onlinePlayerName });
+    }, 150);
+  };
+
+  const joinOnlineRoom = () => {
+    const existingSocket = connectOnline();
+
+    if (existingSocket) {
+      existingSocket.emit('room:join', {
+        code: onlineJoinCode,
+        playerName: onlinePlayerName
+      });
+      return;
+    }
+
+    window.setTimeout(() => {
+      socketRef.current?.emit('room:join', {
+        code: onlineJoinCode,
+        playerName: onlinePlayerName
+      });
+    }, 150);
+  };
+
+  const leaveOnlineRoom = () => {
+    socketRef.current?.emit('room:leave');
+    setOnlineEnabled(false);
+    setOnlineRoomCode('');
+    setOnlineRoom(null);
+    setOnlineRole(null);
+    setOnlineError('');
   };
 
   const resetMatch = () => {
@@ -997,6 +1185,12 @@ export default function App() {
     setGoalCelebration(null);
     setMatchWinner(null);
     setAiMode(false);
+    setOnlineEnabled(false);
+    setOnlineRoomCode('');
+    setOnlineJoinCode('');
+    setOnlineRoom(null);
+    setOnlineRole(null);
+    setOnlineError('');
     setGameLog(['Posesion persistente activada']);
     clearTransientState();
   };
@@ -1007,7 +1201,7 @@ export default function App() {
     const drawResult = drawCardsFromPools(
       deck,
       discardPile,
-      Math.max(0, getHandLimit(actor) - nextHand.length),
+      Math.max(0, getHandLimit(redCardPenalty, actor) - nextHand.length),
       [card]
     );
 
@@ -1036,41 +1230,51 @@ export default function App() {
   };
 
   const openBlindDiscard = (actor, reason, returnTurnTo) => {
-    if (getHand(actor).length === 0) {
+    const blindDiscardPlan = getBlindDiscardPlan({
+      actor,
+      handLength: getHand(actor).length,
+      reason,
+      returnTurnTo
+    });
+
+    if (!blindDiscardPlan.allowed) {
       return false;
     }
 
-    setPendingBlindDiscard({ actor, reason, returnTurnTo });
-    setCurrentTurn(actor);
-    setHasActedThisTurn(false);
-    setDiscardMode(false);
-    setSelectedForDiscard([]);
-    addLog(reason);
+    setPendingBlindDiscard(blindDiscardPlan.pendingBlindDiscard);
+    setCurrentTurn(blindDiscardPlan.nextTurn);
+    setHasActedThisTurn(blindDiscardPlan.hasActedThisTurn);
+    setDiscardMode(blindDiscardPlan.discardMode);
+    setSelectedForDiscard(blindDiscardPlan.selectedForDiscard);
+    addLog(blindDiscardPlan.logMessage);
     return true;
   };
 
   const resolveBlindDiscard = (actor, index) => {
-    const hand = getHand(actor);
-    const card = hand[index];
+    const blindDiscardResolution = getBlindDiscardResolutionPlan({
+      actor,
+      index,
+      hand: getHand(actor),
+      pendingBlindDiscard
+    });
 
-    if (!pendingBlindDiscard || pendingBlindDiscard.actor !== actor || !card) {
+    if (!blindDiscardResolution.allowed) {
       return;
     }
 
-    setDiscardPile((previousPile) => [card, ...previousPile]);
-    registerDiscardShowcaseCards(actor, [card]);
-    setLaneNotice(actor, `${actor === 'player' ? 'Jugador' : 'Rival'} descarta 1 carta oculta.`);
+    setDiscardPile((previousPile) => [blindDiscardResolution.discardedCard, ...previousPile]);
+    registerDiscardShowcaseCards(actor, [blindDiscardResolution.discardedCard]);
+    setLaneNotice(actor, blindDiscardResolution.laneNotice);
 
     if (actor === 'player') {
-      setPlayerHand((previousHand) => previousHand.filter((_, handIndex) => handIndex !== index));
+      setPlayerHand(blindDiscardResolution.nextHand);
     } else {
-      setOpponentHand((previousHand) => previousHand.filter((_, handIndex) => handIndex !== index));
+      setOpponentHand(blindDiscardResolution.nextHand);
     }
 
-    const returnTurnTo = pendingBlindDiscard.returnTurnTo;
     setPendingBlindDiscard(null);
-    setCurrentTurn(returnTurnTo);
-    setHasActedThisTurn(returnTurnTo !== actor);
+    setCurrentTurn(blindDiscardResolution.nextTurn);
+    setHasActedThisTurn(blindDiscardResolution.hasActedThisTurn);
   };
 
   const executeDiscard = (actor, indexes) => {
@@ -1088,7 +1292,7 @@ export default function App() {
     const drawResult = drawCardsFromPools(
       deck,
       discardPile,
-      Math.max(0, getHandLimit(actor) - newHand.length),
+      Math.max(0, getHandLimit(redCardPenalty, actor) - newHand.length),
       cardsToDiscard
     );
 
@@ -1118,11 +1322,15 @@ export default function App() {
   };
 
   const fillHandsToLimits = () => {
-    const playerDrawResult = drawCardsFromPools(deck, discardPile, Math.max(0, getHandLimit('player') - playerHand.length));
+    const playerDrawResult = drawCardsFromPools(
+      deck,
+      discardPile,
+      Math.max(0, getHandLimit(redCardPenalty, 'player') - playerHand.length)
+    );
     const opponentDrawResult = drawCardsFromPools(
       playerDrawResult.deck,
       playerDrawResult.discardPile,
-      Math.max(0, getHandLimit('opponent') - opponentHand.length)
+      Math.max(0, getHandLimit(redCardPenalty, 'opponent') - opponentHand.length)
     );
 
     setPlayerHand([...playerHand, ...playerDrawResult.drawnCards]);
@@ -1154,178 +1362,119 @@ export default function App() {
   };
 
   const applyRedCardTurnProgress = (actor) => {
-    const currentTurns = redCardPenalty[actor];
+    const progressPlan = getRedCardProgressPlan({
+      actor,
+      currentTurns: redCardPenalty[actor]
+    });
 
-    if (currentTurns <= 0) {
+    if (!progressPlan.shouldApply) {
       return;
     }
 
     consumeRedCardTurn(actor);
 
-    if (currentTurns <= 1) {
+    if (progressPlan.shouldClearSanction) {
       clearSanctionFor(actor);
-      refillActorHandToLimit(actor, 5);
+      refillActorHandToLimit(actor, progressPlan.refillTo);
       return;
     }
 
-    setSanctionFor(actor, {
-      type: 'red',
-      title: 'Roja',
-      detail: 'Descarta 1 y juega con 4 cartas durante 3 turnos.',
-      turnsRemaining: currentTurns - 1
-    });
+    setSanctionFor(actor, progressPlan.nextSanction);
   };
 
   const scoreGoal = (scorer, reason) => {
-    const scorerLabel = scorer === 'player' ? 'Jugador' : 'Rival';
-    const nextPlayerScore = scorer === 'player' ? playerScore + 1 : playerScore;
-    const nextOpponentScore = scorer === 'opponent' ? opponentScore + 1 : opponentScore;
-
-    setPlayerScore(nextPlayerScore);
-    setOpponentScore(nextOpponentScore);
-    setGoalCelebration({
+    const goalOutcome = getGoalOutcome({
       scorer,
-      text: scorer === 'player' ? 'GOOOL DEL JUGADOR' : 'GOOOL DEL RIVAL'
+      playerScore,
+      opponentScore,
+      reason
     });
-    setLaneNotice(scorer, `${scorer === 'player' ? 'Jugador' : 'Rival'} anota gol.`);
 
-    const nextActor = getOpponent(scorer);
+    setPlayerScore(goalOutcome.nextPlayerScore);
+    setOpponentScore(goalOutcome.nextOpponentScore);
+    setGoalCelebration({
+      scorer: goalOutcome.scorer,
+      text: goalOutcome.celebrationText
+    });
+    setLaneNotice(scorer, goalOutcome.laneNotice);
+
     applyRedCardTurnProgress(scorer);
     clearTransientState();
 
-    if (Math.max(nextPlayerScore, nextOpponentScore) >= 5) {
+    if (goalOutcome.isMatchFinished) {
       setMatchWinner(scorer);
       setGameState('finished');
       setPossession(null);
       setCurrentTurn(null);
-      addLog(`${reason} ${scorerLabel} gana el partido 5 goles.`);
+      addLog(goalOutcome.logMessage);
       return;
     }
 
-    setPossession(nextActor);
-    setCurrentTurn(nextActor);
-    addLog(reason);
+    setPossession(goalOutcome.nextActor);
+    setCurrentTurn(goalOutcome.nextActor);
+    addLog(goalOutcome.logMessage);
   };
 
   const startShotResolution = (attacker, shotType) => {
     const defender = getOpponent(attacker);
-    const unstoppable = shotType === 'chilena';
+    const shotPlan = getShotResolutionPlan({
+      attacker,
+      shotType,
+      defenderHasVar: hasCardInHand(defender, 'var'),
+      defenderHasArquero: hasCardInHand(defender, 'paq'),
+      defenderHasOffside: hasCardInHand(defender, 'off')
+    });
 
     setActivePlay([]);
     setCounterAttackReady(false);
 
-    if (unstoppable) {
-      scoreGoal(attacker, shotType === 'chilena' ? 'Chilena: gol automatico.' : 'Remate: gol.');
+    if (shotPlan.type === 'goal') {
+      scoreGoal(shotPlan.scorer, shotPlan.reason);
       return;
     }
 
-    if (shotType === 'penalty') {
-      if (hasCardInHand(defender, 'var') || hasCardInHand(defender, 'paq')) {
-        setPendingShot({ attacker, defender, shotType, phase: 'penalty_response' });
-        setCurrentTurn(defender);
-        setHasActedThisTurn(false);
-        setDiscardMode(false);
-        setSelectedForDiscard([]);
-        addLog('Penalti cobrado. El rival puede responder con VAR o Parada Arquero.');
-        return;
-      }
-
-      scoreGoal(attacker, 'Penalti convertido.');
-      return;
-    }
-
-    const canUseOffside = shotType !== 'remate' && hasCardInHand(defender, 'off');
-    const canUseArquero = hasCardInHand(defender, 'paq');
-
-    if (canUseArquero || canUseOffside) {
-      setPendingShot({
-        attacker,
-        defender,
-        shotType,
-        phase: 'save',
-        allowOffside: canUseOffside
-      });
-      setCurrentTurn(defender);
-      setHasActedThisTurn(false);
-      setDiscardMode(false);
-      setSelectedForDiscard([]);
-      addLog(
-        shotType === 'remate'
-          ? 'Remate al arco. El rival puede responder con Parada Arquero.'
-          : `Tiro al arco. El rival puede responder con ${canUseOffside ? 'Offside o Parada Arquero' : 'Parada Arquero'}.`
-      );
-      return;
-    }
-
-    scoreGoal(
-      attacker,
-      shotType === 'remate' ? 'Remate convertido. No hubo Parada Arquero.' : 'Gol: el rival no tenia Offside ni Parada Arquero.'
-    );
+    setPendingShot(shotPlan.pendingShot);
+    setCurrentTurn(shotPlan.nextTurn);
+    setHasActedThisTurn(false);
+    setDiscardMode(false);
+    setSelectedForDiscard([]);
+    addLog(shotPlan.logMessage);
   };
 
   const startDefenseResolution = (defender, defenseCard) => {
     const possessor = getOpponent(defender);
+    const defensePlan = getDefenseResolutionPlan({
+      defender,
+      defenseCardId: defenseCard.id,
+      possessorHasRegate: hasCardInHand(possessor, 'reg'),
+      possessorHasYellowCard: hasCardInHand(possessor, 'ta'),
+      possessorHasRedCard: hasCardInHand(possessor, 'tr')
+    });
 
-    if (defenseCard.id === 'ba') {
-      if (hasCardInHand(possessor, 'reg')) {
-        setPendingDefense({ defender, possessor, defenseCardId: 'ba' });
-        setCurrentTurn(possessor);
-        setHasActedThisTurn(false);
-        setDiscardMode(false);
-        setSelectedForDiscard([]);
-        addLog('Barrida activada. Puedes responder con Regatear.');
-        return;
-      }
-
-      clearTransientState();
-      setPossession(defender);
-      setCurrentTurn(defender);
-      setHasActedThisTurn(true);
-      addLog('Barrida exitosa. El balon cambia de posesion.');
-      return;
-    }
-
-    if (defenseCard.id === 'fa') {
-      if (hasCardInHand(possessor, 'ta') || hasCardInHand(possessor, 'tr')) {
-        setPendingDefense({ defender, possessor, defenseCardId: 'fa' });
-        setCurrentTurn(possessor);
-        setHasActedThisTurn(false);
-        setDiscardMode(false);
-        setSelectedForDiscard([]);
-        addLog('Falta agresiva. Puedes responder con Amarilla o Roja.');
-        return;
-      }
-
-      clearTransientState();
-      setPossession(defender);
-      setCurrentTurn(defender);
-      setHasActedThisTurn(true);
-      addLog('Falta agresiva sin respuesta. El balon cambia de posesion.');
+    if (defensePlan.type === 'pending-defense') {
+      setPendingDefense(defensePlan.pendingDefense);
+      setCurrentTurn(defensePlan.nextTurn);
+      setHasActedThisTurn(false);
+      setDiscardMode(false);
+      setSelectedForDiscard([]);
+      addLog(defensePlan.logMessage);
       return;
     }
 
     clearTransientState();
-    setPossession(defender);
-    setCurrentTurn(defender);
+    setPossession(defensePlan.nextPossession);
+    setCurrentTurn(defensePlan.nextTurn);
     setHasActedThisTurn(true);
 
-    if (defenseCard.id === 'cont') {
-      setPendingCombo({ actor: defender, type: 'cont_followup', stage: 'pass' });
-      addLog('Contraataque activado. Debes jugar un pase y luego Tirar a Gol.');
-      return;
-    }
-
-    if (defenseCard.id === 'sb') {
-      setPendingCombo({ actor: defender, type: 'sb_followup' });
-      addLog('Saque de banda activado. Debes jugar Pase Corto para recuperar y sumar un pase.');
-      return;
-    }
-
-    if (defenseCard.id === 'sc') {
+    if (defensePlan.clearActivePlay) {
       setActivePlay([]);
-      setPendingCombo({ actor: defender, type: 'sc_followup', stage: 'pass' });
-      addLog('Saque de corner activado. Debes jugar Pase Aereo y luego Tirar a Gol.');
     }
+
+    if (defensePlan.pendingCombo) {
+      setPendingCombo(defensePlan.pendingCombo);
+    }
+
+    addLog(defensePlan.logMessage);
   };
 
   const handleCoinFlip = (choice) => {
@@ -1397,127 +1546,110 @@ export default function App() {
   };
 
   const handleDeal = () => {
+    if (onlineEnabled && socketRef.current) {
+      socketRef.current.emit('match:start');
+      return;
+    }
+
     if (coinFlipFinalizeTimeoutRef.current) {
       window.clearTimeout(coinFlipFinalizeTimeoutRef.current);
       coinFlipFinalizeTimeoutRef.current = null;
     }
     coinFlipOutcomeRef.current = null;
     coinFlipResolvedRef.current = false;
-    const newDeck = initDeck();
+    const matchSnapshot = createLocalMatchSnapshot({ startingPlayer: coinFlipState.winner });
     setDiscardShowcase({
       player: { current: [], archive: [] },
       opponent: { current: [], archive: [] }
     });
     setDiscardShowcasePendingArchive(false);
     setLaneNotices({ player: '', opponent: '' });
-    setPlayerHand(newDeck.splice(0, 5));
-    setOpponentHand(newDeck.splice(0, 5));
-    setDeck(newDeck);
-    setGameState('playing');
+    setPlayerHand(matchSnapshot.playerHand);
+    setOpponentHand(matchSnapshot.opponentHand);
+    setDeck(matchSnapshot.deck);
+    setDiscardPile(matchSnapshot.discardPile);
+    setPlayerScore(matchSnapshot.playerScore);
+    setOpponentScore(matchSnapshot.opponentScore);
+    setSanctions(matchSnapshot.sanctions);
+    setRedCardPenalty(matchSnapshot.redCardPenalty);
+    setPossession(matchSnapshot.possession);
+    setCurrentTurn(matchSnapshot.currentTurn);
+    setPendingShot(matchSnapshot.pendingShot);
+    setPendingDefense(matchSnapshot.pendingDefense);
+    setPendingCombo(matchSnapshot.pendingCombo);
+    setPendingBlindDiscard(matchSnapshot.pendingBlindDiscard);
+    setActivePlay(matchSnapshot.activePlay);
+    setBonusTurnFor(matchSnapshot.bonusTurnFor);
+    setGameState(matchSnapshot.gameState);
   };
 
   const endTurn = () => {
-    if (pendingBlindDiscard) {
-      addLog('Debes resolver primero el descarte oculto antes de continuar.');
+    if (onlineEnabled && socketRef.current) {
+      socketRef.current.emit('match:end_turn');
       return;
     }
 
-    if (pendingCombo?.type === 'sb_followup') {
-      addLog('Debes completar la secuencia Saque de Banda + Pase Corto antes de finalizar el turno.');
+    const endTurnAction = applyEndTurnAction({
+      pendingBlindDiscard,
+      pendingCombo,
+      pendingShot,
+      pendingDefense,
+      currentTurn,
+      bonusTurnFor,
+      possession,
+      redCardPenalty
+    });
+
+    if (!endTurnAction.ok) {
+      addLog(endTurnAction.logMessage);
       return;
     }
 
-    if (pendingCombo?.type === 'sc_followup') {
-      addLog('Debes completar la secuencia Saque de Corner + Pase Aereo + Tirar a Gol antes de finalizar el turno.');
-      return;
+    if (endTurnAction.type === 'no-response') {
+      const noResponsePlan = endTurnAction.resolution;
+
+      if (noResponsePlan?.type === 'goal') {
+        scoreGoal(noResponsePlan.scorer, noResponsePlan.reason);
+        return;
+      }
+
+      if (noResponsePlan?.type === 'turn-change') {
+        if (noResponsePlan.clearTransientState) {
+          clearTransientState();
+        }
+
+        setPossession(noResponsePlan.nextPossession);
+        setCurrentTurn(noResponsePlan.nextTurn);
+        addLog(noResponsePlan.logMessage);
+        return;
+      }
+
+      if (noResponsePlan?.type === 'pending-defense-release') {
+        setPendingDefense(null);
+        setCurrentTurn(noResponsePlan.nextTurn);
+        setHasActedThisTurn(noResponsePlan.hasActedThisTurn);
+        addLog(noResponsePlan.logMessage);
+        return;
+      }
     }
 
-    if (pendingCombo?.type === 'cont_followup') {
-      addLog('Debes completar la secuencia Contraataque + pase antes de finalizar el turno.');
-      return;
-    }
+    const endTurnFlowPlan = endTurnAction.resolution;
 
-    if (pendingCombo?.type === 'chilena_followup') {
-      addLog('Debes completar la combinacion Chilena + Pase Aereo + Tirar a Gol antes de finalizar el turno.');
-      return;
-    }
-
-    if (pendingShot?.phase === 'penalty_response') {
-      scoreGoal(pendingShot.attacker, 'Penalti convertido.');
-      return;
-    }
-
-    if (pendingShot?.phase === 'save') {
-      scoreGoal(pendingShot.attacker, 'Gol: no hubo Parada Arquero.');
-      return;
-    }
-
-    if (pendingShot?.phase === 'offside_var') {
-      clearTransientState();
-      setPossession(pendingShot.defender);
-      setCurrentTurn(pendingShot.defender);
-      addLog('Offside confirmado. No se uso VAR y el balon cambia de posesion.');
-      return;
-    }
-
-    if (pendingShot?.phase === 'remate') {
-      const defender = getOpponent(pendingShot.attacker);
-      clearTransientState();
-      setPossession(defender);
-      setCurrentTurn(defender);
-      addLog('La jugada termino tras la parada del arquero.');
-      return;
-    }
-
-    if (pendingDefense?.defenseCardId === 'pre_shot') {
-      setPendingDefense(null);
-      setCurrentTurn(pendingDefense.possessor);
-      setHasActedThisTurn(false);
-      addLog('No hubo contra carta. Ahora se permite tirar a gol.');
-      return;
-    }
-
-    if (pendingDefense?.defenseCardId === 'red_card_var') {
-      setPendingDefense(null);
-      setCurrentTurn(pendingDefense.possessor);
-      setHasActedThisTurn(true);
-      addLog('La Roja se mantiene. No se uso VAR.');
-      return;
-    }
-
-    if (pendingDefense && pendingDefense.defenseCardId !== 'red_card_var') {
-      const defender = pendingDefense.defender;
-      clearTransientState();
-      setPossession(defender);
-      setCurrentTurn(defender);
-      addLog('La contracarta se resolvio sin respuesta. El balon cambia de posesion.');
-      return;
-    }
-
-    const actor = currentTurn;
-
-    const keepsTurn = bonusTurnFor === actor;
-    const nextActor = keepsTurn ? actor : getOpponent(actor);
-
-    if (keepsTurn) {
+    if (endTurnFlowPlan.keepsTurn) {
       setBonusTurnFor(null);
-      consumeSanctionTurn(getOpponent(actor));
+      consumeSanctionTurn(endTurnFlowPlan.opponentActor);
     }
 
-    if (redCardPenalty[actor] > 0 && !keepsTurn) {
-      applyRedCardTurnProgress(actor);
+    if (endTurnFlowPlan.shouldApplyRedCardProgress) {
+      applyRedCardTurnProgress(endTurnFlowPlan.actor);
     }
 
     setDiscardShowcasePendingArchive(true);
-    setCurrentTurn(nextActor);
+    setCurrentTurn(endTurnFlowPlan.nextActor);
     setHasActedThisTurn(false);
     setSelectedForDiscard([]);
     setDiscardMode(false);
-    addLog(
-      keepsTurn
-        ? 'Tarjeta Amarilla: comienza un nuevo turno extra con la misma posesion.'
-        : `Cambio de turno. Balon: ${possession === 'player' ? 'Jugador' : 'Rival'}.`
-    );
+    addLog(endTurnFlowPlan.logMessage);
   };
 
   const handleDiscard = () => {
@@ -1561,6 +1693,11 @@ export default function App() {
   };
 
   const playCard = (card, index, isFromPlayer) => {
+    if (onlineEnabled && socketRef.current) {
+      socketRef.current.emit('match:play_card', { index });
+      return;
+    }
+
     const actor = isFromPlayer ? 'player' : 'opponent';
     const liveCard = getHand(actor)[index] ?? card;
 
@@ -1570,183 +1707,99 @@ export default function App() {
 
     card = liveCard;
 
-    if (pendingBlindDiscard) {
-      if (actor !== pendingBlindDiscard.actor) {
-        addLog('Debe resolverse primero el descarte oculto.');
-        return;
-      }
+    const playCardAction = applyPlayCardAction({
+      state: {
+        cardIndex: index,
+        playerHand,
+        opponentHand,
+        activePlay,
+        possession,
+        currentTurn,
+        pendingShot,
+        pendingDefense,
+        pendingBlindDiscard,
+        pendingCombo,
+        hasActedThisTurn,
+        bonusTurnFor,
+        redCardPenalty,
+        counterAttackReady,
+        defenderCanUsePreShotDefense: canUsePreShotDefense(getOpponent(actor))
+      },
+      actor,
+      card,
+      selectedForDiscardCount: selectedForDiscard.length
+    });
 
+    if (!playCardAction.ok) {
+      if (playCardAction.logMessage) {
+        addLog(playCardAction.logMessage);
+      }
+      return;
+    }
+
+    if (playCardAction.type === 'resolve-blind-discard') {
       resolveBlindDiscard(actor, index);
       return;
     }
 
-    if (currentTurn !== actor || selectedForDiscard.length > 0) {
+    if (playCardAction.type === 'red-card-var-response') {
+      const redCardVarPlan = playCardAction.plan;
+
+      consumeCard(actor, index, card);
+      clearSanctionFor(redCardVarPlan.clearSanctionFor);
+      if (redCardVarPlan.clearTransientState) {
+        clearTransientState();
+      }
+      applyEngineStatePatch(playCardAction.statePatch);
+      addLog(redCardVarPlan.logMessage);
       return;
     }
 
-    if (pendingDefense?.defenseCardId === 'red_card_var') {
-      if (actor !== pendingDefense.defender || card.id !== 'var') {
-        addLog('Solo puedes responder con VAR para anular la Roja.');
-        return;
-      }
-
-      consumeCard(actor, index, card);
-      clearSanctionFor(actor);
-      clearTransientState();
-      setPossession(actor);
-      setCurrentTurn(actor);
-      addLog('VAR anula la Tarjeta Roja. La Falta Agresiva se mantiene.');
-      return;
-    }
-
-    if (pendingDefense && pendingDefense.defenseCardId !== 'pre_shot') {
-      if (actor !== pendingDefense.possessor) {
-        addLog('La respuesta a la contracarta debe jugarla quien tiene el balon.');
-        return;
-      }
-
-      if (pendingDefense.defenseCardId === 'ba' && card.id !== 'reg') {
-        addLog('La Barrida solo puede responderse con Regatear.');
-        return;
-      }
-
-      if (pendingDefense.defenseCardId === 'fa' && !['ta', 'tr'].includes(card.id)) {
-        addLog('La Falta Agresiva solo puede responderse con Amarilla o Roja.');
-        return;
-      }
-
+    if (playCardAction.type === 'defense-response') {
+      const defenseResponsePlan = playCardAction.plan;
       consumeCard(actor, index, card);
 
-      if (card.id === 'tr' && hasCardInHand(pendingDefense.defender, 'var')) {
-        setPendingDefense({ ...pendingDefense, defenseCardId: 'red_card_var' });
-        setCurrentTurn(pendingDefense.defender);
-        setHasActedThisTurn(false);
-        setDiscardMode(false);
-        setSelectedForDiscard([]);
-        addLog('Tarjeta Roja jugada. El rival puede usar VAR para anularla.');
+      if (defenseResponsePlan.type === 'await-var') {
+        applyEngineStatePatch(playCardAction.statePatch);
+        addLog(defenseResponsePlan.logMessage);
         return;
       }
 
-      if (card.id === 'reg') {
-        const defendingActor = pendingDefense.defender;
-        setPendingDefense(null);
-        setCurrentTurn(defendingActor);
-        setHasActedThisTurn(true);
-        setDiscardMode(false);
-        setSelectedForDiscard([]);
-        addLog('Regate exitoso. La jugada continua.');
+      if (defenseResponsePlan.type === 'resume-play') {
+        applyEngineStatePatch(playCardAction.statePatch);
+        addLog(defenseResponsePlan.logMessage);
         return;
       }
 
-      setPendingDefense(null);
-      setCurrentTurn(actor);
-      setHasActedThisTurn(true);
-      setDiscardMode(false);
-      setSelectedForDiscard([]);
+      applyEngineStatePatch(playCardAction.statePatch);
 
-      setBonusTurnFor(actor);
+      const penaltyResponsePlan = getCardPenaltyResponsePlan({
+        actor,
+        defender: pendingDefense.defender,
+        cardId: card.id
+      });
 
-      if (card.id === 'ta') {
-        setSanctionFor(pendingDefense.defender, {
-          type: 'yellow',
-          title: 'Amarilla',
-          detail: 'Pierde la jugada y concede un turno extra.',
-          turnsRemaining: 1
-        });
-        addLog('Tarjeta Amarilla: mantienes la posesion y robas un turno.');
+      setBonusTurnFor(penaltyResponsePlan.bonusTurnFor);
+      setPossession(penaltyResponsePlan.nextPossession);
+      setCurrentTurn(penaltyResponsePlan.nextTurn);
+      setSanctionFor(penaltyResponsePlan.sanctionActor, penaltyResponsePlan.sanction);
+
+      if (penaltyResponsePlan.type === 'yellow') {
+        addLog(penaltyResponsePlan.logMessage);
         return;
       }
 
       openBlindDiscard(
         pendingDefense.defender,
-        'Tarjeta Roja: el rival debe elegir una posicion de su mano para descartar una carta oculta.',
+        penaltyResponsePlan.blindDiscardReason,
         actor
       );
-      setRedCardPenalty((previous) => ({ ...previous, [pendingDefense.defender]: 3 }));
-      setSanctionFor(pendingDefense.defender, {
-        type: 'red',
-        title: 'Roja',
-        detail: 'Descarta 1 y juega con 4 cartas durante 3 turnos.',
-        turnsRemaining: 3
-      });
-      addLog('Tarjeta Roja: mantienes la posesion y el rival jugara con 4 cartas durante 3 turnos.');
+      setRedCardPenalty((previous) => ({ ...previous, [pendingDefense.defender]: penaltyResponsePlan.penaltyTurns }));
+      addLog(penaltyResponsePlan.logMessage);
       return;
     }
 
-    if (pendingCombo?.type === 'sb_followup') {
-      if (actor !== pendingCombo.actor) {
-        addLog('Debe resolverse primero la combinacion de Saque de Banda + Pase Corto.');
-        return;
-      }
-
-        if (card.id !== 'pc') {
-          addLog('Despues de Saque de Banda debes jugar obligatoriamente un Pase Corto.');
-          return;
-        }
-    }
-
-    if (pendingCombo?.type === 'sc_followup') {
-      if (actor !== pendingCombo.actor) {
-        addLog('Debe resolverse primero la combinacion de Saque de Corner + Pase Aereo.');
-        return;
-      }
-
-      if (pendingCombo.stage === 'pass' && card.id !== 'pa') {
-        addLog('Despues de Saque de Corner debes jugar obligatoriamente un Pase Aereo.');
-        return;
-      }
-
-      if (pendingCombo.stage === 'shot' && card.id !== 'tg') {
-        addLog('Despues del Pase Aereo debes jugar obligatoriamente Tirar a Gol.');
-        return;
-      }
-    }
-
-    if (pendingCombo?.type === 'cont_followup') {
-      if (actor !== pendingCombo.actor) {
-        addLog('Debe resolverse primero la combinacion de Contraataque + pase.');
-        return;
-      }
-
-      if (pendingCombo.stage === 'pass' && card.type !== 'pass') {
-        addLog('Despues de Contraataque debes jugar obligatoriamente un pase.');
-        return;
-      }
-
-      if (pendingCombo.stage === 'shot' && card.id !== 'tg') {
-        addLog('Despues del pase del Contraataque debes jugar obligatoriamente Tirar a Gol.');
-        return;
-      }
-    }
-
-    if (pendingCombo?.type === 'chilena_followup' && actor === pendingCombo.actor) {
-      if (pendingCombo.stage === 'pass' && card.id !== 'pa') {
-        addLog('Despues de Chilena debes jugar obligatoriamente Pase Aereo.');
-        return;
-      }
-
-      if (pendingCombo.stage === 'shot' && card.id !== 'tg') {
-        addLog('Despues del Pase Aereo debes jugar obligatoriamente Tirar a Gol.');
-        return;
-      }
-    }
-
-    if (pendingDefense?.defenseCardId === 'pre_shot') {
-        if (actor !== pendingDefense.defender || !PRE_SHOT_DEFENSE_CARD_IDS.includes(card.id)) {
-        addLog('Antes del tiro, el defensor solo puede responder con una contracarta valida.');
-        return;
-      }
-
-      if (card.id === 'cont' && (!getHand(actor).some((handCard) => handCard.type === 'pass') || !hasCardInHand(actor, 'tg'))) {
-        addLog('Contraataque solo puede usarse si tienes en mano un pase y una carta de Tirar a Gol.');
-        return;
-      }
-
-      if (card.id === 'sc' && (!hasCardInHand(actor, 'pa') || !hasCardInHand(actor, 'tg'))) {
-        addLog('Saque de corner solo puede activarse si tienes Pase Aereo y Tirar a Gol en mano.');
-        return;
-      }
-
+    if (playCardAction.type === 'pre-shot-defense') {
         consumeCard(actor, index, card);
         setHasActedThisTurn(true);
         setDiscardMode(false);
@@ -1755,260 +1808,101 @@ export default function App() {
         return;
     }
 
-    if (pendingShot?.phase === 'penalty_response') {
-      if (actor !== pendingShot.defender || !['var', 'paq'].includes(card.id)) {
-        addLog('Solo puedes responder al Penalti con VAR o Parada Arquero.');
-        return;
-      }
-
-        consumeCard(actor, index, card);
-
-        if (card.id === 'paq') {
-        if (!hasCardInHand(pendingShot.attacker, 'rem')) {
-          clearTransientState();
-          setPossession(actor);
-          setCurrentTurn(actor);
-          addLog('Parada del arquero al penalti. No hay Remate disponible.');
-          return;
-        }
-
-        setPendingShot({ ...pendingShot, phase: 'remate' });
-        setCurrentTurn(pendingShot.attacker);
-        setHasActedThisTurn(false);
-        setDiscardMode(false);
-        setSelectedForDiscard([]);
-        addLog('Parada del arquero al penalti. El atacante puede usar Remate.');
-        return;
-      }
-
-      clearTransientState();
-      setPossession(actor);
-      setCurrentTurn(actor);
-      addLog('VAR anula el Penalti.');
-      return;
-    }
-
-    if (pendingShot?.phase === 'save') {
-      if (actor !== pendingShot.defender || !['paq', 'off'].includes(card.id) || (card.id === 'off' && !pendingShot.allowOffside)) {
-        addLog(`Solo puedes responder al tiro con ${pendingShot.allowOffside ? 'Offside o Parada Arquero' : 'Parada Arquero'}.`);
-        return;
-      }
-
-        consumeCard(actor, index, card);
-
-        if (card.id === 'off') {
-        if (!hasCardInHand(pendingShot.attacker, 'var')) {
-          clearTransientState();
-          setPossession(actor);
-          setCurrentTurn(actor);
-          addLog('Offside sancionado. No hubo VAR y el balon cambia de posesion.');
-          return;
-        }
-
-        setPendingShot({ ...pendingShot, phase: 'offside_var', allowOffside: false });
-        setCurrentTurn(pendingShot.attacker);
-        setHasActedThisTurn(false);
-        setDiscardMode(false);
-        setSelectedForDiscard([]);
-        addLog('Offside jugado. El atacante puede usar VAR para mantener la jugada.');
-        return;
-      }
-
-        if (!hasCardInHand(pendingShot.attacker, 'rem')) {
-        clearTransientState();
-        setPossession(actor);
-        setCurrentTurn(actor);
-        addLog('Parada del arquero. No hay Remate disponible.');
-        return;
-      }
-
-      setPendingShot({ ...pendingShot, phase: 'remate' });
-      setCurrentTurn(pendingShot.attacker);
-      setHasActedThisTurn(false);
-      setDiscardMode(false);
-      setSelectedForDiscard([]);
-      addLog('Parada del arquero. El atacante puede usar Remate.');
-      return;
-    }
-
-    if (pendingShot?.phase === 'offside_var') {
-      if (actor !== pendingShot.attacker || card.id !== 'var') {
-        addLog('Solo puedes responder al Offside con VAR.');
-        return;
-      }
-
+    if (playCardAction.type === 'penalty-response') {
+      const penaltyResponsePlan = playCardAction.plan;
       consumeCard(actor, index, card);
 
-      if (hasCardInHand(pendingShot.defender, 'paq')) {
-        setPendingShot({ ...pendingShot, phase: 'save', allowOffside: false });
-        setCurrentTurn(pendingShot.defender);
-        setHasActedThisTurn(false);
-        setDiscardMode(false);
-        setSelectedForDiscard([]);
-        addLog('VAR anula el Offside. El rival aun puede usar Parada Arquero.');
+      if (penaltyResponsePlan.type === 'turn-change') {
+        if (penaltyResponsePlan.clearTransientState) {
+          clearTransientState();
+        }
+        applyEngineStatePatch(playCardAction.statePatch);
+        addLog(penaltyResponsePlan.logMessage);
         return;
       }
 
-      scoreGoal(actor, 'VAR anula el Offside. Gol: no hubo Parada Arquero.');
+      applyEngineStatePatch(playCardAction.statePatch);
+      addLog(penaltyResponsePlan.logMessage);
       return;
     }
 
-    if (pendingShot?.phase === 'remate') {
-      if (actor !== pendingShot.attacker || card.id !== 'rem') {
-        addLog('Tras la parada solo puedes jugar Remate.');
+    if (playCardAction.type === 'save-response') {
+      const saveResponsePlan = playCardAction.plan;
+      consumeCard(actor, index, card);
+
+      if (saveResponsePlan.type === 'turn-change') {
+        if (saveResponsePlan.clearTransientState) {
+          clearTransientState();
+        }
+        applyEngineStatePatch(playCardAction.statePatch);
+        addLog(saveResponsePlan.logMessage);
         return;
       }
 
+      applyEngineStatePatch(playCardAction.statePatch);
+      addLog(saveResponsePlan.logMessage);
+      return;
+    }
+
+    if (playCardAction.type === 'offside-var-response') {
+      const offsideVarPlan = playCardAction.plan;
+      consumeCard(actor, index, card);
+
+      if (offsideVarPlan.type === 'goal') {
+        scoreGoal(offsideVarPlan.scorer, offsideVarPlan.reason);
+        return;
+      }
+
+      applyEngineStatePatch(playCardAction.statePatch);
+      addLog(offsideVarPlan.logMessage);
+      return;
+    }
+
+    if (playCardAction.type === 'remate-response') {
         consumeCard(actor, index, card);
-        setHasActedThisTurn(true);
+        applyEngineStatePatch(playCardAction.statePatch);
         startShotResolution(actor, 'remate');
         return;
     }
 
-    const isPossessor = possession === actor;
-
-    if (!isPossessor) {
-      if (card.id === 'sb' && !hasCardInHand(actor, 'pc')) {
-        addLog('Saque de banda solo puede usarse si tienes Pase Corto en mano.');
-        return;
-      }
-
-      if (card.id === 'cont' && (!getHand(actor).some((handCard) => handCard.type === 'pass') || !hasCardInHand(actor, 'tg'))) {
-        addLog('Contraataque solo puede usarse si tienes en mano un pase y una carta de Tirar a Gol.');
-        return;
-      }
-
-      if (card.id === 'sc' && (!hasCardInHand(actor, 'pa') || !hasCardInHand(actor, 'tg'))) {
-        addLog('Saque de corner solo puede activarse si tienes Pase Aereo y Tirar a Gol en mano.');
-        return;
-      }
-
-      const canStealBall =
-        ['ba', 'fa', 'sb', 'cont'].includes(card.id) ||
-        (card.id === 'sc' && hasCardInHand(actor, 'pa'));
-
-      if (!canStealBall) {
-        addLog('No tienes el balon. Debes iniciar intentando recuperarlo con una contracarta valida.');
-        return;
-      }
-
-      if (card.id === 'sb' && !hasCardInHand(actor, 'pc')) {
-        addLog('Saque de banda solo puede activarse si puedes combinarlo con Pase Corto.');
-        return;
-      }
-
+    if (playCardAction.type === 'steal-defense') {
       consumeCard(actor, index, card);
-      setHasActedThisTurn(true);
-      setDiscardMode(false);
-      setSelectedForDiscard([]);
+      applyEngineStatePatch(playCardAction.statePatch);
       startDefenseResolution(actor, card);
       return;
     }
 
-    if (card.type === 'pass') {
-      if (pendingCombo?.type === 'chilena_followup') {
-        if (pendingCombo.stage === 'pass' && card.id !== 'pa') {
-          addLog('La combinacion de Chilena solo acepta Pase Aereo en este paso.');
-          return;
-        }
-
-        if (pendingCombo.stage === 'shot') {
-          addLog('La combinacion de Chilena ya quedo lista para cerrar con Tirar a Gol.');
-          return;
-        }
-      }
-
-      if (pendingCombo?.type === 'sc_followup') {
-        if (pendingCombo.stage === 'pass' && card.id !== 'pa') {
-          addLog('La secuencia de Saque de Corner solo acepta Pase Aereo en este paso.');
-          return;
-        }
-
-        if (pendingCombo.stage === 'shot') {
-          addLog('La secuencia de Saque de Corner debe cerrarse con Tirar a Gol.');
-          return;
-        }
-      }
-
-      const nextPassTotal = currentPassTotal + card.value;
-
-      if (nextPassTotal > 4) {
-        addLog('No puedes superar 4 puntos de pase en una jugada.');
-        return;
-      }
-
+    if (playCardAction.type === 'pass-play') {
+      const passPlayPlan = playCardAction.plan;
       consumeCard(actor, index, card);
       setActivePlay((previousPlay) => [...previousPlay, card]);
-      if (pendingCombo?.type === 'sb_followup') {
-        setPendingCombo(null);
-      }
-      if (pendingCombo?.type === 'sc_followup' && pendingCombo.stage === 'pass') {
-        setPendingCombo({ ...pendingCombo, stage: 'shot' });
-        setCounterAttackReady(true);
-      }
-      if (pendingCombo?.type === 'cont_followup' && pendingCombo.stage === 'pass') {
-        setPendingCombo({ ...pendingCombo, stage: 'shot' });
-        setCounterAttackReady(true);
-      }
-      if (pendingCombo?.type === 'chilena_followup' && pendingCombo.stage === 'pass') {
-        setPendingCombo({ ...pendingCombo, stage: 'shot' });
-      }
-      setHasActedThisTurn(true);
-      setDiscardMode(false);
-      setSelectedForDiscard([]);
-      addLog(`Pase: +${card.value} (Total: ${nextPassTotal})`);
+      applyEngineStatePatch(playCardAction.statePatch);
+      addLog(passPlayPlan.logMessage);
 
-        if (nextPassTotal === 4 && !counterAttackReady) {
+      if (passPlayPlan.preShotWindow?.open) {
+        if (passPlayPlan.preShotWindow.needsDefenseWindow) {
           const defender = getOpponent(actor);
-
-          if (canUsePreShotDefense(defender)) {
-            setPendingDefense({ defender, possessor: actor, defenseCardId: 'pre_shot' });
-            setCurrentTurn(defender);
-            setHasActedThisTurn(false);
-            addLog('Jugada de 4 pases completada. El rival puede usar una contracarta antes del tiro.');
-          } else {
-            addLog('Jugada de 4 pases completada. No hay contracarta disponible; puedes tirar a gol.');
-          }
+          setPendingDefense({ defender, possessor: actor, defenseCardId: 'pre_shot' });
+          setCurrentTurn(defender);
+          setHasActedThisTurn(false);
         }
 
+        addLog(passPlayPlan.preShotWindow.logMessage);
+      }
+
       return;
     }
 
-    if (card.id === 'sc') {
-      if (!hasCardInHand(actor, 'pa') || !hasCardInHand(actor, 'tg')) {
-        addLog('Saque de corner solo puede activarse si tienes Pase Aereo y Tirar a Gol en mano.');
-        return;
-      }
-
+    if (playCardAction.type === 'special-corner') {
       consumeCard(actor, index, card);
-      setActivePlay([]);
-      setPendingCombo({ actor, type: 'sc_followup', stage: 'pass' });
-      setCounterAttackReady(false);
-      setHasActedThisTurn(true);
-      setDiscardMode(false);
-      setSelectedForDiscard([]);
-      addLog('Saque de corner activado con posesion. Debes jugar Pase Aereo y luego Tirar a Gol.');
+      applyEngineStatePatch(playCardAction.statePatch);
+      addLog(playCardAction.logMessage);
       return;
     }
 
-    if (card.id === 'tg') {
-      const canShootFromSpecial =
-        counterAttackReady ||
-        pendingCombo?.type === 'chilena_followup' ||
-        (pendingCombo?.type === 'sc_followup' && pendingCombo.stage === 'shot');
-
-      if (pendingCombo?.type === 'cont_followup' && pendingCombo.stage === 'pass') {
-        addLog('Antes de tirar a gol debes jugar el pase obligatorio del Contraataque.');
-        return;
-      }
-
-      if (!canShootFromSpecial && currentPassTotal < 4) {
-        addLog('Necesitas 4 puntos de pases para tirar.');
-        return;
-      }
-
+    if (playCardAction.type === 'shoot-card') {
       consumeCard(actor, index, card);
-      setHasActedThisTurn(true);
+      applyEngineStatePatch(playCardAction.statePatch);
       if (pendingCombo?.type === 'chilena_followup') {
         setPendingCombo(null);
         startShotResolution(actor, 'chilena');
@@ -2027,51 +1921,23 @@ export default function App() {
       return;
     }
 
-    if (card.id === 'pe') {
+    if (playCardAction.type === 'penalty-card') {
       consumeCard(actor, index, card);
-      setHasActedThisTurn(true);
+      applyEngineStatePatch(playCardAction.statePatch);
       startShotResolution(actor, 'penalty');
       return;
     }
 
-    if (card.id === 'ch') {
-      if (!hasCardInHand(actor, 'pa') || !hasCardInHand(actor, 'tg')) {
-        addLog('La Chilena solo puede activarse si tienes Pase Aereo y Tirar a Gol en mano.');
-        return;
-      }
-
+    if (playCardAction.type === 'special-chilena') {
       consumeCard(actor, index, card);
-      setActivePlay([]);
-      setHasActedThisTurn(true);
-      setPendingCombo({
-        actor,
-        type: 'chilena_followup',
-        stage: 'pass'
-      });
-      addLog('Chilena activada. Ahora debes jugar Pase Aereo y luego Tirar a Gol.');
+      applyEngineStatePatch(playCardAction.statePatch);
+      addLog(playCardAction.logMessage);
       return;
     }
-
-    if (card.id === 'reg') {
-      addLog('Regatear solo se usa como respuesta a Barrida.');
-      return;
-    }
-
-    if (card.id === 'ta' || card.id === 'tr') {
-      addLog('Las tarjetas solo se usan como respuesta a Falta Agresiva.');
-      return;
-    }
-
-    if (card.id === 'rem') {
-      addLog('Remate solo se usa despues de una Parada del arquero.');
-      return;
-    }
-
-    addLog('No puedes usar esa carta ahora.');
   };
 
   useEffect(() => {
-    if (!aiMode || gameState !== 'playing') {
+    if (onlineEnabled || !aiMode || gameState !== 'playing') {
       return undefined;
     }
 
@@ -2506,6 +2372,88 @@ export default function App() {
                 <p className="mx-auto mb-8 max-w-xl text-sm font-semibold text-white/65">
                   Elige si quieres entrar directo al partido o ver un tutorial rapido con las reglas base y las combinaciones especiales.
                 </p>
+                <div className="mx-auto mb-6 max-w-lg rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-left">
+                  <div className="mb-3 text-[11px] font-black uppercase tracking-[0.28em] text-cyan-300">
+                    Modo online
+                  </div>
+                  <input
+                    value={onlinePlayerName}
+                    onChange={(event) => setOnlinePlayerName(event.target.value)}
+                    placeholder="Tu nombre"
+                    className="mb-3 w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-sm text-white outline-none"
+                  />
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <button
+                      onClick={() => {
+                        setOnlineError('');
+                        createOnlineRoom();
+                      }}
+                      className="rounded-xl bg-cyan-500 px-4 py-3 text-sm font-black text-slate-950 transition-all hover:bg-cyan-400"
+                    >
+                      CREAR SALA
+                    </button>
+                    <div className="flex gap-2">
+                      <input
+                        value={onlineJoinCode}
+                        onChange={(event) => setOnlineJoinCode(event.target.value.toUpperCase())}
+                        placeholder="Codigo"
+                        className="min-w-0 flex-1 rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-sm text-white outline-none"
+                      />
+                      <button
+                        onClick={() => {
+                          setOnlineError('');
+                          joinOnlineRoom();
+                        }}
+                        className="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-black text-slate-950 transition-all hover:bg-emerald-400"
+                      >
+                        UNIRSE
+                      </button>
+                    </div>
+                  </div>
+                  {onlineRoomCode ? (
+                    <div className="mt-3 space-y-3">
+                      <div className="text-xs font-black uppercase tracking-[0.2em] text-white/70">
+                        Sala: {onlineRoomCode}
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-slate-900/70 p-3 text-sm font-semibold text-white/75">
+                        {onlineRoom?.playerCount === 2
+                          ? 'Sala completa. Lista para iniciar la partida online.'
+                          : 'Esperando a que se una otro jugador.'}
+                      </div>
+                      {onlineRoom?.players?.length ? (
+                        <div className="flex flex-wrap gap-2">
+                          {onlineRoom.players.map((player) => (
+                            <div
+                              key={player.id}
+                              className="rounded-full border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.14em] text-white/80"
+                            >
+                              {player.name}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                      <div className="flex flex-wrap gap-2">
+                        {onlineRoom?.playerCount === 2 && onlineRole === 'player' ? (
+                          <button
+                            onClick={() => socketRef.current?.emit('match:start')}
+                            className="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-black text-slate-950 transition-all hover:bg-emerald-400"
+                          >
+                            INICIAR PARTIDA
+                          </button>
+                        ) : null}
+                        <button
+                          onClick={leaveOnlineRoom}
+                          className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white transition-all hover:bg-white/10"
+                        >
+                          SALIR DE LA SALA
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                  {onlineError ? (
+                    <div className="mt-2 text-sm font-semibold text-red-300">{onlineError}</div>
+                  ) : null}
+                </div>
                   <div className="flex flex-wrap items-center justify-center gap-4">
                     <button
                       onClick={() => startFromMenu(false)}
@@ -2752,7 +2700,7 @@ export default function App() {
                     onClick={handleDeal}
                     className="animate-pulse rounded-2xl bg-emerald-500 px-12 py-6 text-xl font-black"
                   >
-                    EMPEZAR PARTIDO
+                    {onlineEnabled ? 'INICIAR PARTIDA ONLINE' : 'EMPEZAR PARTIDO'}
                   </button>
                 </div>
               </div>

@@ -5,13 +5,19 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
+    "dev:client": "vite --host",
     "build": "vite build",
-    "preview": "vite preview --host"
+    "build:client": "vite build",
+    "preview": "vite preview --host",
+    "preview:client": "vite preview --host",
+    "dev:server": "npm --prefix server run dev",
+    "start:server": "npm --prefix server run start"
   },
   "dependencies": {
     "lucide-react": "^0.542.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
     "vite": "^7.1.3"
