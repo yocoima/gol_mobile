@@ -994,7 +994,11 @@ export default function App() {
                       ? `SECUENCIA OBLIGATORIA: ${pendingCombo.actor === 'player' ? 'JUGADOR' : 'RIVAL'} DEBE JUGAR PASE AEREO`
                       : `SECUENCIA OBLIGATORIA: ${pendingCombo.actor === 'player' ? 'JUGADOR' : 'RIVAL'} DEBE JUGAR TIRAR A GOL`
                       : null;
-  const statusBannerMessage = aiStatus || reactionBannerMessage;
+  const rawStatusBannerMessage = aiStatus || reactionBannerMessage;
+  const statusBannerMessage =
+    rawStatusBannerMessage && rawStatusBannerMessage.toLowerCase().includes('empieza la jugada')
+      ? null
+      : rawStatusBannerMessage;
   const comboWindow =
     pendingCombo?.type === 'chilena_followup'
       ? {
@@ -2302,9 +2306,9 @@ export default function App() {
             100% { transform: translateY(0) scale(1); opacity: 1; }
           }
         `}</style>
-        <div className="z-20 border-b-2 border-emerald-500 bg-slate-900 p-2 shadow-2xl max-sm:p-1">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 max-sm:px-1">
-          <div className={`flex items-center gap-4 rounded-2xl p-3 transition-all max-sm:gap-2 max-sm:p-1.5 ${
+        <div className="z-20 border-b-2 border-emerald-500 bg-slate-900 p-2 shadow-2xl max-sm:p-0.5">
+        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 max-sm:px-0.5">
+          <div className={`flex items-center gap-4 rounded-2xl p-3 transition-all max-sm:gap-1 max-sm:rounded-xl max-sm:p-1 ${
             possession === 'player'
               ? 'bg-blue-600/30 ring-2 ring-blue-500'
               : sanctions.player
@@ -2313,9 +2317,9 @@ export default function App() {
           }`}>
             {possession === 'player' && <SoccerBallIcon size={20} className="animate-bounce" />}
             <div className="text-center">
-              <span className="block text-[10px] font-black text-blue-400">{playerDisplayName}</span>
-              <span className="text-3xl font-black max-sm:text-2xl">{playerScore}</span>
-              <div className="mt-1 flex justify-center gap-1.5">
+              <span className="block text-[10px] font-black text-blue-400 max-sm:text-[8px]">{playerDisplayName}</span>
+              <span className="text-3xl font-black max-sm:text-xl">{playerScore}</span>
+              <div className="mt-1 flex justify-center gap-1.5 max-sm:hidden">
                 {[1, 2, 3, 4].map((point) => (
                   <div
                     key={`player-pass-${point}`}
@@ -2325,12 +2329,12 @@ export default function App() {
                   />
                 ))}
               </div>
-              <span className="mt-1 block text-[10px] font-black uppercase tracking-widest text-yellow-500">
+              <span className="mt-1 block text-[10px] font-black uppercase tracking-widest text-yellow-500 max-sm:mt-0.5 max-sm:text-[7px]">
                 Puntos jugada: {getPassTrackerTotal('player')} / 4
               </span>
               {sanctions.player && (
                 <div
-                  className={`mt-2 flex max-w-[220px] items-start gap-2 rounded-xl border px-3 py-2 text-left shadow-lg ${
+                  className={`mt-2 hidden max-w-[220px] items-start gap-2 rounded-xl border px-3 py-2 text-left shadow-lg sm:flex ${
                     sanctions.player.type === 'red'
                       ? 'border-red-200/80 bg-red-500 text-white'
                       : 'border-yellow-100/90 bg-yellow-300 text-slate-950'
@@ -2361,18 +2365,18 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex flex-1 justify-center max-sm:px-1">
+          <div className="flex flex-1 justify-center max-sm:px-0.5">
             {(gameState === 'playing' || gameState === 'dealing' || gameState === 'coin-flip') ? (
               <button
                 onClick={finishMatchAndReturnToMenu}
-                className="rounded-full border border-red-200/40 bg-red-500/20 px-5 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-red-100 shadow-xl transition-all hover:bg-red-500/30 max-sm:px-3 max-sm:py-1.5 max-sm:text-[9px]"
+                className="rounded-full border border-red-200/40 bg-red-500/20 px-5 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-red-100 shadow-xl transition-all hover:bg-red-500/30 max-sm:px-2.5 max-sm:py-1 max-sm:text-[8px] max-sm:tracking-[0.1em]"
               >
                 Terminar partida
               </button>
             ) : null}
           </div>
 
-          <div className={`flex items-center gap-4 rounded-2xl p-3 transition-all max-sm:gap-2 max-sm:p-1.5 ${
+          <div className={`flex items-center gap-4 rounded-2xl p-3 transition-all max-sm:gap-1 max-sm:rounded-xl max-sm:p-1 ${
             possession === 'opponent'
               ? 'bg-red-600/30 ring-2 ring-red-500'
               : sanctions.opponent
@@ -2381,9 +2385,9 @@ export default function App() {
           }`}>
             {possession === 'opponent' && <SoccerBallIcon size={20} className="animate-bounce" />}
             <div className="text-center">
-              <span className="block text-[10px] font-black text-red-400">{opponentDisplayName}</span>
-              <span className="text-3xl font-black max-sm:text-2xl">{opponentScore}</span>
-              <div className="mt-1 flex justify-center gap-1.5">
+              <span className="block text-[10px] font-black text-red-400 max-sm:text-[8px]">{opponentDisplayName}</span>
+              <span className="text-3xl font-black max-sm:text-xl">{opponentScore}</span>
+              <div className="mt-1 flex justify-center gap-1.5 max-sm:hidden">
                 {[1, 2, 3, 4].map((point) => (
                   <div
                     key={`opponent-pass-${point}`}
@@ -2393,12 +2397,12 @@ export default function App() {
                   />
                 ))}
               </div>
-              <span className="mt-1 block text-[10px] font-black uppercase tracking-widest text-yellow-500">
+              <span className="mt-1 block text-[10px] font-black uppercase tracking-widest text-yellow-500 max-sm:mt-0.5 max-sm:text-[7px]">
                 Puntos jugada: {getPassTrackerTotal('opponent')} / 4
               </span>
               {sanctions.opponent && (
                 <div
-                  className={`mt-2 flex max-w-[220px] items-start gap-2 rounded-xl border px-3 py-2 text-left shadow-lg ${
+                  className={`mt-2 hidden max-w-[220px] items-start gap-2 rounded-xl border px-3 py-2 text-left shadow-lg sm:flex ${
                     sanctions.opponent.type === 'red'
                       ? 'border-red-200/80 bg-red-500 text-white'
                       : 'border-yellow-100/90 bg-yellow-300 text-slate-950'
@@ -2431,7 +2435,7 @@ export default function App() {
         </div>
       </div>
 
-        <div className="relative flex flex-1 flex-col items-center justify-between overflow-hidden border-x-[16px] border-emerald-800 bg-emerald-900 p-3 shadow-inner max-sm:p-2">
+        <div className="relative flex flex-1 flex-col items-center justify-between overflow-hidden border-x-[16px] border-emerald-800 bg-emerald-900 p-3 shadow-inner max-sm:border-x-4 max-sm:p-1.5">
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center opacity-10">
             <div className="h-px w-full bg-white" />
             <div className="h-48 w-48 rounded-full border-4 border-white" />
@@ -2500,16 +2504,25 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex flex-1 justify-center gap-2 overflow-x-auto py-4">
+          <div className="hidden max-sm:flex w-[72px] flex-col gap-1.5">
+            <div className="rounded-lg border border-emerald-200/30 bg-black/45 px-2 py-1.5 text-center shadow-[0_8px_18px_rgba(0,0,0,0.22)]">
+              <div className="text-[7px] font-black uppercase tracking-[0.14em] text-white/75">Desc. Rival</div>
+              <div className="text-base font-black text-white">{discardShowcase.opponent.current.length + discardShowcase.opponent.archive.length}</div>
+            </div>
+            <div className="rounded-lg border border-emerald-200/30 bg-black/45 px-2 py-1.5 text-center shadow-[0_8px_18px_rgba(0,0,0,0.22)]">
+              <div className="text-[7px] font-black uppercase tracking-[0.14em] text-white/75">Desc. Jug.</div>
+              <div className="text-base font-black text-white">{discardShowcase.player.current.length + discardShowcase.player.archive.length}</div>
+            </div>
+          </div>
+
+          <div className="flex flex-1 justify-center gap-2 overflow-x-auto py-4 max-sm:py-2">
             {activePlay.length === 0 ? (
-              <div className="rounded-full border-2 border-dashed border-white/10 bg-black/20 px-10 py-5">
-                <span className="text-sm font-black uppercase text-white/20">Empieza la jugada</span>
-              </div>
+              null
             ) : (
               activePlay.map((card, index) => (
                 <div
                   key={`${card.id}-${index}`}
-                  className={`${card.color || 'bg-slate-800'} relative flex h-24 min-w-[70px] flex-col justify-between overflow-hidden rounded-lg border-2 border-white/40 p-2 shadow-lg`}
+                  className={`${card.color || 'bg-slate-800'} relative flex h-24 min-w-[70px] flex-col justify-between overflow-hidden rounded-lg border-2 border-white/40 p-2 shadow-lg max-sm:h-20 max-sm:min-w-[56px] max-sm:p-1`}
                 >
                   {card.imageUrl ? (
                     <>
@@ -2521,24 +2534,24 @@ export default function App() {
                       <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/32" />
                     </>
                   ) : null}
-                  <p className="relative z-10 text-[7px] font-black uppercase leading-none">{card.name}</p>
-                  <p className="relative z-10 text-center text-xl font-black">+{card.value}</p>
+                  <p className="relative z-10 text-[7px] font-black uppercase leading-none max-sm:text-[6px]">{card.name}</p>
+                  <p className="relative z-10 text-center text-xl font-black max-sm:text-base">+{card.value}</p>
                 </div>
               ))
             )}
           </div>
 
-          <div className="flex flex-col items-center gap-2">
-            <div className="flex h-28 w-20 flex-col items-center justify-center rounded-xl border-2 border-white/20 bg-slate-800 shadow-2xl">
-              <Library className="mb-1 text-white/20" size={24} />
-              <span className="text-xl font-black">{deck.length}</span>
+          <div className="flex flex-col items-center gap-2 max-sm:gap-1">
+            <div className="flex h-28 w-20 flex-col items-center justify-center rounded-xl border-2 border-white/20 bg-slate-800 shadow-2xl max-sm:h-20 max-sm:w-14">
+              <Library className="mb-1 text-white/20 max-sm:mb-0.5" size={24} />
+              <span className="text-xl font-black max-sm:text-lg">{deck.length}</span>
             </div>
-            <span className="text-[9px] font-black uppercase text-white/40">Mazo</span>
+            <span className="text-[9px] font-black uppercase text-white/40 max-sm:text-[8px]">Mazo</span>
           </div>
         </div>
 
             {statusBannerMessage && (
-              <div className="mt-2 rounded-full border border-yellow-300/40 bg-yellow-500/15 px-5 py-2 text-center text-[10px] font-black uppercase tracking-[0.22em] text-yellow-200 shadow-[0_0_20px_rgba(250,204,21,0.18)] max-sm:px-3 max-sm:py-1.5 max-sm:text-[9px] max-sm:tracking-[0.12em]">
+              <div className="mt-2 hidden rounded-full border border-yellow-300/40 bg-yellow-500/15 px-5 py-2 text-center text-[10px] font-black uppercase tracking-[0.22em] text-yellow-200 shadow-[0_0_20px_rgba(250,204,21,0.18)] sm:block">
                 {statusBannerMessage}
               </div>
             )}
