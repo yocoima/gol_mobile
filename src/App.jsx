@@ -560,13 +560,29 @@ export default function App() {
         : fallbackMs;
 
     onlineCoinFlipTimeoutRef.current = window.setTimeout(() => {
-      setOnlineCoinFlipReveal(null);
-      onlineCoinFlipTimeoutRef.current = null;
+      setOnlineCoinFlipReveal((previous) => (previous ? { ...previous, showResult: true } : null));
+      onlineCoinFlipTimeoutRef.current = window.setTimeout(() => {
+        setOnlineCoinFlipReveal(null);
+        onlineCoinFlipTimeoutRef.current = null;
+      }, 1200);
     }, closeDelayMs);
   };
 
+  const handleOnlineCoinFlipEnded = () => {
+    if (onlineCoinFlipTimeoutRef.current) {
+      window.clearTimeout(onlineCoinFlipTimeoutRef.current);
+      onlineCoinFlipTimeoutRef.current = null;
+    }
+
+    setOnlineCoinFlipReveal((previous) => (previous ? { ...previous, showResult: true } : null));
+    onlineCoinFlipTimeoutRef.current = window.setTimeout(() => {
+      setOnlineCoinFlipReveal(null);
+      onlineCoinFlipTimeoutRef.current = null;
+    }, 1200);
+  };
+
   const showOnlineCoinFlipReveal = (nextReveal) => {
-    setOnlineCoinFlipReveal(nextReveal);
+    setOnlineCoinFlipReveal({ ...nextReveal, showResult: false });
     scheduleOnlineCoinFlipClose();
   };
 
@@ -2257,8 +2273,13 @@ export default function App() {
   ]);
 
   return (
-      <div className="flex min-h-screen flex-col overflow-hidden bg-slate-950 text-white">
+      <div className="flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-slate-950 text-white">
         <style>{`
+          html, body, #root {
+            height: 100%;
+            overflow: hidden;
+          }
+
           @keyframes fieldBallBounce {
             0%, 100% { transform: translate(-50%, 0); }
             50% { transform: translate(-50%, -12px); }
@@ -2410,7 +2431,7 @@ export default function App() {
         </div>
       </div>
 
-        <div className="relative flex flex-1 flex-col items-center justify-between border-x-[16px] border-emerald-800 bg-emerald-900 p-4 shadow-inner">
+        <div className="relative flex flex-1 flex-col items-center justify-between overflow-hidden border-x-[16px] border-emerald-800 bg-emerald-900 p-3 shadow-inner max-sm:p-2">
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center opacity-10">
             <div className="h-px w-full bg-white" />
             <div className="h-48 w-48 rounded-full border-4 border-white" />
@@ -3002,28 +3023,33 @@ export default function App() {
             )}
 
             {onlineCoinFlipReveal && (
-              <div className="pointer-events-none fixed inset-x-0 top-16 z-50 flex justify-center px-4">
-                <div
-                  className="w-full max-w-sm rounded-[1.8rem] border border-yellow-300/40 bg-slate-950/92 p-5 text-center shadow-[0_24px_60px_rgba(0,0,0,0.55)]"
-                >
+              <div className="pointer-events-none fixed inset-0 z-50">
+                <div className="absolute inset-0 bg-black/90" />
+                <div className="absolute inset-0 flex items-center justify-center">
                   <video
                     key={`${onlineCoinFlipReveal.result}-${onlineCoinFlipReveal.winner}`}
                     src={coinVideo}
                     autoPlay
                     muted
                     onLoadedMetadata={handleOnlineCoinFlipMetadata}
-                    onEnded={closeOnlineCoinFlipReveal}
-                    onError={closeOnlineCoinFlipReveal}
+                    onEnded={handleOnlineCoinFlipEnded}
+                    onError={handleOnlineCoinFlipEnded}
                     playsInline
-                    className="mx-auto mb-4 h-auto w-full rounded-2xl"
+                    className="h-full w-full object-cover"
                   />
-                  <div className="text-xs font-black uppercase tracking-[0.25em] text-yellow-300">
-                    Salio {onlineCoinFlipReveal.result}
-                  </div>
-                  <div className="mt-2 text-sm font-semibold text-white/85">
-                    Inicia {onlineCoinFlipReveal.winner}
-                  </div>
                 </div>
+                {onlineCoinFlipReveal.showResult ? (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="rounded-[1.6rem] border border-yellow-300/40 bg-slate-950/90 px-8 py-6 text-center shadow-[0_24px_60px_rgba(0,0,0,0.55)]">
+                      <div className="text-sm font-black uppercase tracking-[0.28em] text-yellow-300">
+                        Salio {onlineCoinFlipReveal.result}
+                      </div>
+                      <div className="mt-2 text-base font-semibold text-white/90">
+                        Inicia {onlineCoinFlipReveal.winner}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             )}
 
