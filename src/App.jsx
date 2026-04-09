@@ -513,6 +513,7 @@ export default function App() {
   const [onlineRole, setOnlineRole] = useState(null);
   const [onlineSocketId, setOnlineSocketId] = useState(null);
   const [onlineError, setOnlineError] = useState('');
+  const [showOnlineCoinChoice, setShowOnlineCoinChoice] = useState(false);
   const [systemNotice, setSystemNotice] = useState('');
   const [playerDisplayName, setPlayerDisplayName] = useState('JUGADOR');
   const [opponentDisplayName, setOpponentDisplayName] = useState('RIVAL');
@@ -698,6 +699,7 @@ export default function App() {
     socket.on('match:started', ({ room, matchState }) => {
       setOnlineRoom(room);
       setOnlineRole(matchState.playerRole);
+      setShowOnlineCoinChoice(false);
       hydrateFromOnlineState(matchState);
       showOnlineCoinFlipReveal({
         result: matchState.startingPlayer === 'player' ? 'Cara' : 'Sello',
@@ -1353,7 +1355,18 @@ export default function App() {
     setOnlineRoomCode('');
     setOnlineRoom(null);
     setOnlineRole(null);
+    setShowOnlineCoinChoice(false);
     setOnlineError('');
+  };
+
+  const startOnlineMatchWithChoice = (choice) => {
+    if (!socketRef.current) {
+      setOnlineError('No hay conexion con el servidor online.');
+      return;
+    }
+
+    socketRef.current.emit('match:start', { choice });
+    setShowOnlineCoinChoice(false);
   };
 
   const finishMatchAndReturnToMenu = () => {
@@ -1406,6 +1419,7 @@ export default function App() {
     setOnlineJoinCode('');
     setOnlineRoom(null);
     setOnlineRole(null);
+    setShowOnlineCoinChoice(false);
     setOnlineError('');
     setPlayerDisplayName('JUGADOR');
     setOpponentDisplayName('RIVAL');
@@ -2672,7 +2686,7 @@ export default function App() {
                       <div className="flex flex-wrap gap-2">
                         {onlineRoom?.playerCount === 2 && onlineRole === 'player' ? (
                           <button
-                            onClick={() => socketRef.current?.emit('match:start')}
+                            onClick={() => setShowOnlineCoinChoice(true)}
                             className="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-black text-slate-950 transition-all hover:bg-emerald-400"
                           >
                             INICIAR PARTIDA
@@ -2689,6 +2703,33 @@ export default function App() {
                   ) : null}
                   {onlineError ? (
                     <div className="mt-2 text-sm font-semibold text-red-300">{onlineError}</div>
+                  ) : null}
+                  {showOnlineCoinChoice ? (
+                    <div className="mt-3 rounded-xl border border-yellow-300/30 bg-yellow-500/10 p-3">
+                      <div className="mb-2 text-xs font-black uppercase tracking-[0.2em] text-yellow-200">
+                        Elige cara o sello
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => startOnlineMatchWithChoice('Cara')}
+                          className="rounded-xl bg-white px-4 py-2 text-sm font-black text-slate-950 transition-all hover:bg-yellow-100"
+                        >
+                          CARA
+                        </button>
+                        <button
+                          onClick={() => startOnlineMatchWithChoice('Sello')}
+                          className="rounded-xl bg-white px-4 py-2 text-sm font-black text-slate-950 transition-all hover:bg-yellow-100"
+                        >
+                          SELLO
+                        </button>
+                        <button
+                          onClick={() => setShowOnlineCoinChoice(false)}
+                          className="rounded-xl border border-white/20 bg-transparent px-4 py-2 text-sm font-black text-white/80 transition-all hover:bg-white/10"
+                        >
+                          CANCELAR
+                        </button>
+                      </div>
+                    </div>
                   ) : null}
                 </div>
                   <div className="flex flex-wrap items-center justify-center gap-4">

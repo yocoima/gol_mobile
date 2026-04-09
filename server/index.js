@@ -510,7 +510,7 @@ io.on('connection', (socket) => {
     });
   });
 
-  socket.on('match:start', () => {
+  socket.on('match:start', ({ choice } = {}) => {
     const room = findPlayerRoom(socket.id);
 
     if (!room) {
@@ -528,7 +528,11 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const starter = 'player';
+    const normalizedChoice = typeof choice === 'string' ? choice.trim().toLowerCase() : '';
+    const hostChoice = normalizedChoice === 'cara' ? 'Cara' : normalizedChoice === 'sello' ? 'Sello' : null;
+    const result = Math.random() > 0.5 ? 'Cara' : 'Sello';
+    const hostWon = hostChoice ? hostChoice === result : Math.random() > 0.5;
+    const starter = hostWon ? 'player' : 'opponent';
     room.matchState = createInitialMatchState({ startingPlayer: starter });
     room.matchState.playerNames = {
       player: room.players[0]?.name ?? 'Jugador 1',
@@ -538,7 +542,7 @@ io.on('connection', (socket) => {
     room.matchState.lastEvent = {
       id: createEventId(),
       type: 'coin_flip',
-      result: 'Cara',
+      result,
       winner: starter
     };
     room.status = 'in_match';
