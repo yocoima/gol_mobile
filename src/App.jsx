@@ -546,17 +546,27 @@ export default function App() {
     setGameLog((previousLog) => [message, ...previousLog].slice(0, 5));
   };
 
-  const showOnlineCoinFlipReveal = (nextReveal) => {
+  const scheduleOnlineCoinFlipClose = (durationSeconds) => {
     if (onlineCoinFlipTimeoutRef.current) {
       window.clearTimeout(onlineCoinFlipTimeoutRef.current);
       onlineCoinFlipTimeoutRef.current = null;
     }
 
-    setOnlineCoinFlipReveal(nextReveal);
+    const fallbackMs = 9000;
+    const closeDelayMs =
+      Number.isFinite(durationSeconds) && durationSeconds > 0
+        ? Math.min(16000, Math.max(4200, Math.round(durationSeconds * 1000) + 450))
+        : fallbackMs;
+
     onlineCoinFlipTimeoutRef.current = window.setTimeout(() => {
       setOnlineCoinFlipReveal(null);
       onlineCoinFlipTimeoutRef.current = null;
-    }, 30000);
+    }, closeDelayMs);
+  };
+
+  const showOnlineCoinFlipReveal = (nextReveal) => {
+    setOnlineCoinFlipReveal(nextReveal);
+    scheduleOnlineCoinFlipClose();
   };
 
   const closeOnlineCoinFlipReveal = () => {
@@ -564,7 +574,12 @@ export default function App() {
       window.clearTimeout(onlineCoinFlipTimeoutRef.current);
       onlineCoinFlipTimeoutRef.current = null;
     }
-    closeOnlineCoinFlipReveal();
+    setOnlineCoinFlipReveal(null);
+  };
+
+  const handleOnlineCoinFlipMetadata = (event) => {
+    const duration = event?.currentTarget?.duration;
+    scheduleOnlineCoinFlipClose(duration);
   };
 
   const setLaneNotice = (actor, message) => {
@@ -2976,6 +2991,7 @@ export default function App() {
                     src={coinVideo}
                     autoPlay
                     muted
+                    onLoadedMetadata={handleOnlineCoinFlipMetadata}
                     onEnded={closeOnlineCoinFlipReveal}
                     onError={closeOnlineCoinFlipReveal}
                     playsInline
