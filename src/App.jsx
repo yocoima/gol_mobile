@@ -513,6 +513,7 @@ export default function App() {
   const [onlineRole, setOnlineRole] = useState(null);
   const [onlineSocketId, setOnlineSocketId] = useState(null);
   const [onlineError, setOnlineError] = useState('');
+  const [systemNotice, setSystemNotice] = useState('');
   const [playerDisplayName, setPlayerDisplayName] = useState('JUGADOR');
   const [opponentDisplayName, setOpponentDisplayName] = useState('RIVAL');
   const [fieldEventAnimation, setFieldEventAnimation] = useState(null);
@@ -571,6 +572,18 @@ export default function App() {
 
     return () => window.clearTimeout(timeoutId);
   }, [fieldEventAnimation]);
+
+  useEffect(() => {
+    if (!systemNotice) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setSystemNotice('');
+    }, 2600);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [systemNotice]);
 
   useEffect(() => {
     if (!onlineCoinFlipReveal) {
@@ -654,6 +667,12 @@ export default function App() {
       setOnlineRoom(room);
       setOnlineRole(matchState.playerRole);
       hydrateFromOnlineState(matchState);
+      setOnlineCoinFlipReveal({
+        result: matchState.startingPlayer === 'player' ? 'Cara' : 'Sello',
+        winner: matchState.startingPlayer === 'player'
+          ? (matchState.playerName || 'JUGADOR')
+          : (matchState.opponentName || 'RIVAL')
+      });
     });
 
     socket.on('match:updated', ({ room, matchState }) => {
@@ -670,6 +689,11 @@ export default function App() {
     socket.on('match:error', ({ message }) => {
       setOnlineError(message);
       addLog(message);
+    });
+
+    socket.on('match:terminated', ({ message }) => {
+      resetMatch();
+      setSystemNotice(message || 'La partida fue terminada.');
     });
 
     socket.on('connect_error', () => {
@@ -1294,7 +1318,8 @@ export default function App() {
 
   const finishMatchAndReturnToMenu = () => {
     if (onlineEnabled) {
-      socketRef.current?.emit('room:leave');
+      socketRef.current?.emit('match:terminate');
+      return;
     }
     resetMatch();
   };
@@ -1346,6 +1371,7 @@ export default function App() {
     setOpponentDisplayName('RIVAL');
     setFieldEventAnimation(null);
     setOnlineCoinFlipReveal(null);
+    setSystemNotice('');
     setGameLog(['Posesion persistente activada']);
     clearTransientState();
   };
@@ -2943,6 +2969,17 @@ export default function App() {
                   <div className="mt-2 text-sm font-semibold text-white/85">
                     Inicia {onlineCoinFlipReveal.winner}
                   </div>
+                </div>
+              </div>
+            )}
+
+            {systemNotice && (
+              <div className="pointer-events-none fixed inset-x-0 top-6 z-50 flex justify-center px-4">
+                <div
+                  className="rounded-full border border-white/25 bg-black/70 px-5 py-3 text-center text-sm font-black text-white shadow-[0_16px_35px_rgba(0,0,0,0.45)]"
+                  style={{ animation: 'goalPulse 1.6s ease-out forwards' }}
+                >
+                  {systemNotice}
                 </div>
               </div>
             )}

@@ -506,7 +506,7 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const starter = Math.random() > 0.5 ? 'player' : 'opponent';
+    const starter = 'player';
     room.matchState = createInitialMatchState({ startingPlayer: starter });
     room.matchState.playerNames = {
       player: room.players[0]?.name ?? 'Jugador 1',
@@ -516,7 +516,7 @@ io.on('connection', (socket) => {
     room.matchState.lastEvent = {
       id: createEventId(),
       type: 'coin_flip',
-      result: starter === 'player' ? 'Cara' : 'Sello',
+      result: 'Cara',
       winner: starter
     };
     room.status = 'in_match';
@@ -791,6 +791,27 @@ io.on('connection', (socket) => {
 
     room.status = 'waiting';
     room.matchState = null;
+    io.to(room.code).emit('room:updated', {
+      room: getPublicRoom(room)
+    });
+  });
+
+  socket.on('match:terminate', () => {
+    const room = findPlayerRoom(socket.id);
+
+    if (!room || !room.matchState) {
+      return;
+    }
+
+    const player = room.players.find((entry) => entry.id === socket.id);
+    const playerName = player?.name || 'Un jugador';
+    room.matchState = null;
+    room.status = room.players.length === 2 ? 'ready' : 'waiting';
+
+    io.to(room.code).emit('match:terminated', {
+      message: `${playerName} termino la partida.`
+    });
+
     io.to(room.code).emit('room:updated', {
       room: getPublicRoom(room)
     });
