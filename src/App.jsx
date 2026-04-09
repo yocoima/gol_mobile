@@ -97,7 +97,7 @@ const withCardsImage = (cards = []) => cards.map((card) => withCardImage(card));
 
 const DECK_DEFINITION = BASE_DECK_DEFINITION.map((card) => withCardImage(card));
 
-const DEV_SHOW_OPPONENT_HAND = true;
+const DEV_SHOW_OPPONENT_HAND = false;
 
 const TUTORIAL_SEQUENCES = [
   {
@@ -2455,33 +2455,29 @@ export default function App() {
 
         <div className="relative z-10 w-full max-w-2xl opacity-80 max-sm:max-w-full">
           <div className="mb-2 text-center text-[10px] font-black uppercase tracking-[0.25em] text-white/60 max-sm:mb-1 max-sm:text-[8px]">
-            Rival {DEV_SHOW_OPPONENT_HAND ? '(debug visible)' : ''}
+            Rival
           </div>
-          <div className="mb-1 flex flex-wrap items-center justify-center gap-2" />
-          <div className="grid w-full grid-cols-5 justify-items-center gap-1 sm:flex sm:flex-wrap sm:justify-center sm:gap-2">
-            {opponentHand.map((card, index) =>
-              DEV_SHOW_OPPONENT_HAND ? (
+          {DEV_SHOW_OPPONENT_HAND ? (
+            <div className="grid w-full grid-cols-5 justify-items-center gap-1 sm:flex sm:flex-wrap sm:justify-center sm:gap-2">
+              {opponentHand.map((card, index) => (
                 <CardItem
                   key={`${card.id}-${index}`}
                   card={card}
                   isSelected={selectedForDiscard.includes(index)}
-                    onSelect={(event) => toggleDiscardSelection(event, index)}
-                    onClick={() => playCard(card, index, false)}
-                    disabled={!isOpponentTurn}
-                    canSelectDiscard={false}
+                  onSelect={(event) => toggleDiscardSelection(event, index)}
+                  onClick={() => playCard(card, index, false)}
+                  disabled={!isOpponentTurn}
+                  canSelectDiscard={false}
                   isDiscardMode={discardMode}
                   hideContent={pendingBlindDiscard?.actor === 'opponent'}
                 />
-              ) : (
-                <div
-                  key={index}
-                  className="flex h-24 w-16 items-center justify-center rounded-lg border-2 border-white/10 bg-slate-800"
-                >
-                  <div className="h-8 w-8 rounded-full bg-white/5" />
-                </div>
-              )
-            )}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center text-[10px] font-black uppercase tracking-[0.16em] text-white/45 max-sm:text-[8px]">
+              Cartas en mano: {opponentHand.length}
+            </div>
+          )}
         </div>
 
         <div className="z-10 flex w-full max-w-4xl items-center justify-between gap-4 px-4 max-sm:gap-2 max-sm:px-1">
