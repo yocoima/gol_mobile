@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "vite --host",
     "dev:client": "vite --host",
-    "build": "vite build",
-    "build:client": "vite build",
+    "build": "node ./node_modules/vite/bin/vite.js build",
+    "build:client": "node ./node_modules/vite/bin/vite.js build",
     "preview": "vite preview --host",
     "preview:client": "vite preview --host",
     "dev:server": "npm --prefix server run dev",
