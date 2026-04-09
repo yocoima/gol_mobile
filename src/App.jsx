@@ -1635,6 +1635,7 @@ export default function App() {
 
     applyRedCardTurnProgress(scorer);
     clearTransientState();
+    setHasActedThisTurn(false);
 
     if (goalOutcome.isMatchFinished) {
       setMatchWinner(scorer);
@@ -2684,13 +2685,18 @@ export default function App() {
                         </div>
                       ) : null}
                       <div className="flex flex-wrap gap-2">
-                        {onlineRoom?.playerCount === 2 && onlineRole === 'player' ? (
+                        {onlineRoom?.playerCount === 2 && onlineRole === 'opponent' ? (
                           <button
                             onClick={() => setShowOnlineCoinChoice(true)}
                             className="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-black text-slate-950 transition-all hover:bg-emerald-400"
                           >
-                            INICIAR PARTIDA
+                            ELEGIR CARA/SELLO
                           </button>
+                        ) : null}
+                        {onlineRoom?.playerCount === 2 && onlineRole === 'player' ? (
+                          <div className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-white/70">
+                            Esperando eleccion del invitado
+                          </div>
                         ) : null}
                         <button
                           onClick={leaveOnlineRoom}

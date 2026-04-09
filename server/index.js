@@ -214,6 +214,7 @@ const applyGoal = (matchState, scorer, reason) => {
   matchState.playerScore = goalOutcome.nextPlayerScore;
   matchState.opponentScore = goalOutcome.nextOpponentScore;
   matchState.lastEvent = { id: createEventId(), type: 'goal', scorer, reason };
+  matchState.hasActedThisTurn = false;
   applyRedCardTurnProgress(matchState, scorer);
   clearTransientState(matchState);
 
@@ -518,8 +519,9 @@ io.on('connection', (socket) => {
       return;
     }
 
-    if (room.hostId !== socket.id) {
-      socket.emit('room:error', { message: 'Solo el creador de la sala puede iniciar la partida.' });
+    const actorRole = getPlayerRole(room, socket.id);
+    if (actorRole !== 'opponent') {
+      socket.emit('room:error', { message: 'Solo el jugador invitado puede elegir Cara o Sello e iniciar.' });
       return;
     }
 
