@@ -318,22 +318,22 @@ const DiscardLane = ({ title, pile }) => {
   const currentCards = pile.current;
 
   return (
-    <div className="w-full max-w-[280px] rounded-2xl border border-white/10 bg-slate-950/35 p-3 shadow-[0_10px_24px_rgba(0,0,0,0.2)] backdrop-blur-sm">
+    <div className="w-full max-w-[280px] rounded-2xl border border-white/10 bg-slate-950/35 p-3 shadow-[0_10px_24px_rgba(0,0,0,0.2)] backdrop-blur-sm max-sm:max-w-[220px] max-sm:p-2">
       <div className="mb-2 flex items-center justify-between gap-3">
-        <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/45">{title}</span>
-        <span className="rounded-full border border-white/10 bg-slate-950/80 px-2 py-0.5 text-[9px] font-black text-white/70">
+        <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/45 max-sm:text-[8px]">{title}</span>
+        <span className="rounded-full border border-white/10 bg-slate-950/80 px-2 py-0.5 text-[9px] font-black text-white/70 max-sm:text-[8px]">
           {pile.archive.length + pile.current.length}
         </span>
       </div>
-      <div className="relative min-h-[112px]">
+      <div className="relative min-h-[112px] max-sm:min-h-[84px]">
         {archivedCards.length > 0 ? (
-          <div className="absolute bottom-0 left-0 h-24 w-20">
+          <div className="absolute bottom-0 left-0 h-24 w-20 max-sm:h-20 max-sm:w-14">
             {archivedCards.map((card, index) => (
               <div
                 key={`archived-${card.visualId}`}
-                className="absolute left-0 top-0 h-24 w-16 overflow-hidden rounded-[14px] border border-white/10 shadow-[0_10px_22px_rgba(0,0,0,0.28)]"
+                className="absolute left-0 top-0 h-24 w-16 overflow-hidden rounded-[14px] border border-white/10 shadow-[0_10px_22px_rgba(0,0,0,0.28)] max-sm:h-20 max-sm:w-12 max-sm:rounded-[10px]"
                 style={{
-                  transform: `translateX(${index * 5}px) translateY(${index * 4}px) rotate(${(index - 1.5) * 2}deg)`,
+                  transform: `translateX(${index * 4}px) translateY(${index * 3}px) rotate(${(index - 1.5) * 2}deg)`,
                   zIndex: index + 1
                 }}
               >
@@ -356,11 +356,11 @@ const DiscardLane = ({ title, pile }) => {
           </div>
         ) : null}
         {currentCards.length > 0 ? (
-          <div className="relative ml-20 flex min-h-[112px] flex-wrap items-end gap-2">
+          <div className="relative ml-20 flex min-h-[112px] flex-wrap items-end gap-2 max-sm:ml-14 max-sm:min-h-[84px] max-sm:gap-1">
             {currentCards.map((card, index) => (
               <div
                 key={card.visualId}
-                className="relative h-24 w-16 overflow-hidden rounded-[14px] border border-white/10 shadow-[0_10px_24px_rgba(0,0,0,0.32)]"
+                className="relative h-24 w-16 overflow-hidden rounded-[14px] border border-white/10 shadow-[0_10px_24px_rgba(0,0,0,0.32)] max-sm:h-20 max-sm:w-12 max-sm:rounded-[10px]"
                 style={{
                   animation: 'discardCardSlideIn 320ms cubic-bezier(0.22,0.8,0.2,1) both',
                   animationDelay: `${index * 60}ms`
@@ -385,7 +385,7 @@ const DiscardLane = ({ title, pile }) => {
             ))}
           </div>
         ) : (
-          <div className="ml-20 flex min-h-[112px] items-center text-[9px] font-black uppercase tracking-[0.18em] text-white/28">
+          <div className="ml-20 flex min-h-[112px] items-center text-[9px] font-black uppercase tracking-[0.18em] text-white/28 max-sm:ml-14 max-sm:min-h-[84px] max-sm:text-[8px]">
             Sin cartas en esta jugada
           </div>
         )}
@@ -717,12 +717,20 @@ export default function App() {
       setOnlineRole(matchState.playerRole);
       setShowOnlineCoinChoice(false);
       hydrateFromOnlineState(matchState);
-      showOnlineCoinFlipReveal({
-        result: matchState.startingPlayer === 'player' ? 'Cara' : 'Sello',
-        winner: matchState.startingPlayer === 'player'
-          ? (matchState.playerName || 'JUGADOR')
-          : (matchState.opponentName || 'RIVAL')
-      });
+      const swapActor = (actor) => (actor === 'player' ? 'opponent' : actor === 'opponent' ? 'player' : actor);
+      const isLocalPlayerOne = matchState.playerRole === 'player';
+      const localWinner = isLocalPlayerOne
+        ? matchState.lastEvent?.winner
+        : swapActor(matchState.lastEvent?.winner);
+      const localResult = matchState.lastEvent?.result;
+      if (matchState.lastEvent?.type === 'coin_flip' && localWinner && localResult) {
+        showOnlineCoinFlipReveal({
+          result: localResult,
+          winner: localWinner === 'player'
+            ? (isLocalPlayerOne ? (matchState.playerName || 'JUGADOR') : (matchState.opponentName || 'JUGADOR'))
+            : (isLocalPlayerOne ? (matchState.opponentName || 'RIVAL') : (matchState.playerName || 'RIVAL'))
+        });
+      }
     });
 
     socket.on('match:updated', ({ room, matchState }) => {
@@ -2436,9 +2444,13 @@ export default function App() {
       </div>
 
         <div className="relative flex flex-1 flex-col items-center justify-between overflow-hidden border-x-[16px] border-emerald-800 bg-emerald-900 p-3 shadow-inner max-sm:border-x-4 max-sm:p-1.5">
-          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center opacity-10">
-            <div className="h-px w-full bg-white" />
-            <div className="h-48 w-48 rounded-full border-4 border-white" />
+          <div className="pointer-events-none absolute inset-0 opacity-[0.18]">
+            <div className="absolute left-3 right-3 top-3 bottom-3 rounded-2xl border border-white/18 max-sm:left-2 max-sm:right-2 max-sm:top-2 max-sm:bottom-2" />
+            <div className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 bg-white/28" />
+            <div className="absolute left-1/2 top-1/2 h-40 w-40 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/24 max-sm:h-28 max-sm:w-28" />
+            <div className="absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/25 max-sm:h-2 max-sm:w-2" />
+            <div className="absolute left-3 right-3 top-[12%] h-20 rounded-2xl border border-white/10 max-sm:h-14" />
+            <div className="absolute left-3 right-3 bottom-[12%] h-20 rounded-2xl border border-white/10 max-sm:h-14" />
           </div>
 
           <div
@@ -2481,34 +2493,13 @@ export default function App() {
         </div>
 
         <div className="z-10 flex w-full max-w-4xl items-center justify-between gap-4 px-4 max-sm:gap-2 max-sm:px-1">
-          <div className="flex w-full max-w-[300px] flex-col gap-3 max-sm:hidden">
-            <div className="flex flex-col gap-2">
-              <DiscardLane title="Rival juega" pile={discardShowcase.opponent} />
-              {laneNotices.opponent ? (
-                <div className="self-start rounded-full border border-white/10 bg-black/55 px-4 py-2 text-[11px] font-bold text-emerald-300 backdrop-blur-sm">
-                  {laneNotices.opponent}
-                </div>
-              ) : null}
-            </div>
-            <div className="flex flex-col gap-2">
-              <DiscardLane title="Jugador juega" pile={discardShowcase.player} />
-              {laneNotices.player ? (
-                <div className="self-start rounded-full border border-white/10 bg-black/55 px-4 py-2 text-[11px] font-bold text-emerald-300 backdrop-blur-sm">
-                  {laneNotices.player}
-                </div>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="hidden max-sm:flex w-[72px] flex-col gap-1.5">
-            <div className="rounded-lg border border-emerald-200/30 bg-black/45 px-2 py-1.5 text-center shadow-[0_8px_18px_rgba(0,0,0,0.22)]">
-              <div className="text-[7px] font-black uppercase tracking-[0.14em] text-white/75">Desc. Rival</div>
-              <div className="text-base font-black text-white">{discardShowcase.opponent.current.length + discardShowcase.opponent.archive.length}</div>
-            </div>
-            <div className="rounded-lg border border-emerald-200/30 bg-black/45 px-2 py-1.5 text-center shadow-[0_8px_18px_rgba(0,0,0,0.22)]">
-              <div className="text-[7px] font-black uppercase tracking-[0.14em] text-white/75">Desc. Jug.</div>
-              <div className="text-base font-black text-white">{discardShowcase.player.current.length + discardShowcase.player.archive.length}</div>
-            </div>
+          <div className="flex w-full max-w-[300px] flex-col gap-2 max-sm:max-w-[220px]">
+            <DiscardLane title="Rival juega" pile={discardShowcase.opponent} />
+            {laneNotices.opponent ? (
+              <div className="self-start rounded-full border border-white/10 bg-black/55 px-4 py-2 text-[11px] font-bold text-emerald-300 backdrop-blur-sm max-sm:px-3 max-sm:py-1 max-sm:text-[9px]">
+                {laneNotices.opponent}
+              </div>
+            ) : null}
           </div>
 
           <div className="flex flex-1 justify-center gap-2 overflow-x-auto py-4 max-sm:py-2">
@@ -2937,7 +2928,7 @@ export default function App() {
                         Salio {coinFlipState.result}
                       </div>
                       <div className="text-sm font-semibold text-white/70">
-                        {coinFlipState.winner === 'player' ? 'Jugador' : 'Rival'} gana el sorteo.
+                        {(coinFlipState.winner === 'player' ? playerDisplayName : opponentDisplayName) || 'Jugador'} gana el sorteo.
                       </div>
                     </div>
                   ) : (
@@ -2979,7 +2970,7 @@ export default function App() {
                         Salio {coinFlipState.result}
                       </div>
                       <div className="mt-1 text-sm font-semibold text-white/65">
-                        Comienza {coinFlipState.winner === 'player' ? 'Jugador' : 'Rival'}.
+                        Comienza {(coinFlipState.winner === 'player' ? playerDisplayName : opponentDisplayName) || 'Jugador'}.
                       </div>
                     </div>
                   )}
