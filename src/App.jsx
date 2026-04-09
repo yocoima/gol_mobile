@@ -1184,6 +1184,13 @@ export default function App() {
     setOnlineError('');
   };
 
+  const finishMatchAndReturnToMenu = () => {
+    if (onlineEnabled) {
+      socketRef.current?.emit('room:leave');
+    }
+    resetMatch();
+  };
+
   const resetMatch = () => {
     pendingOnlineActionRef.current = null;
     if (coinFlipFinalizeTimeoutRef.current) {
@@ -2284,10 +2291,20 @@ export default function App() {
               activePlay.map((card, index) => (
                 <div
                   key={`${card.id}-${index}`}
-                  className={`${card.color} flex h-24 min-w-[70px] flex-col justify-between rounded-lg border-2 border-white/40 p-2 shadow-lg`}
+                  className={`${card.color || 'bg-slate-800'} relative flex h-24 min-w-[70px] flex-col justify-between overflow-hidden rounded-lg border-2 border-white/40 p-2 shadow-lg`}
                 >
-                  <p className="text-[7px] font-black uppercase leading-none">{card.name}</p>
-                  <p className="text-center text-xl font-black">+{card.value}</p>
+                  {card.imageUrl ? (
+                    <>
+                      <img
+                        src={card.imageUrl}
+                        alt={card.name}
+                        className="absolute inset-0 h-full w-full object-cover object-center"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/32" />
+                    </>
+                  ) : null}
+                  <p className="relative z-10 text-[7px] font-black uppercase leading-none">{card.name}</p>
+                  <p className="relative z-10 text-center text-xl font-black">+{card.value}</p>
                 </div>
               ))
             )}
@@ -2381,6 +2398,12 @@ export default function App() {
                 }`}
               >
                 <ArrowRightCircle size={14} /> FINALIZAR TURNO
+              </button>
+              <button
+                onClick={finishMatchAndReturnToMenu}
+                className="rounded-full border border-red-200/40 bg-red-500/20 px-6 py-2.5 text-[10px] font-black text-red-100 shadow-xl transition-all hover:bg-red-500/30"
+              >
+                TERMINAR PARTIDA
               </button>
           </div>
 
