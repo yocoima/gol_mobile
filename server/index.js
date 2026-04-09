@@ -136,6 +136,33 @@ const refillActorHandToLimit = (matchState, actor, targetLimit) => {
 
 const getHandKey = (actor) => (actor === 'player' ? 'playerHand' : 'opponentHand');
 const createEventId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+const getExpectedActor = (matchState) => {
+  if (matchState.pendingBlindDiscard?.actor) {
+    return matchState.pendingBlindDiscard.actor;
+  }
+
+  if (matchState.pendingDefense?.defenseCardId === 'red_card_var') {
+    return matchState.pendingDefense.defender;
+  }
+
+  if (matchState.pendingDefense?.defenseCardId && matchState.pendingDefense.defenseCardId !== 'pre_shot') {
+    return matchState.pendingDefense.possessor;
+  }
+
+  if (matchState.pendingDefense?.defenseCardId === 'pre_shot') {
+    return matchState.pendingDefense.defender;
+  }
+
+  if (matchState.pendingShot?.phase === 'penalty_response' || matchState.pendingShot?.phase === 'save') {
+    return matchState.pendingShot.defender;
+  }
+
+  if (matchState.pendingShot?.phase === 'offside_var' || matchState.pendingShot?.phase === 'remate') {
+    return matchState.pendingShot.attacker;
+  }
+
+  return matchState.currentTurn;
+};
 
 const pushRecentAction = (matchState, action) => {
   const actions = Array.isArray(matchState.recentActions) ? matchState.recentActions : [];
@@ -572,7 +599,8 @@ io.on('connection', (socket) => {
 
     const actor = getPlayerRole(room, socket.id);
 
-    if (!actor || room.matchState.currentTurn !== actor) {
+    const expectedActor = getExpectedActor(room.matchState);
+    if (!actor || expectedActor !== actor) {
       socket.emit('room:error', { message: 'No es tu turno.' });
       return;
     }
@@ -646,9 +674,16 @@ io.on('connection', (socket) => {
       return;
     }
 
+    const expectedActor = getExpectedActor(room.matchState);
+    if (!actor || expectedActor !== actor) {
+      socket.emit('match:error', { message: 'Aun no es tu turno para responder.' });
+      return;
+    }
+
     const playCardAction = applyPlayCardAction({
       state: {
         ...room.matchState,
+        currentTurn: expectedActor,
         cardIndex: index,
         defenderCanUsePreShotDefense: canUsePreShotDefense(room.matchState, getOpponent(actor))
       },

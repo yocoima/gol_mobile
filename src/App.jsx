@@ -2710,33 +2710,6 @@ export default function App() {
                   {onlineError ? (
                     <div className="mt-2 text-sm font-semibold text-red-300">{onlineError}</div>
                   ) : null}
-                  {showOnlineCoinChoice ? (
-                    <div className="mt-3 rounded-xl border border-yellow-300/30 bg-yellow-500/10 p-3">
-                      <div className="mb-2 text-xs font-black uppercase tracking-[0.2em] text-yellow-200">
-                        Elige cara o sello
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          onClick={() => startOnlineMatchWithChoice('Cara')}
-                          className="rounded-xl bg-white px-4 py-2 text-sm font-black text-slate-950 transition-all hover:bg-yellow-100"
-                        >
-                          CARA
-                        </button>
-                        <button
-                          onClick={() => startOnlineMatchWithChoice('Sello')}
-                          className="rounded-xl bg-white px-4 py-2 text-sm font-black text-slate-950 transition-all hover:bg-yellow-100"
-                        >
-                          SELLO
-                        </button>
-                        <button
-                          onClick={() => setShowOnlineCoinChoice(false)}
-                          className="rounded-xl border border-white/20 bg-transparent px-4 py-2 text-sm font-black text-white/80 transition-all hover:bg-white/10"
-                        >
-                          CANCELAR
-                        </button>
-                      </div>
-                    </div>
-                  ) : null}
                 </div>
                   <div className="flex flex-wrap items-center justify-center gap-4">
                     <button
@@ -3061,6 +3034,39 @@ export default function App() {
                   style={{ animation: 'goalPulse 1.6s ease-out forwards' }}
                 >
                   {systemNotice}
+                </div>
+              </div>
+            )}
+
+            {showOnlineCoinChoice && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6">
+                <div className="w-full max-w-md rounded-[1.8rem] border border-yellow-300/40 bg-slate-950/95 p-6 text-center shadow-[0_24px_60px_rgba(0,0,0,0.55)]">
+                  <div className="mb-2 text-[11px] font-black uppercase tracking-[0.28em] text-yellow-300">
+                    Inicio online
+                  </div>
+                  <div className="mb-5 text-xl font-black text-white">
+                    Elige Cara o Sello
+                  </div>
+                  <div className="flex justify-center gap-3">
+                    <button
+                      onClick={() => startOnlineMatchWithChoice('Cara')}
+                      className="rounded-xl bg-white px-5 py-3 text-sm font-black text-slate-950 transition-all hover:bg-yellow-100"
+                    >
+                      CARA
+                    </button>
+                    <button
+                      onClick={() => startOnlineMatchWithChoice('Sello')}
+                      className="rounded-xl bg-white px-5 py-3 text-sm font-black text-slate-950 transition-all hover:bg-yellow-100"
+                    >
+                      SELLO
+                    </button>
+                    <button
+                      onClick={() => setShowOnlineCoinChoice(false)}
+                      className="rounded-xl border border-white/20 bg-transparent px-5 py-3 text-sm font-black text-white/80 transition-all hover:bg-white/10"
+                    >
+                      CANCELAR
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
