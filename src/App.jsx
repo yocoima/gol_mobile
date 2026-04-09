@@ -269,7 +269,7 @@ const CardItem = ({
   const cardImage = card?.imageUrl;
 
   return (
-  <div className="relative group flex w-[82px] flex-col items-center">
+  <div className="relative group flex w-[82px] flex-col items-center max-sm:w-[64px]">
     {canSelectDiscard && isDiscardMode && !disabled && (
       <button
         onClick={onSelect}
@@ -285,7 +285,7 @@ const CardItem = ({
       onClick={isDiscardMode ? onSelect : onClick}
       disabled={disabled}
       className={`
-        ${hideContent || cardImage ? 'bg-slate-900' : card?.color || 'bg-slate-800'} h-28 w-[82px] overflow-hidden rounded-[18px] border border-white/10 p-0 shadow-[0_14px_30px_rgba(0,0,0,0.35)] transition-all duration-200
+        ${hideContent || cardImage ? 'bg-slate-900' : card?.color || 'bg-slate-800'} h-28 w-[82px] overflow-hidden rounded-[18px] border border-white/10 p-0 shadow-[0_14px_30px_rgba(0,0,0,0.35)] transition-all duration-200 max-sm:h-20 max-sm:w-[64px] max-sm:rounded-[14px]
         flex flex-col justify-between
         ${!disabled ? 'hover:-translate-y-4 hover:shadow-emerald-400/30' : 'grayscale opacity-40 border-white/5'}
         ${isSelected ? 'scale-90 brightness-50 ring-2 ring-orange-300' : ''}
@@ -304,8 +304,8 @@ const CardItem = ({
       )}
     </button>
 
-    <div className="mt-2 flex min-h-[18px] w-full items-center justify-center rounded-md bg-transparent px-1 py-0 text-center">
-      <div className="text-[7px] font-black uppercase leading-tight text-white/95">
+    <div className="mt-2 flex min-h-[18px] w-full items-center justify-center rounded-md bg-transparent px-1 py-0 text-center max-sm:mt-1 max-sm:min-h-[12px]">
+      <div className="text-[7px] font-black uppercase leading-tight text-white/95 max-sm:text-[6px]">
         {hideContent ? 'Carta oculta' : card?.name}
       </div>
     </div>
@@ -2302,9 +2302,9 @@ export default function App() {
             100% { transform: translateY(0) scale(1); opacity: 1; }
           }
         `}</style>
-        <div className="z-20 border-b-2 border-emerald-500 bg-slate-900 p-2 shadow-2xl">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4">
-          <div className={`flex items-center gap-4 rounded-2xl p-3 transition-all ${
+        <div className="z-20 border-b-2 border-emerald-500 bg-slate-900 p-2 shadow-2xl max-sm:p-1">
+        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 max-sm:px-1">
+          <div className={`flex items-center gap-4 rounded-2xl p-3 transition-all max-sm:gap-2 max-sm:p-1.5 ${
             possession === 'player'
               ? 'bg-blue-600/30 ring-2 ring-blue-500'
               : sanctions.player
@@ -2314,7 +2314,7 @@ export default function App() {
             {possession === 'player' && <SoccerBallIcon size={20} className="animate-bounce" />}
             <div className="text-center">
               <span className="block text-[10px] font-black text-blue-400">{playerDisplayName}</span>
-              <span className="text-3xl font-black">{playerScore}</span>
+              <span className="text-3xl font-black max-sm:text-2xl">{playerScore}</span>
               <div className="mt-1 flex justify-center gap-1.5">
                 {[1, 2, 3, 4].map((point) => (
                   <div
@@ -2361,18 +2361,18 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex flex-1 justify-center">
+          <div className="flex flex-1 justify-center max-sm:px-1">
             {(gameState === 'playing' || gameState === 'dealing' || gameState === 'coin-flip') ? (
               <button
                 onClick={finishMatchAndReturnToMenu}
-                className="rounded-full border border-red-200/40 bg-red-500/20 px-5 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-red-100 shadow-xl transition-all hover:bg-red-500/30"
+                className="rounded-full border border-red-200/40 bg-red-500/20 px-5 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-red-100 shadow-xl transition-all hover:bg-red-500/30 max-sm:px-3 max-sm:py-1.5 max-sm:text-[9px]"
               >
                 Terminar partida
               </button>
             ) : null}
           </div>
 
-          <div className={`flex items-center gap-4 rounded-2xl p-3 transition-all ${
+          <div className={`flex items-center gap-4 rounded-2xl p-3 transition-all max-sm:gap-2 max-sm:p-1.5 ${
             possession === 'opponent'
               ? 'bg-red-600/30 ring-2 ring-red-500'
               : sanctions.opponent
@@ -2382,7 +2382,7 @@ export default function App() {
             {possession === 'opponent' && <SoccerBallIcon size={20} className="animate-bounce" />}
             <div className="text-center">
               <span className="block text-[10px] font-black text-red-400">{opponentDisplayName}</span>
-              <span className="text-3xl font-black">{opponentScore}</span>
+              <span className="text-3xl font-black max-sm:text-2xl">{opponentScore}</span>
               <div className="mt-1 flex justify-center gap-1.5">
                 {[1, 2, 3, 4].map((point) => (
                   <div
@@ -2449,12 +2449,12 @@ export default function App() {
             </div>
           </div>
 
-        <div className="relative z-10 w-full max-w-2xl opacity-80">
-          <div className="mb-2 text-center text-[10px] font-black uppercase tracking-[0.25em] text-white/60">
+        <div className="relative z-10 w-full max-w-2xl opacity-80 max-sm:max-w-full">
+          <div className="mb-2 text-center text-[10px] font-black uppercase tracking-[0.25em] text-white/60 max-sm:mb-1 max-sm:text-[8px]">
             Rival {DEV_SHOW_OPPONENT_HAND ? '(debug visible)' : ''}
           </div>
-          <div className="mb-3 flex flex-wrap items-center justify-center gap-4" />
-          <div className="grid w-full grid-cols-5 justify-items-center gap-1.5 sm:flex sm:flex-wrap sm:justify-center sm:gap-2">
+          <div className="mb-1 flex flex-wrap items-center justify-center gap-2" />
+          <div className="grid w-full grid-cols-5 justify-items-center gap-1 sm:flex sm:flex-wrap sm:justify-center sm:gap-2">
             {opponentHand.map((card, index) =>
               DEV_SHOW_OPPONENT_HAND ? (
                 <CardItem
@@ -2480,8 +2480,8 @@ export default function App() {
           </div>
         </div>
 
-        <div className="z-10 flex w-full max-w-4xl items-center justify-between gap-4 px-4">
-          <div className="flex w-full max-w-[300px] flex-col gap-3">
+        <div className="z-10 flex w-full max-w-4xl items-center justify-between gap-4 px-4 max-sm:gap-2 max-sm:px-1">
+          <div className="flex w-full max-w-[300px] flex-col gap-3 max-sm:hidden">
             <div className="flex flex-col gap-2">
               <DiscardLane title="Rival juega" pile={discardShowcase.opponent} />
               {laneNotices.opponent ? (
@@ -2538,7 +2538,7 @@ export default function App() {
         </div>
 
             {statusBannerMessage && (
-              <div className="mt-3 rounded-full border border-yellow-300/40 bg-yellow-500/15 px-5 py-2 text-center text-[10px] font-black uppercase tracking-[0.22em] text-yellow-200 shadow-[0_0_20px_rgba(250,204,21,0.18)]">
+              <div className="mt-2 rounded-full border border-yellow-300/40 bg-yellow-500/15 px-5 py-2 text-center text-[10px] font-black uppercase tracking-[0.22em] text-yellow-200 shadow-[0_0_20px_rgba(250,204,21,0.18)] max-sm:px-3 max-sm:py-1.5 max-sm:text-[9px] max-sm:tracking-[0.12em]">
                 {statusBannerMessage}
               </div>
             )}
@@ -2586,11 +2586,11 @@ export default function App() {
             </div>
           )}
 
-          <div className="relative z-10 w-full max-w-2xl pb-2">
-          <div className="mb-3 text-center text-[11px] font-black uppercase tracking-[0.3em] text-white/70">
+          <div className="relative z-10 w-full max-w-2xl pb-2 max-sm:max-w-full max-sm:pb-1">
+          <div className="mb-3 text-center text-[11px] font-black uppercase tracking-[0.3em] text-white/70 max-sm:mb-2 max-sm:text-[9px] max-sm:tracking-[0.18em]">
             Turno actual: {currentTurnLabel}
           </div>
-          <div className="mb-4 flex flex-wrap items-center justify-center gap-4">
+          <div className="mb-3 flex flex-wrap items-center justify-center gap-3 max-sm:mb-2 max-sm:gap-2">
               {canUseDiscard && isPlayerTurn && (
               <button
                 onClick={handleDiscard}
@@ -2619,7 +2619,7 @@ export default function App() {
               </button>
           </div>
 
-          <div className="grid w-full grid-cols-5 justify-items-center gap-1.5 sm:flex sm:flex-wrap sm:justify-center sm:gap-1.5">
+          <div className="grid w-full grid-cols-5 justify-items-center gap-1 sm:flex sm:flex-wrap sm:justify-center sm:gap-1.5">
             {playerHand.map((card, index) => (
               <CardItem
                 key={`${card.id}-${index}`}
