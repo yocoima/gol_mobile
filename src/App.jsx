@@ -804,8 +804,7 @@ export default function App() {
       setShowOnlineCoinChoice(false);
       hydrateFromOnlineState(matchState);
       const swapActor = (actor) => (actor === 'player' ? 'opponent' : actor === 'opponent' ? 'player' : actor);
-      const isLocalPlayerOne = matchState.playerRole === 'player';
-      const localWinner = isLocalPlayerOne
+      const localWinner = matchState.playerRole === 'player'
         ? matchState.lastEvent?.winner
         : swapActor(matchState.lastEvent?.winner);
       const localResult = matchState.lastEvent?.result;
@@ -814,8 +813,8 @@ export default function App() {
           result: localResult,
           invitedChoice: matchState.lastEvent?.invitedChoice ?? null,
           winner: localWinner === 'player'
-            ? (isLocalPlayerOne ? (matchState.playerName || 'JUGADOR') : (matchState.opponentName || 'JUGADOR'))
-            : (isLocalPlayerOne ? (matchState.opponentName || 'RIVAL') : (matchState.playerName || 'RIVAL'))
+            ? (matchState.playerName || 'JUGADOR')
+            : (matchState.opponentName || 'RIVAL')
         });
       }
     });
@@ -2637,8 +2636,12 @@ export default function App() {
             <div className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 bg-white/28" />
             <div className="absolute left-1/2 top-1/2 h-40 w-40 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/24 max-sm:h-28 max-sm:w-28" />
             <div className="absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/25 max-sm:h-2 max-sm:w-2" />
-            <div className="absolute left-3 right-3 top-[12%] h-20 rounded-2xl border border-white/10 max-sm:h-14" />
-            <div className="absolute left-3 right-3 bottom-[12%] h-20 rounded-2xl border border-white/10 max-sm:h-14" />
+            <div className="absolute left-[18%] right-[18%] top-3 h-20 border border-white/16 border-t-0 max-sm:top-2 max-sm:h-14" />
+            <div className="absolute left-[32%] right-[32%] top-3 h-10 border border-white/16 border-t-0 max-sm:top-2 max-sm:h-8" />
+            <div className="absolute left-1/2 top-[13%] h-2 w-2 -translate-x-1/2 rounded-full bg-white/22 max-sm:top-[11%]" />
+            <div className="absolute left-[18%] right-[18%] bottom-3 h-20 border border-white/16 border-b-0 max-sm:bottom-2 max-sm:h-14" />
+            <div className="absolute left-[32%] right-[32%] bottom-3 h-10 border border-white/16 border-b-0 max-sm:bottom-2 max-sm:h-8" />
+            <div className="absolute left-1/2 bottom-[13%] h-2 w-2 -translate-x-1/2 rounded-full bg-white/22 max-sm:bottom-[11%]" />
           </div>
 
           <div
@@ -2702,16 +2705,16 @@ export default function App() {
           )}
         </div>
 
-        <div className="z-10 flex w-full max-w-4xl items-center justify-between gap-4 px-4 max-sm:gap-2 max-sm:px-1">
-          <div className="flex w-full max-w-[300px] flex-col gap-2 max-sm:max-w-[220px]">
-            <DiscardLane title="Rival juega" pile={discardShowcase.opponent} />
-            {laneNotices.opponent ? (
-              <div className="self-start rounded-full border border-white/10 bg-black/55 px-4 py-2 text-[11px] font-bold text-emerald-300 backdrop-blur-sm max-sm:px-3 max-sm:py-1 max-sm:text-[9px]">
-                {laneNotices.opponent}
-              </div>
-            ) : null}
-          </div>
+        <div className="absolute left-3 top-3 z-20 flex w-[290px] flex-col gap-2 max-sm:left-2 max-sm:top-2 max-sm:w-[220px]">
+          <DiscardLane title="Rival juega" pile={discardShowcase.opponent} />
+          {laneNotices.opponent ? (
+            <div className="self-start rounded-full border border-white/10 bg-black/55 px-4 py-2 text-[11px] font-bold text-emerald-300 backdrop-blur-sm max-sm:px-3 max-sm:py-1 max-sm:text-[9px]">
+              {laneNotices.opponent}
+            </div>
+          ) : null}
+        </div>
 
+        <div className="z-10 flex w-full max-w-4xl items-center justify-between gap-4 px-4 max-sm:gap-2 max-sm:px-1">
           <div className="flex flex-1 justify-center gap-2 overflow-x-auto py-4 max-sm:py-2">
             {activePlay.length === 0 ? (
               null
