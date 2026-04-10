@@ -279,7 +279,7 @@ const openBlindDiscard = (matchState, actor, targetActor, reason, returnTurnTo) 
 };
 
 const resolveBlindDiscard = (matchState, actor, index) => {
-  const targetActor = matchState.pendingBlindDiscard?.targetActor;
+  const targetActor = matchState.pendingBlindDiscard?.targetActor ?? matchState.pendingBlindDiscard?.actor;
   if (!targetActor) {
     return false;
   }

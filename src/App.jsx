@@ -529,6 +529,7 @@ export default function App() {
   const isPlayerTurn = currentTurn === 'player';
   const isOpponentTurn = currentTurn === 'opponent';
   const currentTurnLabel = isPlayerTurn ? playerDisplayName : isOpponentTurn ? opponentDisplayName : 'Nadie';
+  const blindDiscardTargetActor = pendingBlindDiscard?.targetActor ?? pendingBlindDiscard?.actor ?? null;
   const engineContext = createEngineContext({
     playerHand,
     opponentHand,
@@ -929,7 +930,7 @@ export default function App() {
     }
 
     if (pendingBlindDiscard?.actor === 'opponent') {
-      const targetHand = pendingBlindDiscard.targetActor === 'player' ? playerHand : opponentHand;
+      const targetHand = blindDiscardTargetActor === 'player' ? playerHand : opponentHand;
       return targetHand.length > 0
         ? { type: 'blind-discard-target', index: Math.floor(Math.random() * targetHand.length) }
         : null;
@@ -1057,7 +1058,7 @@ export default function App() {
   };
   const reactionBannerMessage =
     pendingBlindDiscard
-      ? `DESCARTE OCULTO: ${pendingBlindDiscard.actor === 'player' ? 'JUGADOR' : 'RIVAL'} ELIGE UNA CARTA DEL ${pendingBlindDiscard.targetActor === 'player' ? 'JUGADOR' : 'RIVAL'}`
+      ? `DESCARTE OCULTO: ${pendingBlindDiscard.actor === 'player' ? 'JUGADOR' : 'RIVAL'} ELIGE UNA CARTA DEL ${blindDiscardTargetActor === 'player' ? 'JUGADOR' : 'RIVAL'}`
       : pendingShot?.phase === 'penalty_response'
         ? `VENTANA DE RESPUESTA DEL ${pendingShot.defender === 'player' ? 'JUGADOR' : 'RIVAL'}: PENALTI`
         : pendingShot?.phase === 'offside_var'
@@ -1570,9 +1571,9 @@ export default function App() {
 
     if (pendingBlindDiscard?.actor) {
       const chooserLabel = getActorLabel(pendingBlindDiscard.actor);
-      const targetLabel = getActorLabel(pendingBlindDiscard.targetActor);
+      const targetLabel = getActorLabel(blindDiscardTargetActor);
       nextHint = {
-        key: `blind-${pendingBlindDiscard.actor}-${pendingBlindDiscard.targetActor}-${pendingBlindDiscard.reason || ''}`,
+        key: `blind-${pendingBlindDiscard.actor}-${blindDiscardTargetActor}-${pendingBlindDiscard.reason || ''}`,
         actor: pendingBlindDiscard.actor,
         text: `${chooserLabel} elige 1 carta cubierta de ${targetLabel}.`
       };
@@ -1637,7 +1638,7 @@ export default function App() {
 
     lastReactionHintRef.current = nextHint.key;
     setFieldEventAnimation({ actor: nextHint.actor, text: nextHint.text });
-  }, [pendingBlindDiscard, pendingDefense, pendingShot, playerDisplayName, opponentDisplayName]);
+  }, [pendingBlindDiscard, pendingDefense, pendingShot, playerDisplayName, opponentDisplayName, blindDiscardTargetActor]);
 
   const consumeCard = (actor, index, card) => {
     const currentHand = getHand(actor);
@@ -1696,7 +1697,7 @@ export default function App() {
   };
 
   const resolveBlindDiscard = (actor, index) => {
-    const targetActor = pendingBlindDiscard?.targetActor;
+    const targetActor = pendingBlindDiscard?.targetActor ?? pendingBlindDiscard?.actor;
     if (!targetActor) {
       return;
     }
@@ -2433,7 +2434,7 @@ export default function App() {
       }
 
       if (action.type === 'blind-discard-target') {
-        const targetLabel = pendingBlindDiscard?.targetActor === 'player' ? 'jugador' : 'rival';
+        const targetLabel = blindDiscardTargetActor === 'player' ? 'jugador' : 'rival';
         setAiStatus(`IA elige una carta oculta del ${targetLabel}`);
         resolveBlindDiscard('opponent', action.index);
         return;
@@ -2660,9 +2661,9 @@ export default function App() {
           <div className="mb-2 text-center text-[10px] font-black uppercase tracking-[0.25em] text-white/60 max-sm:mb-1 max-sm:text-[8px]">
             Rival
           </div>
-          {DEV_SHOW_OPPONENT_HAND || pendingBlindDiscard?.targetActor === 'opponent' ? (
+          {DEV_SHOW_OPPONENT_HAND || blindDiscardTargetActor === 'opponent' ? (
             <div className="grid w-full grid-cols-5 justify-items-center gap-1 sm:flex sm:flex-wrap sm:justify-center sm:gap-2">
-              {(pendingBlindDiscard?.targetActor === 'opponent'
+              {(blindDiscardTargetActor === 'opponent'
                 ? Array.from({ length: opponentHand.length }, (_, index) => ({
                     id: `blind-opponent-${index}`,
                     name: 'Carta oculta',
@@ -2676,7 +2677,7 @@ export default function App() {
                     isSelected={selectedForDiscard.includes(index)}
                     onSelect={(event) => toggleDiscardSelection(event, index)}
                     onClick={() => {
-                      if (pendingBlindDiscard?.targetActor === 'opponent' && pendingBlindDiscard.actor === 'player') {
+                      if (blindDiscardTargetActor === 'opponent' && pendingBlindDiscard.actor === 'player') {
                         if (onlineEnabled && socketRef.current) {
                           socketRef.current.emit('match:play_card', { index });
                         } else {
@@ -2688,13 +2689,13 @@ export default function App() {
                       playCard(card, index, false);
                     }}
                     disabled={
-                      pendingBlindDiscard?.targetActor === 'opponent'
+                      blindDiscardTargetActor === 'opponent'
                         ? pendingBlindDiscard.actor !== 'player'
                         : !isOpponentTurn
                     }
                     canSelectDiscard={false}
                     isDiscardMode={discardMode}
-                    hideContent={pendingBlindDiscard?.targetActor === 'opponent'}
+                    hideContent={blindDiscardTargetActor === 'opponent'}
                   />
                 ))}
             </div>
@@ -2705,14 +2706,16 @@ export default function App() {
           )}
         </div>
 
-        <div className="absolute left-3 top-3 z-20 flex w-[290px] flex-col gap-2 max-sm:left-2 max-sm:top-2 max-sm:w-[220px]">
-          <DiscardLane title="Rival juega" pile={discardShowcase.opponent} />
-          {laneNotices.opponent ? (
-            <div className="self-start rounded-full border border-white/10 bg-black/55 px-4 py-2 text-[11px] font-bold text-emerald-300 backdrop-blur-sm max-sm:px-3 max-sm:py-1 max-sm:text-[9px]">
-              {laneNotices.opponent}
-            </div>
-          ) : null}
-        </div>
+        {(gameState === 'playing' || gameState === 'dealing' || gameState === 'coin-flip') ? (
+          <div className="absolute left-3 top-3 z-20 flex w-[290px] flex-col gap-2 max-sm:left-2 max-sm:top-2 max-sm:w-[220px]">
+            <DiscardLane title="Rival juega" pile={discardShowcase.opponent} />
+            {laneNotices.opponent ? (
+              <div className="self-start rounded-full border border-white/10 bg-black/55 px-4 py-2 text-[11px] font-bold text-emerald-300 backdrop-blur-sm max-sm:px-3 max-sm:py-1 max-sm:text-[9px]">
+                {laneNotices.opponent}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="z-10 flex w-full max-w-4xl items-center justify-between gap-4 px-4 max-sm:gap-2 max-sm:px-1">
           <div className="flex flex-1 justify-center gap-2 overflow-x-auto py-4 max-sm:py-2">
@@ -2840,10 +2843,10 @@ export default function App() {
                 isSelected={selectedForDiscard.includes(index)}
                 onSelect={(event) => toggleDiscardSelection(event, index)}
                 onClick={() => playCard(card, index, true)}
-                disabled={!isPlayerTurn || (pendingBlindDiscard?.actor === 'player' && pendingBlindDiscard?.targetActor === 'opponent')}
+                disabled={!isPlayerTurn || (pendingBlindDiscard?.actor === 'player' && blindDiscardTargetActor === 'opponent')}
                   canSelectDiscard={canUseDiscard}
                 isDiscardMode={discardMode}
-                hideContent={pendingBlindDiscard?.targetActor === 'player'}
+                hideContent={blindDiscardTargetActor === 'player'}
               />
             ))}
           </div>
