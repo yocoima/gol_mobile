@@ -9,6 +9,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { io } from 'socket.io-client';
+import { AudioManager } from './audioManager.js';
 import yellowCardImage from '../imagenes/Tarjeta amarilla.png';
 import redCardImage from '../imagenes/Tarjeta roja.png';
 import coinVideo from '../imagenes/Moneda.mp4';
@@ -99,6 +100,7 @@ const DECK_DEFINITION = BASE_DECK_DEFINITION.map((card) => withCardImage(card));
 
 const DEV_SHOW_OPPONENT_HAND = false;
 const PASS_CARD_IDS = new Set(['pc', 'pl', 'pa']);
+const CARD_IDS_FOR_CARD_SFX = new Set(['ta', 'tr', 'fa', 'var']);
 
 const TUTORIAL_SEQUENCES = [
   {
@@ -460,6 +462,7 @@ const TutorialStepCard = ({ label }) => {
 };
 
 export default function App() {
+  const audioManagerRef = useRef(null);
   const socketRef = useRef(null);
   const pendingOnlineActionRef = useRef(null);
   const lastRecentActionIdRef = useRef(null);
@@ -550,6 +553,26 @@ export default function App() {
 
   const addLog = (message) => {
     setGameLog((previousLog) => [message, ...previousLog].slice(0, 5));
+  };
+
+  const playCardSfx = (card) => {
+    if (!card?.id) {
+      return;
+    }
+
+    if (card.type === 'pass') {
+      audioManagerRef.current?.playSfx('pass');
+      return;
+    }
+
+    if (card.id === 'tg' || card.id === 'pe' || card.id === 'rem') {
+      audioManagerRef.current?.playSfx('shot');
+      return;
+    }
+
+    if (CARD_IDS_FOR_CARD_SFX.has(card.id) || card.type === 'counter' || card.type === 'defense') {
+      audioManagerRef.current?.playSfx('card');
+    }
   };
 
   const buildLaneNoticeFromRecentActions = (actions = [], localPlayerLabel = 'JUGADOR', localOpponentLabel = 'RIVAL') => {
@@ -721,6 +744,35 @@ export default function App() {
 
     return () => window.clearTimeout(timeoutId);
   }, [systemNotice]);
+
+  useEffect(() => {
+    if (!audioManagerRef.current) {
+      audioManagerRef.current = new AudioManager();
+    }
+
+    const unlockAudio = () => {
+      audioManagerRef.current?.unlock();
+    };
+
+    window.addEventListener('pointerdown', unlockAudio, { passive: true });
+    window.addEventListener('keydown', unlockAudio);
+
+    return () => {
+      window.removeEventListener('pointerdown', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
+      audioManagerRef.current?.destroy();
+      audioManagerRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (gameState === 'playing') {
+      audioManagerRef.current?.startAmbience();
+      return;
+    }
+
+    audioManagerRef.current?.stopAmbience();
+  }, [gameState]);
 
   useEffect(() => () => {
     if (onlineCoinFlipTimeoutRef.current) {
@@ -1397,6 +1449,12 @@ export default function App() {
       if (laneNotice?.id && laneNotice.id !== lastRecentActionIdRef.current) {
         lastRecentActionIdRef.current = laneNotice.id;
         setLaneNotice(laneNotice.actor, laneNotice.message);
+        const latestAction = localMatchState.recentActions[0];
+        if (latestAction?.type === 'discard') {
+          audioManagerRef.current?.playSfx('card');
+        } else if (latestAction?.card) {
+          playCardSfx(latestAction.card);
+        }
       }
     }
 
@@ -1405,6 +1463,7 @@ export default function App() {
       const event = localMatchState.lastEvent;
 
       if (event.type === 'goal') {
+        audioManagerRef.current?.playSfx('goal');
         setGoalCelebration({
           scorer: event.scorer,
           text: `GOOL ${event.scorer === 'player' ? localPlayerLabel : localOpponentLabel}`
@@ -1412,6 +1471,7 @@ export default function App() {
       }
 
       if (event.type === 'coin_flip') {
+        audioManagerRef.current?.playSfx('whistle');
         addLog(`Moneda: ${event.result}. Inicia ${event.winner === 'player' ? localPlayerLabel : localOpponentLabel}.`);
         showOnlineCoinFlipReveal({
           result: event.result,
@@ -1654,6 +1714,7 @@ export default function App() {
     registerDiscardShowcaseCards(actor, [card]);
     setDeck(drawResult.deck);
     setLaneNotice(actor, `${actor === 'player' ? 'Jugador' : 'Rival'} juega ${card.name}.`);
+    playCardSfx(card);
 
     if (drawResult.reshuffled) {
       addLog('El mazo se vacio. Se barajo el descarte y se formo un nuevo mazo.');
@@ -1847,6 +1908,7 @@ export default function App() {
       scorer: goalOutcome.scorer,
       text: goalOutcome.celebrationText
     });
+    audioManagerRef.current?.playSfx('goal');
     setLaneNotice(scorer, goalOutcome.laneNotice);
 
     applyRedCardTurnProgress(scorer);
@@ -1951,6 +2013,7 @@ export default function App() {
       isFlipping: true
     });
     setCoinFlipPlaybackId((previous) => previous + 1);
+    audioManagerRef.current?.playSfx('whistle');
   };
 
   const scheduleCoinFlipFinalize = () => {
@@ -1994,6 +2057,7 @@ export default function App() {
     setPossession(outcome.winner);
     setCurrentTurn(outcome.winner);
     setGameState('dealing');
+    audioManagerRef.current?.playSfx('whistle');
     addLog(`Salio ${outcome.result}. El ${outcome.winner === 'player' ? 'Jugador' : 'Rival'} tiene el balon.`);
   };
 
@@ -2717,7 +2781,10 @@ export default function App() {
           </div>
         ) : null}
 
-        <div className="z-10 flex w-full max-w-4xl items-center justify-between gap-4 px-4 max-sm:gap-2 max-sm:px-1">
+        <div
+          className="z-10 flex w-full max-w-4xl items-center justify-between gap-4 px-4 max-sm:gap-2 max-sm:px-1"
+          style={{ transform: 'translateY(8%)' }}
+        >
           <div className="flex flex-1 justify-center gap-2 overflow-x-auto py-4 max-sm:py-2">
             {activePlay.length === 0 ? (
               null
@@ -3355,4 +3422,3 @@ export default function App() {
     </div>
   );
 }
-
