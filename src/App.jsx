@@ -2707,7 +2707,7 @@ export default function App() {
         </div>
 
         {gameState === 'playing' && !onlineCoinFlipReveal ? (
-          <div className="absolute left-3 top-[15%] z-20 flex w-[290px] flex-col gap-2 max-sm:left-2 max-sm:top-[12%] max-sm:w-[220px]">
+          <div className="absolute left-3 top-[13%] z-20 flex w-[290px] flex-col gap-2 max-sm:left-2 max-sm:top-[10%] max-sm:w-[220px]">
             <DiscardLane title="Rival juega" pile={discardShowcase.opponent} />
             {laneNotices.opponent ? (
               <div className="self-start rounded-full border border-white/10 bg-black/55 px-4 py-2 text-[11px] font-bold text-emerald-300 backdrop-blur-sm max-sm:px-3 max-sm:py-1 max-sm:text-[9px]">
