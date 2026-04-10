@@ -558,10 +558,14 @@ io.on('connection', (socket) => {
     }
 
     const normalizedChoice = typeof choice === 'string' ? choice.trim().toLowerCase() : '';
-    const hostChoice = normalizedChoice === 'cara' ? 'Cara' : normalizedChoice === 'sello' ? 'Sello' : null;
+    const invitedChoice = normalizedChoice === 'cara' ? 'Cara' : normalizedChoice === 'sello' ? 'Sello' : null;
+    if (!invitedChoice) {
+      socket.emit('room:error', { message: 'El invitado debe elegir Cara o Sello para iniciar.' });
+      return;
+    }
     const result = Math.random() > 0.5 ? 'Cara' : 'Sello';
-    const hostWon = hostChoice ? hostChoice === result : Math.random() > 0.5;
-    const starter = hostWon ? 'player' : 'opponent';
+    const invitedWon = invitedChoice === result;
+    const starter = invitedWon ? 'opponent' : 'player';
     room.matchState = createInitialMatchState({ startingPlayer: starter });
     room.matchState.playerNames = {
       player: room.players[0]?.name ?? 'Jugador 1',
@@ -571,6 +575,7 @@ io.on('connection', (socket) => {
     room.matchState.lastEvent = {
       id: createEventId(),
       type: 'coin_flip',
+      invitedChoice,
       result,
       winner: starter
     };

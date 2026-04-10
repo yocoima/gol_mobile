@@ -98,6 +98,7 @@ const withCardsImage = (cards = []) => cards.map((card) => withCardImage(card));
 const DECK_DEFINITION = BASE_DECK_DEFINITION.map((card) => withCardImage(card));
 
 const DEV_SHOW_OPPONENT_HAND = false;
+const PASS_CARD_IDS = new Set(['pc', 'pl', 'pa']);
 
 const TUTORIAL_SEQUENCES = [
   {
@@ -461,6 +462,8 @@ const TutorialStepCard = ({ label }) => {
 export default function App() {
   const socketRef = useRef(null);
   const pendingOnlineActionRef = useRef(null);
+  const lastRecentActionIdRef = useRef(null);
+  const lastReactionHintRef = useRef('');
   const [gameState, setGameState] = useState('menu');
   const [tutorialPage, setTutorialPage] = useState(0);
   const [coinFlipState, setCoinFlipState] = useState({
@@ -520,6 +523,7 @@ export default function App() {
   const [fieldEventAnimation, setFieldEventAnimation] = useState(null);
   const [onlineCoinFlipReveal, setOnlineCoinFlipReveal] = useState(null);
   const onlineCoinFlipTimeoutRef = useRef(null);
+  const onlineCoinFlipPreviewTimeoutRef = useRef(null);
   const lastOnlineEventRef = useRef(null);
 
   const isPlayerTurn = currentTurn === 'player';
@@ -545,6 +549,73 @@ export default function App() {
 
   const addLog = (message) => {
     setGameLog((previousLog) => [message, ...previousLog].slice(0, 5));
+  };
+
+  const buildLaneNoticeFromRecentActions = (actions = [], localPlayerLabel = 'JUGADOR', localOpponentLabel = 'RIVAL') => {
+    if (!Array.isArray(actions) || actions.length === 0) {
+      return null;
+    }
+
+    const leadActor = actions[0].actor === 'player' ? 'player' : 'opponent';
+    const actorLabel = leadActor === 'player' ? localPlayerLabel : localOpponentLabel;
+    const consecutiveActions = [];
+
+    for (const action of actions) {
+      if (action.actor !== leadActor) {
+        break;
+      }
+      consecutiveActions.push(action);
+      if (consecutiveActions.length >= 4) {
+        break;
+      }
+    }
+
+    const discardCount = consecutiveActions.filter((action) => action.type === 'discard').length;
+    if (discardCount >= 2) {
+      return {
+        id: actions[0].id,
+        actor: leadActor,
+        message: `${actorLabel} descarta ${discardCount} cartas.`
+      };
+    }
+
+    if (consecutiveActions[0]?.type === 'discard') {
+      return {
+        id: actions[0].id,
+        actor: leadActor,
+        message: `${actorLabel} descarta 1 carta.`
+      };
+    }
+
+    const passChain = [];
+    for (const action of consecutiveActions) {
+      if (action.type !== 'play' || !PASS_CARD_IDS.has(action.card?.id) || !action.card?.name) {
+        break;
+      }
+      passChain.push(action.card.name);
+      if (passChain.length >= 2) {
+        break;
+      }
+    }
+
+    if (passChain.length >= 2) {
+      const orderedPasses = [...passChain].reverse();
+      return {
+        id: actions[0].id,
+        actor: leadActor,
+        message: `${actorLabel} juega ${orderedPasses.join(' + ')}.`
+      };
+    }
+
+    if (consecutiveActions[0]?.card?.name) {
+      return {
+        id: actions[0].id,
+        actor: leadActor,
+        message: `${actorLabel} juega ${consecutiveActions[0].card.name}.`
+      };
+    }
+
+    return null;
   };
 
   const scheduleOnlineCoinFlipClose = (durationSeconds) => {
@@ -582,14 +653,25 @@ export default function App() {
   };
 
   const showOnlineCoinFlipReveal = (nextReveal) => {
-    setOnlineCoinFlipReveal({ ...nextReveal, showResult: false });
-    scheduleOnlineCoinFlipClose();
+    if (onlineCoinFlipPreviewTimeoutRef.current) {
+      window.clearTimeout(onlineCoinFlipPreviewTimeoutRef.current);
+      onlineCoinFlipPreviewTimeoutRef.current = null;
+    }
+    setOnlineCoinFlipReveal({ ...nextReveal, showResult: false, showVideo: false });
+    onlineCoinFlipPreviewTimeoutRef.current = window.setTimeout(() => {
+      setOnlineCoinFlipReveal((previous) => (previous ? { ...previous, showVideo: true } : null));
+      onlineCoinFlipPreviewTimeoutRef.current = null;
+    }, 1200);
   };
 
   const closeOnlineCoinFlipReveal = () => {
     if (onlineCoinFlipTimeoutRef.current) {
       window.clearTimeout(onlineCoinFlipTimeoutRef.current);
       onlineCoinFlipTimeoutRef.current = null;
+    }
+    if (onlineCoinFlipPreviewTimeoutRef.current) {
+      window.clearTimeout(onlineCoinFlipPreviewTimeoutRef.current);
+      onlineCoinFlipPreviewTimeoutRef.current = null;
     }
     setOnlineCoinFlipReveal(null);
   };
@@ -643,6 +725,10 @@ export default function App() {
     if (onlineCoinFlipTimeoutRef.current) {
       window.clearTimeout(onlineCoinFlipTimeoutRef.current);
       onlineCoinFlipTimeoutRef.current = null;
+    }
+    if (onlineCoinFlipPreviewTimeoutRef.current) {
+      window.clearTimeout(onlineCoinFlipPreviewTimeoutRef.current);
+      onlineCoinFlipPreviewTimeoutRef.current = null;
     }
   }, []);
 
@@ -726,6 +812,7 @@ export default function App() {
       if (matchState.lastEvent?.type === 'coin_flip' && localWinner && localResult) {
         showOnlineCoinFlipReveal({
           result: localResult,
+          invitedChoice: matchState.lastEvent?.invitedChoice ?? null,
           winner: localWinner === 'player'
             ? (isLocalPlayerOne ? (matchState.playerName || 'JUGADOR') : (matchState.opponentName || 'JUGADOR'))
             : (isLocalPlayerOne ? (matchState.opponentName || 'RIVAL') : (matchState.playerName || 'RIVAL'))
@@ -986,7 +1073,13 @@ export default function App() {
               : pendingDefense?.defenseCardId === 'red_card_var'
                 ? `VENTANA DE RESPUESTA DEL ${pendingDefense.defender === 'player' ? 'JUGADOR' : 'RIVAL'}: VAR`
                   : pendingDefense?.defenseCardId
-                    ? `VENTANA DE RESPUESTA DEL ${pendingDefense.possessor === 'player' ? 'JUGADOR' : 'RIVAL'}`
+                    ? `VENTANA DE RESPUESTA DEL ${pendingDefense.possessor === 'player' ? 'JUGADOR' : 'RIVAL'}: ${
+                        pendingDefense.defenseCardId === 'ba'
+                          ? 'REGATEAR VS BARRIDA'
+                          : pendingDefense.defenseCardId === 'fa'
+                            ? 'AMARILLA/ROJA VS FALTA'
+                            : 'RESPUESTA EN CURSO'
+                      }`
                   : pendingCombo?.type === 'sb_followup'
                     ? `SECUENCIA OBLIGATORIA: ${pendingCombo.actor === 'player' ? 'JUGADOR' : 'RIVAL'} DEBE JUGAR PASE CORTO`
                   : pendingCombo?.type === 'sc_followup'
@@ -1291,16 +1384,25 @@ export default function App() {
     setCounterAttackReady(localMatchState.counterAttackReady ?? false);
     setPlayerDisplayName((localMatchState.playerName || 'Jugador').toUpperCase());
     setOpponentDisplayName((localMatchState.opponentName || 'Rival').toUpperCase());
+    const localPlayerLabel = (localMatchState.playerName || 'Jugador').toUpperCase();
+    const localOpponentLabel = (localMatchState.opponentName || 'Rival').toUpperCase();
 
     if (Array.isArray(localMatchState.recentActions)) {
       setDiscardShowcase(buildShowcaseFromActions(localMatchState.recentActions));
+      const laneNotice = buildLaneNoticeFromRecentActions(
+        localMatchState.recentActions,
+        localPlayerLabel,
+        localOpponentLabel
+      );
+      if (laneNotice?.id && laneNotice.id !== lastRecentActionIdRef.current) {
+        lastRecentActionIdRef.current = laneNotice.id;
+        setLaneNotice(laneNotice.actor, laneNotice.message);
+      }
     }
 
     if (localMatchState.lastEvent?.id && localMatchState.lastEvent.id !== lastOnlineEventRef.current) {
       lastOnlineEventRef.current = localMatchState.lastEvent.id;
       const event = localMatchState.lastEvent;
-      const localPlayerLabel = (localMatchState.playerName || 'Jugador').toUpperCase();
-      const localOpponentLabel = (localMatchState.opponentName || 'Rival').toUpperCase();
 
       if (event.type === 'goal') {
         setGoalCelebration({
@@ -1313,6 +1415,7 @@ export default function App() {
         addLog(`Moneda: ${event.result}. Inicia ${event.winner === 'player' ? localPlayerLabel : localOpponentLabel}.`);
         showOnlineCoinFlipReveal({
           result: event.result,
+          invitedChoice: event.invitedChoice ?? null,
           winner: event.winner === 'player' ? localPlayerLabel : localOpponentLabel
         });
       }
@@ -1379,6 +1482,8 @@ export default function App() {
     socketRef.current?.emit('room:leave');
     pendingOnlineActionRef.current = null;
     lastOnlineEventRef.current = null;
+    lastRecentActionIdRef.current = null;
+    lastReactionHintRef.current = '';
     setOnlineEnabled(false);
     setOnlineRoomCode('');
     setOnlineRoom(null);
@@ -1408,6 +1513,8 @@ export default function App() {
   const resetMatch = () => {
     pendingOnlineActionRef.current = null;
     lastOnlineEventRef.current = null;
+    lastRecentActionIdRef.current = null;
+    lastReactionHintRef.current = '';
     if (coinFlipFinalizeTimeoutRef.current) {
       window.clearTimeout(coinFlipFinalizeTimeoutRef.current);
       coinFlipFinalizeTimeoutRef.current = null;
@@ -1457,6 +1564,79 @@ export default function App() {
     setGameLog(['Posesion persistente activada']);
     clearTransientState();
   };
+
+  useEffect(() => {
+    const getActorLabel = (actor) => (actor === 'player' ? playerDisplayName : opponentDisplayName);
+    let nextHint = null;
+
+    if (pendingBlindDiscard?.actor) {
+      nextHint = {
+        key: `blind-${pendingBlindDiscard.actor}-${pendingBlindDiscard.reason || ''}`,
+        actor: pendingBlindDiscard.actor,
+        text: `${getActorLabel(pendingBlindDiscard.actor)} debe elegir una posicion de su mano oculta y descartar 1 carta.`
+      };
+    } else if (pendingDefense?.defenseCardId === 'pre_shot') {
+      nextHint = {
+        key: `pre-shot-${pendingDefense.defender}`,
+        actor: pendingDefense.defender,
+        text: `${getActorLabel(pendingDefense.defender)} responde antes del tiro con una contracarta.`
+      };
+    } else if (pendingDefense?.defenseCardId === 'ba') {
+      nextHint = {
+        key: `defense-ba-${pendingDefense.possessor}`,
+        actor: pendingDefense.possessor,
+        text: `${getActorLabel(pendingDefense.possessor)} debe responder Barrida con Regatear.`
+      };
+    } else if (pendingDefense?.defenseCardId === 'fa') {
+      nextHint = {
+        key: `defense-fa-${pendingDefense.possessor}`,
+        actor: pendingDefense.possessor,
+        text: `${getActorLabel(pendingDefense.possessor)} debe responder Falta Agresiva con Amarilla o Roja.`
+      };
+    } else if (pendingDefense?.defenseCardId === 'red_card_var') {
+      nextHint = {
+        key: `defense-var-${pendingDefense.defender}`,
+        actor: pendingDefense.defender,
+        text: `${getActorLabel(pendingDefense.defender)} puede jugar VAR para anular la Roja.`
+      };
+    } else if (pendingShot?.phase === 'penalty_response') {
+      nextHint = {
+        key: `shot-penalty-${pendingShot.defender}`,
+        actor: pendingShot.defender,
+        text: `${getActorLabel(pendingShot.defender)} responde al Penalti con VAR o Parada Arquero.`
+      };
+    } else if (pendingShot?.phase === 'save') {
+      nextHint = {
+        key: `shot-save-${pendingShot.defender}-${pendingShot.allowOffside ? 'off' : 'nooff'}`,
+        actor: pendingShot.defender,
+        text: `${getActorLabel(pendingShot.defender)} responde al tiro con ${pendingShot.allowOffside ? 'Offside o Parada Arquero' : 'Parada Arquero'}.`
+      };
+    } else if (pendingShot?.phase === 'offside_var') {
+      nextHint = {
+        key: `shot-offside-var-${pendingShot.attacker}`,
+        actor: pendingShot.attacker,
+        text: `${getActorLabel(pendingShot.attacker)} puede usar VAR para anular el Offside.`
+      };
+    } else if (pendingShot?.phase === 'remate') {
+      nextHint = {
+        key: `shot-remate-${pendingShot.attacker}`,
+        actor: pendingShot.attacker,
+        text: `${getActorLabel(pendingShot.attacker)} puede cerrar la jugada con Remate.`
+      };
+    }
+
+    if (!nextHint) {
+      lastReactionHintRef.current = '';
+      return;
+    }
+
+    if (lastReactionHintRef.current === nextHint.key) {
+      return;
+    }
+
+    lastReactionHintRef.current = nextHint.key;
+    setFieldEventAnimation({ actor: nextHint.actor, text: nextHint.text });
+  }, [pendingBlindDiscard, pendingDefense, pendingShot, playerDisplayName, opponentDisplayName]);
 
   const consumeCard = (actor, index, card) => {
     const currentHand = getHand(actor);
@@ -2711,12 +2891,12 @@ export default function App() {
                             onClick={() => setShowOnlineCoinChoice(true)}
                             className="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-black text-slate-950 transition-all hover:bg-emerald-400"
                           >
-                            ELEGIR CARA/SELLO
+                            INICIAR PARTIDA ONLINE
                           </button>
                         ) : null}
                         {onlineRoom?.playerCount === 2 && onlineRole === 'player' ? (
                           <div className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-white/70">
-                            Esperando eleccion del invitado
+                            Esperando al invitado para iniciar el sorteo
                           </div>
                         ) : null}
                         <button
@@ -3025,19 +3205,35 @@ export default function App() {
             {onlineCoinFlipReveal && (
               <div className="pointer-events-none fixed inset-0 z-50">
                 <div className="absolute inset-0 bg-black/90" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <video
-                    key={`${onlineCoinFlipReveal.result}-${onlineCoinFlipReveal.winner}`}
-                    src={coinVideo}
-                    autoPlay
-                    muted
-                    onLoadedMetadata={handleOnlineCoinFlipMetadata}
-                    onEnded={handleOnlineCoinFlipEnded}
-                    onError={handleOnlineCoinFlipEnded}
-                    playsInline
-                    className="h-full w-full object-cover"
-                  />
-                </div>
+                {onlineCoinFlipReveal.showVideo ? (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <video
+                      key={`${onlineCoinFlipReveal.result}-${onlineCoinFlipReveal.winner}`}
+                      src={coinVideo}
+                      autoPlay
+                      muted
+                      onLoadedMetadata={handleOnlineCoinFlipMetadata}
+                      onEnded={handleOnlineCoinFlipEnded}
+                      onError={handleOnlineCoinFlipEnded}
+                      playsInline
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center px-6">
+                    <div className="rounded-[1.6rem] border border-yellow-300/40 bg-slate-950/90 px-8 py-6 text-center shadow-[0_24px_60px_rgba(0,0,0,0.55)]">
+                      <div className="text-[11px] font-black uppercase tracking-[0.28em] text-yellow-300">
+                        Sorteo Online
+                      </div>
+                      <div className="mt-2 text-base font-semibold text-white/90">
+                        El invitado eligio {onlineCoinFlipReveal.invitedChoice || 'Cara'}.
+                      </div>
+                      <div className="mt-2 text-sm font-semibold text-white/65">
+                        Preparando lanzamiento de moneda...
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {onlineCoinFlipReveal.showResult ? (
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="rounded-[1.6rem] border border-yellow-300/40 bg-slate-950/90 px-8 py-6 text-center shadow-[0_24px_60px_rgba(0,0,0,0.55)]">
@@ -3071,7 +3267,10 @@ export default function App() {
                     Inicio online
                   </div>
                   <div className="mb-5 text-xl font-black text-white">
-                    Elige Cara o Sello
+                    Elige Cara o Sello para el sorteo
+                  </div>
+                  <div className="mb-5 text-sm font-semibold text-white/70">
+                    Esta eleccion se realiza antes del video del lanzamiento.
                   </div>
                   <div className="flex justify-center gap-3">
                     <button
