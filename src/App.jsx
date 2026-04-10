@@ -101,7 +101,6 @@ const DECK_DEFINITION = BASE_DECK_DEFINITION.map((card) => withCardImage(card));
 
 const DEV_SHOW_OPPONENT_HAND = false;
 const PASS_CARD_IDS = new Set(['pc', 'pl', 'pa']);
-const CARD_IDS_FOR_CARD_SFX = new Set(['ta', 'tr', 'fa', 'var']);
 
 const TUTORIAL_SEQUENCES = [
   {
@@ -522,6 +521,9 @@ export default function App() {
   const [onlineError, setOnlineError] = useState('');
   const [showOnlineCoinChoice, setShowOnlineCoinChoice] = useState(false);
   const [systemNotice, setSystemNotice] = useState('');
+  const [audioMuted, setAudioMuted] = useState(false);
+  const [ambienceVolume, setAmbienceVolume] = useState(50);
+  const [sfxVolume, setSfxVolume] = useState(80);
   const [playerDisplayName, setPlayerDisplayName] = useState('JUGADOR');
   const [opponentDisplayName, setOpponentDisplayName] = useState('RIVAL');
   const [fieldEventAnimation, setFieldEventAnimation] = useState(null);
@@ -560,20 +562,7 @@ export default function App() {
     if (!card?.id) {
       return;
     }
-
-    if (card.type === 'pass') {
-      audioManagerRef.current?.playSfx('pass');
-      return;
-    }
-
-    if (card.id === 'tg' || card.id === 'pe' || card.id === 'rem') {
-      audioManagerRef.current?.playSfx('shot');
-      return;
-    }
-
-    if (CARD_IDS_FOR_CARD_SFX.has(card.id) || card.type === 'counter' || card.type === 'defense') {
-      audioManagerRef.current?.playSfx('card');
-    }
+    audioManagerRef.current?.playSfx('card_play');
   };
 
   const buildLaneNoticeFromRecentActions = (actions = [], localPlayerLabel = 'JUGADOR', localOpponentLabel = 'RIVAL') => {
@@ -749,6 +738,9 @@ export default function App() {
   useEffect(() => {
     if (!audioManagerRef.current) {
       audioManagerRef.current = new AudioManager({ ambienceUrl: ambienceAudio });
+      audioManagerRef.current.setAmbienceVolume(0.5);
+      audioManagerRef.current.setSfxVolume(0.8);
+      audioManagerRef.current.setEnabled(true);
     }
 
     const unlockAudio = () => {
@@ -765,6 +757,18 @@ export default function App() {
       audioManagerRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    audioManagerRef.current?.setEnabled(!audioMuted);
+  }, [audioMuted]);
+
+  useEffect(() => {
+    audioManagerRef.current?.setAmbienceVolume(ambienceVolume / 100);
+  }, [ambienceVolume]);
+
+  useEffect(() => {
+    audioManagerRef.current?.setSfxVolume(sfxVolume / 100);
+  }, [sfxVolume]);
 
   useEffect(() => {
     if (gameState === 'playing') {
@@ -2105,6 +2109,16 @@ export default function App() {
     setOpponentDisplayName('RIVAL');
   };
 
+  const handleEndTurnButtonClick = () => {
+    audioManagerRef.current?.playSfx('ui_end_turn');
+    endTurn();
+  };
+
+  const handleDiscardButtonClick = () => {
+    audioManagerRef.current?.playSfx('ui_discard');
+    handleDiscard();
+  };
+
   const endTurn = () => {
     if (onlineEnabled && socketRef.current) {
       socketRef.current.emit('match:end_turn');
@@ -2877,7 +2891,7 @@ export default function App() {
           <div className="mb-3 flex flex-wrap items-center justify-center gap-3 max-sm:mb-2 max-sm:gap-2">
               {canUseDiscard && isPlayerTurn && (
               <button
-                onClick={handleDiscard}
+                onClick={handleDiscardButtonClick}
                 className={`flex items-center gap-2 rounded-full px-6 py-2.5 text-[10px] font-black transition-all ${
                   discardMode
                     ? selectedForDiscard.length > 0
@@ -2891,7 +2905,7 @@ export default function App() {
             )}
 
               <button
-                onClick={endTurn}
+                onClick={handleEndTurnButtonClick}
                 disabled={Boolean(pendingBlindDiscard)}
                 className={`flex items-center gap-2 rounded-full px-8 py-2.5 text-[10px] font-black shadow-xl ${
                   pendingBlindDiscard
@@ -3351,6 +3365,42 @@ export default function App() {
                 ) : null}
               </div>
             )}
+
+            <div className="fixed bottom-4 right-4 z-50 w-[260px] rounded-2xl border border-white/20 bg-black/65 p-3 text-white shadow-[0_14px_30px_rgba(0,0,0,0.45)] backdrop-blur-sm max-sm:bottom-2 max-sm:right-2 max-sm:w-[220px]">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/75">Audio</span>
+                <button
+                  onClick={() => setAudioMuted((previous) => !previous)}
+                  className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${
+                    audioMuted ? 'bg-rose-600 text-white' : 'bg-emerald-500 text-slate-950'
+                  }`}
+                >
+                  {audioMuted ? 'Mute' : 'Activo'}
+                </button>
+              </div>
+              <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-white/70">
+                Ambiente: {ambienceVolume}%
+              </label>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={ambienceVolume}
+                onChange={(event) => setAmbienceVolume(Number(event.target.value))}
+                className="mb-3 w-full accent-emerald-400"
+              />
+              <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-white/70">
+                Efectos: {sfxVolume}%
+              </label>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={sfxVolume}
+                onChange={(event) => setSfxVolume(Number(event.target.value))}
+                className="w-full accent-cyan-400"
+              />
+            </div>
 
             {systemNotice && (
               <div className="pointer-events-none fixed inset-x-0 top-6 z-50 flex justify-center px-4">

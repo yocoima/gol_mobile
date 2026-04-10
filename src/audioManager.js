@@ -8,6 +8,9 @@ export class AudioManager {
     this.ambienceNodes = null;
     this.ambienceElement = null;
     this.enabled = true;
+    this.masterVolume = 0.8;
+    this.ambienceVolume = 0.5;
+    this.sfxVolume = 0.9;
   }
 
   init() {
@@ -25,9 +28,9 @@ export class AudioManager {
     this.sfxGain = this.ctx.createGain();
     this.ambienceGain = this.ctx.createGain();
 
-    this.masterGain.gain.value = 0.8;
-    this.sfxGain.gain.value = 0.9;
-    this.ambienceGain.gain.value = 0.14;
+    this.masterGain.gain.value = this.masterVolume;
+    this.sfxGain.gain.value = this.sfxVolume;
+    this.ambienceGain.gain.value = this.ambienceVolume;
 
     this.sfxGain.connect(this.masterGain);
     this.ambienceGain.connect(this.masterGain);
@@ -63,10 +66,31 @@ export class AudioManager {
   setEnabled(enabled) {
     this.enabled = Boolean(enabled);
     if (this.masterGain) {
-      this.masterGain.gain.value = this.enabled ? 0.8 : 0;
+      this.masterGain.gain.value = this.enabled ? this.masterVolume : 0;
     }
     if (this.ambienceElement) {
       this.ambienceElement.muted = !this.enabled;
+    }
+  }
+
+  setAmbienceVolume(volume) {
+    const normalizedVolume = Math.max(0, Math.min(1, Number(volume) || 0));
+    this.ambienceVolume = normalizedVolume;
+
+    if (this.ambienceElement) {
+      this.ambienceElement.volume = this.ambienceVolume;
+    }
+
+    if (this.ambienceNodes?.gain) {
+      this.ambienceNodes.gain.gain.value = this.ambienceVolume * 0.16;
+    }
+  }
+
+  setSfxVolume(volume) {
+    const normalizedVolume = Math.max(0, Math.min(1, Number(volume) || 0));
+    this.sfxVolume = normalizedVolume;
+    if (this.sfxGain) {
+      this.sfxGain.gain.value = this.sfxVolume;
     }
   }
 
@@ -79,7 +103,7 @@ export class AudioManager {
       if (!this.ambienceElement) {
         this.ambienceElement = new Audio(this.ambienceUrl);
         this.ambienceElement.loop = true;
-        this.ambienceElement.volume = 0.28;
+        this.ambienceElement.volume = this.ambienceVolume;
       }
 
       this.ambienceElement.muted = false;
@@ -116,7 +140,7 @@ export class AudioManager {
     bandpass.Q.value = 0.7;
 
     const gain = this.ctx.createGain();
-    gain.gain.value = 0.14;
+    gain.gain.value = this.ambienceVolume * 0.16;
 
     source.connect(lowpass);
     lowpass.connect(bandpass);
@@ -162,6 +186,15 @@ export class AudioManager {
         break;
       case 'card':
         this.playCard();
+        break;
+      case 'card_play':
+        this.playCardPlay();
+        break;
+      case 'ui_discard':
+        this.playDiscardButton();
+        break;
+      case 'ui_end_turn':
+        this.playEndTurnButton();
         break;
       case 'goal':
         this.playGoal();
@@ -209,6 +242,18 @@ export class AudioManager {
   playCard() {
     this.playTone({ frequency: 200, duration: 0.06, type: 'square', gain: 0.2 });
     this.playTone({ frequency: 140, duration: 0.08, type: 'square', gain: 0.14 });
+  }
+
+  playCardPlay() {
+    this.playTone({ frequency: 260, duration: 0.05, type: 'square', gain: 0.18, slideTo: 210 });
+  }
+
+  playDiscardButton() {
+    this.playTone({ frequency: 520, duration: 0.08, type: 'triangle', gain: 0.16, slideTo: 360 });
+  }
+
+  playEndTurnButton() {
+    this.playTone({ frequency: 760, duration: 0.06, type: 'triangle', gain: 0.14, slideTo: 980 });
   }
 
   playGoal() {
