@@ -926,15 +926,14 @@ export default function App() {
   };
   const chooseOpponentAction = () => {
     if (gameState !== 'playing' || currentTurn !== 'opponent') {
-      if (aiMode && pendingBlindDiscard?.actor === 'player' && playerHand.length > 0) {
-        return { type: 'blind-discard-player', index: Math.floor(Math.random() * playerHand.length) };
-      }
-
       return null;
     }
 
     if (pendingBlindDiscard?.actor === 'opponent') {
-      return opponentHand.length > 0 ? { type: 'play', index: Math.floor(Math.random() * opponentHand.length) } : null;
+      const targetHand = pendingBlindDiscard.targetActor === 'player' ? playerHand : opponentHand;
+      return targetHand.length > 0
+        ? { type: 'blind-discard-target', index: Math.floor(Math.random() * targetHand.length) }
+        : null;
     }
 
     if (pendingCombo?.actor === 'opponent') {
@@ -1059,7 +1058,7 @@ export default function App() {
   };
   const reactionBannerMessage =
     pendingBlindDiscard
-      ? `DESCARTE OCULTO EN CURSO: ${pendingBlindDiscard.actor === 'player' ? 'JUGADOR' : 'RIVAL'}`
+      ? `DESCARTE OCULTO: ${pendingBlindDiscard.actor === 'player' ? 'JUGADOR' : 'RIVAL'} ELIGE UNA CARTA DEL ${pendingBlindDiscard.targetActor === 'player' ? 'JUGADOR' : 'RIVAL'}`
       : pendingShot?.phase === 'penalty_response'
         ? `VENTANA DE RESPUESTA DEL ${pendingShot.defender === 'player' ? 'JUGADOR' : 'RIVAL'}: PENALTI`
         : pendingShot?.phase === 'offside_var'
@@ -1327,6 +1326,7 @@ export default function App() {
             ? {
                 ...matchState.pendingBlindDiscard,
                 actor: swapActor(matchState.pendingBlindDiscard.actor),
+                targetActor: swapActor(matchState.pendingBlindDiscard.targetActor),
                 returnTurnTo: swapActor(matchState.pendingBlindDiscard.returnTurnTo)
               }
             : null,
@@ -1570,10 +1570,12 @@ export default function App() {
     let nextHint = null;
 
     if (pendingBlindDiscard?.actor) {
+      const chooserLabel = getActorLabel(pendingBlindDiscard.actor);
+      const targetLabel = getActorLabel(pendingBlindDiscard.targetActor);
       nextHint = {
-        key: `blind-${pendingBlindDiscard.actor}-${pendingBlindDiscard.reason || ''}`,
+        key: `blind-${pendingBlindDiscard.actor}-${pendingBlindDiscard.targetActor}-${pendingBlindDiscard.reason || ''}`,
         actor: pendingBlindDiscard.actor,
-        text: `${getActorLabel(pendingBlindDiscard.actor)} debe elegir una posicion de su mano oculta y descartar 1 carta.`
+        text: `${chooserLabel} elige 1 carta cubierta de ${targetLabel}.`
       };
     } else if (pendingDefense?.defenseCardId === 'pre_shot') {
       nextHint = {
@@ -1672,10 +1674,11 @@ export default function App() {
     setGameLog([nextAiMode ? 'Modo IA activado' : 'Posesion persistente activada']);
   };
 
-  const openBlindDiscard = (actor, reason, returnTurnTo) => {
+  const openBlindDiscard = (actor, targetActor, reason, returnTurnTo) => {
     const blindDiscardPlan = getBlindDiscardPlan({
       actor,
-      handLength: getHand(actor).length,
+      targetActor,
+      targetHandLength: getHand(targetActor).length,
       reason,
       returnTurnTo
     });
@@ -1694,10 +1697,15 @@ export default function App() {
   };
 
   const resolveBlindDiscard = (actor, index) => {
+    const targetActor = pendingBlindDiscard?.targetActor;
+    if (!targetActor) {
+      return;
+    }
+
     const blindDiscardResolution = getBlindDiscardResolutionPlan({
       actor,
       index,
-      hand: getHand(actor),
+      targetHand: getHand(targetActor),
       pendingBlindDiscard
     });
 
@@ -1706,13 +1714,13 @@ export default function App() {
     }
 
     setDiscardPile((previousPile) => [blindDiscardResolution.discardedCard, ...previousPile]);
-    registerDiscardShowcaseCards(actor, [blindDiscardResolution.discardedCard]);
-    setLaneNotice(actor, blindDiscardResolution.laneNotice);
+    registerDiscardShowcaseCards(blindDiscardResolution.targetActor, [blindDiscardResolution.discardedCard]);
+    setLaneNotice(blindDiscardResolution.targetActor, blindDiscardResolution.laneNotice);
 
-    if (actor === 'player') {
-      setPlayerHand(blindDiscardResolution.nextHand);
+    if (blindDiscardResolution.targetActor === 'player') {
+      setPlayerHand(blindDiscardResolution.nextTargetHand);
     } else {
-      setOpponentHand(blindDiscardResolution.nextHand);
+      setOpponentHand(blindDiscardResolution.nextTargetHand);
     }
 
     setPendingBlindDiscard(null);
@@ -2246,6 +2254,7 @@ export default function App() {
       }
 
       openBlindDiscard(
+        actor,
         pendingDefense.defender,
         penaltyResponsePlan.blindDiscardReason,
         actor
@@ -2398,9 +2407,7 @@ export default function App() {
     }
 
     const isOpponentTurn = currentTurn === 'opponent';
-    const isAiResolvingPlayerBlindDiscard = pendingBlindDiscard?.actor === 'player';
-
-    if (!isOpponentTurn && !isAiResolvingPlayerBlindDiscard) {
+    if (!isOpponentTurn) {
       return undefined;
     }
 
@@ -2426,9 +2433,10 @@ export default function App() {
         return;
       }
 
-      if (action.type === 'blind-discard-player') {
-        setAiStatus('IA elige una carta oculta del jugador');
-        resolveBlindDiscard('player', action.index);
+      if (action.type === 'blind-discard-target') {
+        const targetLabel = pendingBlindDiscard?.targetActor === 'player' ? 'jugador' : 'rival';
+        setAiStatus(`IA elige una carta oculta del ${targetLabel}`);
+        resolveBlindDiscard('opponent', action.index);
         return;
       }
 
@@ -2649,21 +2657,43 @@ export default function App() {
           <div className="mb-2 text-center text-[10px] font-black uppercase tracking-[0.25em] text-white/60 max-sm:mb-1 max-sm:text-[8px]">
             Rival
           </div>
-          {DEV_SHOW_OPPONENT_HAND ? (
+          {DEV_SHOW_OPPONENT_HAND || pendingBlindDiscard?.targetActor === 'opponent' ? (
             <div className="grid w-full grid-cols-5 justify-items-center gap-1 sm:flex sm:flex-wrap sm:justify-center sm:gap-2">
-              {opponentHand.map((card, index) => (
-                <CardItem
-                  key={`${card.id}-${index}`}
-                  card={card}
-                  isSelected={selectedForDiscard.includes(index)}
-                  onSelect={(event) => toggleDiscardSelection(event, index)}
-                  onClick={() => playCard(card, index, false)}
-                  disabled={!isOpponentTurn}
-                  canSelectDiscard={false}
-                  isDiscardMode={discardMode}
-                  hideContent={pendingBlindDiscard?.actor === 'opponent'}
-                />
-              ))}
+              {(pendingBlindDiscard?.targetActor === 'opponent'
+                ? Array.from({ length: opponentHand.length }, (_, index) => ({
+                    id: `blind-opponent-${index}`,
+                    name: 'Carta oculta',
+                    color: 'bg-slate-800'
+                  }))
+                : opponentHand
+              ).map((card, index) => (
+                  <CardItem
+                    key={`${card.id}-${index}`}
+                    card={card}
+                    isSelected={selectedForDiscard.includes(index)}
+                    onSelect={(event) => toggleDiscardSelection(event, index)}
+                    onClick={() => {
+                      if (pendingBlindDiscard?.targetActor === 'opponent' && pendingBlindDiscard.actor === 'player') {
+                        if (onlineEnabled && socketRef.current) {
+                          socketRef.current.emit('match:play_card', { index });
+                        } else {
+                          resolveBlindDiscard('player', index);
+                        }
+                        return;
+                      }
+
+                      playCard(card, index, false);
+                    }}
+                    disabled={
+                      pendingBlindDiscard?.targetActor === 'opponent'
+                        ? pendingBlindDiscard.actor !== 'player'
+                        : !isOpponentTurn
+                    }
+                    canSelectDiscard={false}
+                    isDiscardMode={discardMode}
+                    hideContent={pendingBlindDiscard?.targetActor === 'opponent'}
+                  />
+                ))}
             </div>
           ) : (
             <div className="text-center text-[10px] font-black uppercase tracking-[0.16em] text-white/45 max-sm:text-[8px]">
@@ -2807,10 +2837,10 @@ export default function App() {
                 isSelected={selectedForDiscard.includes(index)}
                 onSelect={(event) => toggleDiscardSelection(event, index)}
                 onClick={() => playCard(card, index, true)}
-                disabled={!isPlayerTurn}
+                disabled={!isPlayerTurn || (pendingBlindDiscard?.actor === 'player' && pendingBlindDiscard?.targetActor === 'opponent')}
                   canSelectDiscard={canUseDiscard}
                 isDiscardMode={discardMode}
-                hideContent={pendingBlindDiscard?.actor === 'player'}
+                hideContent={pendingBlindDiscard?.targetActor === 'player'}
               />
             ))}
           </div>
@@ -3211,7 +3241,6 @@ export default function App() {
                       key={`${onlineCoinFlipReveal.result}-${onlineCoinFlipReveal.winner}`}
                       src={coinVideo}
                       autoPlay
-                      muted
                       onLoadedMetadata={handleOnlineCoinFlipMetadata}
                       onEnded={handleOnlineCoinFlipEnded}
                       onError={handleOnlineCoinFlipEnded}

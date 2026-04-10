@@ -16,14 +16,14 @@ export const createYellowCardSanction = (turnsRemaining = 1) => ({
   turnsRemaining
 });
 
-export const getBlindDiscardPlan = ({ actor, handLength, reason, returnTurnTo }) => {
-  if (handLength <= 0) {
+export const getBlindDiscardPlan = ({ actor, targetActor, targetHandLength, reason, returnTurnTo }) => {
+  if (targetHandLength <= 0) {
     return { allowed: false };
   }
 
   return {
     allowed: true,
-    pendingBlindDiscard: { actor, reason, returnTurnTo },
+    pendingBlindDiscard: { actor, targetActor, reason, returnTurnTo },
     nextTurn: actor,
     hasActedThisTurn: false,
     discardMode: false,
@@ -32,8 +32,8 @@ export const getBlindDiscardPlan = ({ actor, handLength, reason, returnTurnTo })
   };
 };
 
-export const getBlindDiscardResolutionPlan = ({ actor, index, hand, pendingBlindDiscard }) => {
-  const card = hand[index];
+export const getBlindDiscardResolutionPlan = ({ actor, index, targetHand, pendingBlindDiscard }) => {
+  const card = targetHand[index];
 
   if (!pendingBlindDiscard || pendingBlindDiscard.actor !== actor || !card) {
     return { allowed: false };
@@ -42,8 +42,10 @@ export const getBlindDiscardResolutionPlan = ({ actor, index, hand, pendingBlind
   return {
     allowed: true,
     discardedCard: card,
-    nextHand: hand.filter((_, handIndex) => handIndex !== index),
-    laneNotice: `${actor === 'player' ? 'Jugador' : 'Rival'} descarta 1 carta oculta.`,
+    targetActor: pendingBlindDiscard.targetActor,
+    chooserActor: actor,
+    nextTargetHand: targetHand.filter((_, handIndex) => handIndex !== index),
+    laneNotice: `${pendingBlindDiscard.targetActor === 'player' ? 'Jugador' : 'Rival'} descarta 1 carta oculta.`,
     nextTurn: pendingBlindDiscard.returnTurnTo,
     hasActedThisTurn: pendingBlindDiscard.returnTurnTo !== actor
   };
@@ -93,7 +95,7 @@ export const getCardPenaltyResponsePlan = ({ actor, defender, cardId }) => {
     sanctionActor: defender,
     sanction: createRedCardSanction(3),
     penaltyTurns: 3,
-    blindDiscardReason: 'Tarjeta Roja: el rival debe elegir una posicion de su mano para descartar una carta oculta.',
+    blindDiscardReason: 'Tarjeta Roja: el jugador sancionado descarta 1 carta cubierta elegida por el rival.',
     logMessage: 'Tarjeta Roja: mantienes la posesion y el rival jugara con 4 cartas durante 3 turnos.'
   };
 };

@@ -141,18 +141,19 @@ export const applyEndTurnAction = (state) => {
 export const applyPlayCardAction = ({ state, actor, card, selectedForDiscardCount = 0 }) => {
   const engine = createEngineContext(state);
   const { getHand, hasCardInHand, currentPassTotal } = engine;
-  const liveCard = getHand(actor)[state.cardIndex ?? -1] ?? card;
-
-  if (!liveCard) {
-    return { ok: false, type: 'blocked', logMessage: null };
-  }
 
   if (state.pendingBlindDiscard) {
     if (actor !== state.pendingBlindDiscard.actor) {
       return { ok: false, type: 'blocked', logMessage: 'Debe resolverse primero el descarte oculto.' };
     }
 
-    return { ok: true, type: 'resolve-blind-discard', card: liveCard };
+    return { ok: true, type: 'resolve-blind-discard' };
+  }
+
+  const liveCard = getHand(actor)[state.cardIndex ?? -1] ?? card;
+
+  if (!liveCard) {
+    return { ok: false, type: 'blocked', logMessage: null };
   }
 
   if (state.currentTurn !== actor || selectedForDiscardCount > 0) {

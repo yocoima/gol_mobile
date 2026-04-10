@@ -258,11 +258,12 @@ const applyGoal = (matchState, scorer, reason) => {
   return { logMessage: goalOutcome.logMessage };
 };
 
-const openBlindDiscard = (matchState, actor, reason, returnTurnTo) => {
-  const handLength = matchState[getHandKey(actor)].length;
+const openBlindDiscard = (matchState, actor, targetActor, reason, returnTurnTo) => {
+  const targetHandLength = matchState[getHandKey(targetActor)].length;
   const blindDiscardPlan = getBlindDiscardPlan({
     actor,
-    handLength,
+    targetActor,
+    targetHandLength,
     reason,
     returnTurnTo
   });
@@ -278,12 +279,16 @@ const openBlindDiscard = (matchState, actor, reason, returnTurnTo) => {
 };
 
 const resolveBlindDiscard = (matchState, actor, index) => {
-  const handKey = getHandKey(actor);
-  const hand = matchState[handKey];
+  const targetActor = matchState.pendingBlindDiscard?.targetActor;
+  if (!targetActor) {
+    return false;
+  }
+  const handKey = getHandKey(targetActor);
+  const targetHand = matchState[handKey];
   const plan = getBlindDiscardResolutionPlan({
     actor,
     index,
-    hand,
+    targetHand,
     pendingBlindDiscard: matchState.pendingBlindDiscard
   });
 
@@ -293,7 +298,7 @@ const resolveBlindDiscard = (matchState, actor, index) => {
 
   matchState.discardPile = [plan.discardedCard, ...matchState.discardPile];
   pushRecentAction(matchState, {
-    actor,
+    actor: plan.targetActor,
     type: 'discard',
     card: {
       id: plan.discardedCard.id,
@@ -303,7 +308,7 @@ const resolveBlindDiscard = (matchState, actor, index) => {
       imageUrl: plan.discardedCard.imageUrl ?? null
     }
   });
-  matchState[handKey] = plan.nextHand;
+  matchState[handKey] = plan.nextTargetHand;
   matchState.pendingBlindDiscard = null;
   matchState.currentTurn = plan.nextTurn;
   matchState.hasActedThisTurn = plan.hasActedThisTurn;
@@ -671,17 +676,33 @@ io.on('connection', (socket) => {
     }
 
     const actor = getPlayerRole(room, socket.id);
-    const hand = room.matchState[getHandKey(actor)];
-    const card = Number.isInteger(index) ? hand[index] : null;
-
-    if (!actor || !card) {
-      socket.emit('match:error', { message: 'La carta seleccionada no es valida.' });
-      return;
-    }
 
     const expectedActor = getExpectedActor(room.matchState);
     if (!actor || expectedActor !== actor) {
       socket.emit('match:error', { message: 'Aun no es tu turno para responder.' });
+      return;
+    }
+
+    if (room.matchState.pendingBlindDiscard) {
+      if (!Number.isInteger(index)) {
+        socket.emit('match:error', { message: 'Debes elegir una posicion valida para descartar.' });
+        return;
+      }
+
+      if (!resolveBlindDiscard(room.matchState, actor, index)) {
+        socket.emit('match:error', { message: 'No se pudo resolver el descarte oculto.' });
+        return;
+      }
+
+      emitMatchState(io, room);
+      return;
+    }
+
+    const hand = room.matchState[getHandKey(actor)];
+    const card = Number.isInteger(index) ? hand[index] : null;
+
+    if (!card) {
+      socket.emit('match:error', { message: 'La carta seleccionada no es valida.' });
       return;
     }
 
@@ -699,16 +720,6 @@ io.on('connection', (socket) => {
 
     if (!playCardAction.ok) {
       socket.emit('match:error', { message: playCardAction.logMessage || 'No puedes jugar esa carta ahora.' });
-      return;
-    }
-
-    if (playCardAction.type === 'resolve-blind-discard') {
-      if (!resolveBlindDiscard(room.matchState, actor, index)) {
-        socket.emit('match:error', { message: 'No se pudo resolver el descarte oculto.' });
-        return;
-      }
-
-      emitMatchState(io, room);
       return;
     }
 
@@ -744,6 +755,7 @@ io.on('connection', (socket) => {
           room.matchState.redCardPenalty[penaltyResponsePlan.sanctionActor] = penaltyResponsePlan.penaltyTurns;
           openBlindDiscard(
             room.matchState,
+            actor,
             penaltyResponsePlan.sanctionActor,
             penaltyResponsePlan.blindDiscardReason,
             actor
