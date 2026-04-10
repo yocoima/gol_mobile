@@ -1,6 +1,7 @@
 export class AudioManager {
-  constructor({ ambienceUrl = null } = {}) {
+  constructor({ ambienceUrl = null, sfxUrls = {} } = {}) {
     this.ambienceUrl = ambienceUrl;
+    this.sfxUrls = sfxUrls;
     this.ctx = null;
     this.masterGain = null;
     this.sfxGain = null;
@@ -10,7 +11,7 @@ export class AudioManager {
     this.enabled = true;
     this.masterVolume = 0.8;
     this.ambienceVolume = 0.5;
-    this.sfxVolume = 0.9;
+    this.sfxVolume = 0.8;
   }
 
   init() {
@@ -172,8 +173,7 @@ export class AudioManager {
   }
 
   playSfx(name) {
-    this.init();
-    if (!this.ctx || !this.enabled) {
+    if (!this.enabled) {
       return;
     }
 
@@ -197,7 +197,18 @@ export class AudioManager {
         this.playEndTurnButton();
         break;
       case 'goal':
-        this.playGoal();
+        if (this.sfxUrls.goal) {
+          this.playAudioFile(this.sfxUrls.goal, 1);
+        } else {
+          this.playGoal();
+        }
+        break;
+      case 'foul':
+        if (this.sfxUrls.foul) {
+          this.playAudioFile(this.sfxUrls.foul, 1);
+        } else {
+          this.playCard();
+        }
         break;
       case 'whistle':
         this.playWhistle();
@@ -207,8 +218,26 @@ export class AudioManager {
     }
   }
 
+  ensureSynthReady() {
+    this.init();
+    return Boolean(this.ctx && this.sfxGain);
+  }
+
+  playAudioFile(url, volumeScale = 1) {
+    if (!url || !this.enabled) {
+      return;
+    }
+
+    const audio = new Audio(url);
+    audio.preload = 'auto';
+    audio.volume = Math.max(0, Math.min(1, this.sfxVolume * volumeScale));
+    audio.play().catch(() => {
+      // Browser may block playback until user interaction.
+    });
+  }
+
   playTone({ frequency, duration = 0.12, type = 'sine', gain = 0.2, slideTo = null }) {
-    if (!this.ctx || !this.sfxGain) {
+    if (!this.ensureSynthReady()) {
       return;
     }
     const now = this.ctx.currentTime;

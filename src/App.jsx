@@ -7,10 +7,14 @@ import {
   PlayCircle,
   RefreshCcw,
   Trash2,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { AudioManager } from './audioManager.js';
 import ambienceAudio from '../audios/audio_ambiente.m4a';
+import foulAudio from '../audios/falta.m4a';
+import goalAudio from '../audios/gol.m4a';
 import yellowCardImage from '../imagenes/Tarjeta amarilla.png';
 import redCardImage from '../imagenes/Tarjeta roja.png';
 import coinVideo from '../imagenes/Moneda.mp4';
@@ -522,8 +526,6 @@ export default function App() {
   const [showOnlineCoinChoice, setShowOnlineCoinChoice] = useState(false);
   const [systemNotice, setSystemNotice] = useState('');
   const [audioMuted, setAudioMuted] = useState(false);
-  const [ambienceVolume, setAmbienceVolume] = useState(50);
-  const [sfxVolume, setSfxVolume] = useState(80);
   const [playerDisplayName, setPlayerDisplayName] = useState('JUGADOR');
   const [opponentDisplayName, setOpponentDisplayName] = useState('RIVAL');
   const [fieldEventAnimation, setFieldEventAnimation] = useState(null);
@@ -562,6 +564,12 @@ export default function App() {
     if (!card?.id) {
       return;
     }
+
+    if (['ta', 'tr', 'off', 'pe'].includes(card.id)) {
+      audioManagerRef.current?.playSfx('foul');
+      return;
+    }
+
     audioManagerRef.current?.playSfx('card_play');
   };
 
@@ -737,9 +745,13 @@ export default function App() {
 
   useEffect(() => {
     if (!audioManagerRef.current) {
-      audioManagerRef.current = new AudioManager({ ambienceUrl: ambienceAudio });
-      audioManagerRef.current.setAmbienceVolume(0.5);
-      audioManagerRef.current.setSfxVolume(0.8);
+      audioManagerRef.current = new AudioManager({
+        ambienceUrl: ambienceAudio,
+        sfxUrls: {
+          foul: foulAudio,
+          goal: goalAudio
+        }
+      });
       audioManagerRef.current.setEnabled(true);
     }
 
@@ -761,14 +773,6 @@ export default function App() {
   useEffect(() => {
     audioManagerRef.current?.setEnabled(!audioMuted);
   }, [audioMuted]);
-
-  useEffect(() => {
-    audioManagerRef.current?.setAmbienceVolume(ambienceVolume / 100);
-  }, [ambienceVolume]);
-
-  useEffect(() => {
-    audioManagerRef.current?.setSfxVolume(sfxVolume / 100);
-  }, [sfxVolume]);
 
   useEffect(() => {
     if (gameState === 'playing') {
@@ -3366,41 +3370,18 @@ export default function App() {
               </div>
             )}
 
-            <div className="fixed bottom-4 right-4 z-50 w-[260px] rounded-2xl border border-white/20 bg-black/65 p-3 text-white shadow-[0_14px_30px_rgba(0,0,0,0.45)] backdrop-blur-sm max-sm:bottom-2 max-sm:right-2 max-sm:w-[220px]">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/75">Audio</span>
-                <button
-                  onClick={() => setAudioMuted((previous) => !previous)}
-                  className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${
-                    audioMuted ? 'bg-rose-600 text-white' : 'bg-emerald-500 text-slate-950'
-                  }`}
-                >
-                  {audioMuted ? 'Mute' : 'Activo'}
-                </button>
-              </div>
-              <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-white/70">
-                Ambiente: {ambienceVolume}%
-              </label>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={ambienceVolume}
-                onChange={(event) => setAmbienceVolume(Number(event.target.value))}
-                className="mb-3 w-full accent-emerald-400"
-              />
-              <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-white/70">
-                Efectos: {sfxVolume}%
-              </label>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={sfxVolume}
-                onChange={(event) => setSfxVolume(Number(event.target.value))}
-                className="w-full accent-cyan-400"
-              />
-            </div>
+            <button
+              onClick={() => setAudioMuted((previous) => !previous)}
+              className={`fixed right-3 top-[15%] z-50 inline-flex h-10 w-10 items-center justify-center rounded-full border shadow-[0_14px_30px_rgba(0,0,0,0.45)] backdrop-blur-sm transition-all max-sm:right-2 max-sm:top-[12%] ${
+                audioMuted
+                  ? 'border-rose-300/40 bg-rose-600/85 text-white'
+                  : 'border-emerald-300/40 bg-black/55 text-emerald-200'
+              }`}
+              aria-label={audioMuted ? 'Activar audio' : 'Silenciar audio'}
+              title={audioMuted ? 'Activar audio' : 'Silenciar audio'}
+            >
+              {audioMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}
+            </button>
 
             {systemNotice && (
               <div className="pointer-events-none fixed inset-x-0 top-6 z-50 flex justify-center px-4">
