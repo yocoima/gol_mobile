@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { AudioManager } from './audioManager.js';
+import ambienceAudio from '../audios/audio_ambiente.m4a';
 import yellowCardImage from '../imagenes/Tarjeta amarilla.png';
 import redCardImage from '../imagenes/Tarjeta roja.png';
 import coinVideo from '../imagenes/Moneda.mp4';
@@ -747,7 +748,7 @@ export default function App() {
 
   useEffect(() => {
     if (!audioManagerRef.current) {
-      audioManagerRef.current = new AudioManager();
+      audioManagerRef.current = new AudioManager({ ambienceUrl: ambienceAudio });
     }
 
     const unlockAudio = () => {

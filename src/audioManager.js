@@ -1,10 +1,12 @@
 export class AudioManager {
-  constructor() {
+  constructor({ ambienceUrl = null } = {}) {
+    this.ambienceUrl = ambienceUrl;
     this.ctx = null;
     this.masterGain = null;
     this.sfxGain = null;
     this.ambienceGain = null;
     this.ambienceNodes = null;
+    this.ambienceElement = null;
     this.enabled = true;
   }
 
@@ -44,6 +46,11 @@ export class AudioManager {
 
   destroy() {
     this.stopAmbience();
+    if (this.ambienceElement) {
+      this.ambienceElement.pause();
+      this.ambienceElement.src = '';
+      this.ambienceElement = null;
+    }
     if (this.ctx) {
       this.ctx.close();
     }
@@ -58,11 +65,32 @@ export class AudioManager {
     if (this.masterGain) {
       this.masterGain.gain.value = this.enabled ? 0.8 : 0;
     }
+    if (this.ambienceElement) {
+      this.ambienceElement.muted = !this.enabled;
+    }
   }
 
   startAmbience() {
+    if (!this.enabled) {
+      return;
+    }
+
+    if (this.ambienceUrl) {
+      if (!this.ambienceElement) {
+        this.ambienceElement = new Audio(this.ambienceUrl);
+        this.ambienceElement.loop = true;
+        this.ambienceElement.volume = 0.28;
+      }
+
+      this.ambienceElement.muted = false;
+      this.ambienceElement.play().catch(() => {
+        // If browser blocks autoplay, ambience starts after next user interaction.
+      });
+      return;
+    }
+
     this.init();
-    if (!this.ctx || !this.enabled || this.ambienceNodes) {
+    if (!this.ctx || this.ambienceNodes) {
       return;
     }
 
@@ -100,6 +128,11 @@ export class AudioManager {
   }
 
   stopAmbience() {
+    if (this.ambienceElement) {
+      this.ambienceElement.pause();
+      this.ambienceElement.currentTime = 0;
+    }
+
     if (!this.ambienceNodes) {
       return;
     }
