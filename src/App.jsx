@@ -720,6 +720,11 @@ export default function App() {
     scheduleOnlineCoinFlipClose(duration);
   };
 
+  const playCoinFlipCue = () => {
+    audioManagerRef.current?.pauseAmbience();
+    audioManagerRef.current?.playSfx('whistle');
+  };
+
   const setLaneNotice = (actor, message) => {
     setLaneNotices((previous) => ({ ...previous, [actor]: message }));
   };
@@ -830,13 +835,13 @@ export default function App() {
   }, [audioMuted]);
 
   useEffect(() => {
-    if (gameState === 'playing') {
+    if (gameState === 'playing' && !onlineCoinFlipReveal) {
       audioManagerRef.current?.startAmbience();
       return;
     }
 
     audioManagerRef.current?.stopAmbience();
-  }, [gameState]);
+  }, [gameState, onlineCoinFlipReveal]);
 
   useEffect(() => () => {
     if (onlineCoinFlipTimeoutRef.current) {
@@ -1538,7 +1543,7 @@ export default function App() {
       }
 
       if (event.type === 'coin_flip') {
-        audioManagerRef.current?.playSfx('whistle');
+        playCoinFlipCue();
         addLog(`Moneda: ${event.result}. Inicia ${event.winner === 'player' ? localPlayerLabel : localOpponentLabel}.`);
         showOnlineCoinFlipReveal({
           result: event.result,
@@ -2082,7 +2087,7 @@ export default function App() {
       isFlipping: true
     });
     setCoinFlipPlaybackId((previous) => previous + 1);
-    audioManagerRef.current?.playSfx('whistle');
+    playCoinFlipCue();
   };
 
   const scheduleCoinFlipFinalize = () => {
@@ -2126,7 +2131,7 @@ export default function App() {
     setPossession(outcome.winner);
     setCurrentTurn(outcome.winner);
     setGameState('dealing');
-    audioManagerRef.current?.playSfx('whistle');
+    playCoinFlipCue();
     addLog(`Salio ${outcome.result}. El ${outcome.winner === 'player' ? 'Jugador' : 'Rival'} tiene el balon.`);
   };
 
@@ -2942,49 +2947,6 @@ export default function App() {
               </div>
             )}
 
-          {comboWindow && (
-            <div
-              className={`relative z-40 mt-4 w-full max-w-lg rounded-[1.4rem] border px-5 py-4 text-center shadow-[0_18px_40px_rgba(0,0,0,0.28)] ${
-                comboWindow.accent === 'lime'
-                  ? 'border-lime-300/50 bg-lime-500/15 text-lime-100'
-                  : comboWindow.accent === 'sky'
-                    ? 'border-sky-300/50 bg-sky-500/15 text-sky-100'
-                    : comboWindow.accent === 'indigo'
-                      ? 'border-indigo-300/50 bg-indigo-500/15 text-indigo-100'
-                      : 'border-orange-300/50 bg-orange-500/15 text-orange-100'
-              }`}
-            >
-              <div className="text-[10px] font-black uppercase tracking-[0.35em]">
-                {comboWindow.title}
-              </div>
-              <div className="mt-2 text-sm font-black">
-                {comboWindow.actor === 'player' ? 'Jugador' : 'Rival'} en combinacion especial
-              </div>
-              <div className="mt-2 text-sm font-semibold leading-tight text-white">
-                {comboWindow.required}
-              </div>
-              <div className="mt-4 flex items-center justify-center gap-3">
-                {comboWindow.slots.map((slot) => (
-                  <div
-                    key={slot.label}
-                    className={`flex h-20 w-24 flex-col items-center justify-center rounded-2xl border text-center shadow-lg ${
-                      slot.filled
-                        ? 'border-orange-200/80 bg-orange-400/90 text-slate-950'
-                        : 'border-white/15 bg-slate-950/60 text-white/55'
-                    }`}
-                  >
-                    <span className="px-2 text-[10px] font-black uppercase leading-tight tracking-[0.18em]">
-                      {slot.label}
-                    </span>
-                    <span className="mt-2 text-[9px] font-black uppercase">
-                      {slot.filled ? 'Listo' : 'Pendiente'}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           <div className="relative z-30 w-full max-w-2xl pb-6 max-sm:max-w-full max-sm:pb-4">
           <div className="mb-3 text-center text-[11px] font-black uppercase tracking-[0.3em] text-white/70 max-sm:mb-2 max-sm:text-[9px] max-sm:tracking-[0.18em]">
             Turno actual: {currentTurnLabel}
@@ -3435,6 +3397,51 @@ export default function App() {
                 >
                   <div className="text-sm font-black uppercase tracking-[0.24em]">
                     {fieldEventAnimation.text}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {comboWindow && (
+              <div className="pointer-events-none fixed inset-0 z-[68] flex items-center justify-center bg-black/42 backdrop-blur-[5px] px-4">
+                <div
+                  className={`w-full max-w-lg rounded-[1.6rem] border px-6 py-5 text-center shadow-[0_0_45px_rgba(255,255,255,0.1)] ${
+                    comboWindow.accent === 'lime'
+                      ? 'border-lime-300/50 bg-lime-500/20 text-lime-100'
+                      : comboWindow.accent === 'sky'
+                        ? 'border-sky-300/50 bg-sky-500/20 text-sky-100'
+                        : comboWindow.accent === 'indigo'
+                          ? 'border-indigo-300/50 bg-indigo-500/20 text-indigo-100'
+                          : 'border-orange-300/50 bg-orange-500/20 text-orange-100'
+                  }`}
+                >
+                  <div className="text-[10px] font-black uppercase tracking-[0.35em]">
+                    {comboWindow.title}
+                  </div>
+                  <div className="mt-2 text-sm font-black">
+                    {comboWindow.actor === 'player' ? 'Jugador' : 'Rival'} en combinacion especial
+                  </div>
+                  <div className="mt-2 text-sm font-semibold leading-tight text-white">
+                    {comboWindow.required}
+                  </div>
+                  <div className="mt-4 flex items-center justify-center gap-3">
+                    {comboWindow.slots.map((slot) => (
+                      <div
+                        key={slot.label}
+                        className={`flex h-20 w-24 flex-col items-center justify-center rounded-2xl border text-center shadow-lg ${
+                          slot.filled
+                            ? 'border-orange-200/80 bg-orange-400/90 text-slate-950'
+                            : 'border-white/15 bg-slate-950/60 text-white/55'
+                        }`}
+                      >
+                        <span className="px-2 text-[10px] font-black uppercase leading-tight tracking-[0.18em]">
+                          {slot.label}
+                        </span>
+                        <span className="mt-2 text-[9px] font-black uppercase">
+                          {slot.filled ? 'Listo' : 'Pendiente'}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>

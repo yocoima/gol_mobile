@@ -172,6 +172,36 @@ export class AudioManager {
     this.ambienceNodes = null;
   }
 
+  pauseAmbience() {
+    if (this.ambienceElement) {
+      this.ambienceElement.pause();
+    }
+
+    if (!this.ambienceNodes?.gain || !this.ctx) {
+      return;
+    }
+
+    this.ambienceNodes.gain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+  }
+
+  resumeAmbience() {
+    if (!this.enabled) {
+      return;
+    }
+
+    if (this.ambienceElement) {
+      this.ambienceElement.play().catch(() => {
+        // Browser may block playback until user interaction.
+      });
+    }
+
+    if (!this.ambienceNodes?.gain || !this.ctx) {
+      return;
+    }
+
+    this.ambienceNodes.gain.gain.setValueAtTime(this.ambienceVolume * 0.16, this.ctx.currentTime);
+  }
+
   playSfx(name) {
     if (!this.enabled) {
       return;
