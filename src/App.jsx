@@ -1495,6 +1495,9 @@ export default function App() {
         lastRecentActionIdRef.current = laneNotice.id;
         setLaneNotice(laneNotice.actor, laneNotice.message);
         const latestAction = localMatchState.recentActions[0];
+        if (latestAction?.type === 'play' && latestAction?.card?.id === DRIBBLE_CARD_ID) {
+          setIsDribbleVideoPlaying(true);
+        }
         if (latestAction?.type === 'discard') {
           audioManagerRef.current?.playSfx('card');
         } else if (latestAction?.card) {
@@ -2539,7 +2542,7 @@ export default function App() {
       return;
     }
 
-    if (liveCard.id === DRIBBLE_CARD_ID) {
+    if (!onlineEnabled && liveCard.id === DRIBBLE_CARD_ID) {
       pendingDribbleActionRef.current = () => executePlayCard(liveCard, index, isFromPlayer);
       setIsDribbleVideoPlaying(true);
       return;
