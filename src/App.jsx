@@ -18,6 +18,8 @@ import yellowCardImage from '../imagenes/Tarjeta amarilla.png';
 import redCardImage from '../imagenes/Tarjeta roja.png';
 import coinVideo from '../imagenes/Moneda.mp4';
 import oleVideo from '../videos/ole.mp4';
+import chilenaVideo from '../videos/chilena.mp4';
+import saveVideo from '../videos/parada_arquero.mp4';
 import {
   AUTO_PASS_BY_DEFENSE,
   BASE_DECK_DEFINITION,
@@ -66,6 +68,8 @@ const BALL_IMAGE = CARD_IMAGE_BY_NAME.balon ?? null;
 const AI_STATUS_TIMEOUT_MS = 3400;
 const FIELD_EVENT_DURATION_MS = 3952;
 const DRIBBLE_CARD_ID = 'reg';
+const CHILENA_CARD_ID = 'ch';
+const GOALKEEPER_SAVE_CARD_ID = 'paq';
 const ONLINE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const CARD_IMAGE_ALIASES = {
   'barrida': ['barrida'],
@@ -533,6 +537,7 @@ export default function App() {
   const [fieldEventAnimation, setFieldEventAnimation] = useState(null);
   const [onlineCoinFlipReveal, setOnlineCoinFlipReveal] = useState(null);
   const [isDribbleVideoPlaying, setIsDribbleVideoPlaying] = useState(false);
+  const [activeActionVideo, setActiveActionVideo] = useState(oleVideo);
   const onlineCoinFlipTimeoutRef = useRef(null);
   const onlineCoinFlipPreviewTimeoutRef = useRef(null);
   const lastOnlineEventRef = useRef(null);
@@ -565,8 +570,15 @@ export default function App() {
     setGameLog((previousLog) => [message, ...previousLog].slice(0, 5));
   };
 
+  const queueActionVideo = (videoSrc, pendingAction = null) => {
+    pendingDribbleActionRef.current = pendingAction;
+    setActiveActionVideo(videoSrc);
+    setIsDribbleVideoPlaying(true);
+  };
+
   const clearDribbleAnimation = () => {
     pendingDribbleActionRef.current = null;
+    setActiveActionVideo(oleVideo);
     setIsDribbleVideoPlaying(false);
   };
 
@@ -1520,7 +1532,10 @@ export default function App() {
         setLaneNotice(laneNotice.actor, laneNotice.message);
         const latestAction = localMatchState.recentActions[0];
         if (latestAction?.type === 'play' && latestAction?.card?.id === DRIBBLE_CARD_ID) {
-          setIsDribbleVideoPlaying(true);
+          queueActionVideo(oleVideo);
+        }
+        if (latestAction?.type === 'play' && latestAction?.card?.id === CHILENA_CARD_ID) {
+          queueActionVideo(chilenaVideo);
         }
         if (latestAction?.type === 'discard') {
           audioManagerRef.current?.playSfx('card');
@@ -1560,9 +1575,11 @@ export default function App() {
       }
 
       if (event.type === 'save_success') {
-        setFieldEventAnimation({
-          actor: event.actor,
-          text: `Atajada de ${event.actor === 'player' ? localPlayerLabel : localOpponentLabel}`
+        queueActionVideo(saveVideo, () => {
+          setFieldEventAnimation({
+            actor: event.actor,
+            text: `Atajada de ${event.actor === 'player' ? localPlayerLabel : localOpponentLabel}`
+          });
         });
       }
     }
@@ -2060,6 +2077,15 @@ export default function App() {
 
     if (defensePlan.pendingCombo) {
       setPendingCombo(defensePlan.pendingCombo);
+    }
+
+    if (!onlineEnabled && defenseCard.id === GOALKEEPER_SAVE_CARD_ID) {
+      queueActionVideo(saveVideo, () => {
+        setFieldEventAnimation({
+          actor: defender,
+          text: `Atajada de ${defender === 'player' ? playerDisplayName : opponentDisplayName}`
+        });
+      });
     }
 
     addLog(defensePlan.logMessage);
@@ -2567,8 +2593,12 @@ export default function App() {
     }
 
     if (!onlineEnabled && liveCard.id === DRIBBLE_CARD_ID) {
-      pendingDribbleActionRef.current = () => executePlayCard(liveCard, index, isFromPlayer);
-      setIsDribbleVideoPlaying(true);
+      queueActionVideo(oleVideo, () => executePlayCard(liveCard, index, isFromPlayer));
+      return;
+    }
+
+    if (!onlineEnabled && liveCard.id === CHILENA_CARD_ID) {
+      queueActionVideo(chilenaVideo, () => executePlayCard(liveCard, index, isFromPlayer));
       return;
     }
 
@@ -3419,7 +3449,7 @@ export default function App() {
               <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/72 backdrop-blur-[2px]">
                 <video
                   ref={dribbleVideoRef}
-                  src={oleVideo}
+                  src={activeActionVideo}
                   autoPlay
                   controls={false}
                   onEnded={finishDribbleAnimation}
