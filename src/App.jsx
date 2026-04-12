@@ -760,10 +760,17 @@ export default function App() {
     videoNode.currentTime = 0;
     const playPromise = videoNode.play();
     if (playPromise && typeof playPromise.catch === 'function') {
-      playPromise.catch(() => {});
+      playPromise.catch(() => {
+        // In some mobile browsers autoplay can be blocked; never keep gameplay locked.
+        finishDribbleAnimation();
+      });
     }
 
-    return undefined;
+    const safetyTimeoutId = window.setTimeout(() => {
+      finishDribbleAnimation();
+    }, 7000);
+
+    return () => window.clearTimeout(safetyTimeoutId);
   }, [isDribbleVideoPlaying]);
 
   useEffect(() => {
@@ -2879,7 +2886,9 @@ export default function App() {
                 {laneNotices.player}
               </div>
             ) : null}
-            <DiscardLane title="Jugador juega" pile={discardShowcase.player} />
+            <div className="rounded-3xl border border-cyan-300/35 bg-cyan-500/5 p-1.5 shadow-[0_0_26px_rgba(56,189,248,0.24)]">
+              <DiscardLane title="Jugador juega" pile={discardShowcase.player} />
+            </div>
           </div>
         ) : null}
 
@@ -2968,7 +2977,7 @@ export default function App() {
             Turno actual: {currentTurnLabel}
           </div>
           <div className="mb-3 flex flex-wrap items-center justify-center gap-3 max-sm:mb-2 max-sm:gap-2">
-              {!aiMode && canUseDiscard && isPlayerTurn && (
+              {canUseDiscard && isPlayerTurn && (
               <button
                 onClick={handleDiscardButtonClick}
                 disabled={isDribbleVideoPlaying}
@@ -3288,7 +3297,7 @@ export default function App() {
                     onError={scheduleCoinFlipFinalize}
                     playsInline
                     preload="auto"
-                    className="h-auto w-full rounded-[1.75rem] shadow-[0_22px_45px_rgba(0,0,0,0.4)]"
+                    className="h-auto w-[min(92vw,760px)] rounded-[1.75rem] shadow-[0_22px_45px_rgba(0,0,0,0.4)]"
                   />
                   {coinFlipState.result ? (
                     <div className="pointer-events-none absolute right-3 top-3 rounded-full border border-yellow-300/30 bg-black/60 px-4 py-2 text-[11px] font-black uppercase tracking-[0.28em] text-yellow-200 backdrop-blur-sm">
