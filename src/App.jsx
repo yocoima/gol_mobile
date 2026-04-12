@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { AudioManager } from './audioManager.js';
-import ambienceAudio from '../audios/audio_ambiente.m4a';
+import ambienceAudio from '../audios/audio_ambiente.mp4';
 import foulAudio from '../audios/falta.m4a';
 import goalAudio from '../audios/gol.m4a';
 import yellowCardImage from '../imagenes/Tarjeta amarilla.png';
