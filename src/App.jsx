@@ -18,6 +18,7 @@ import goalAudio from '../audios/gol.m4a';
 import yellowCardImage from '../imagenes/Tarjeta amarilla.png';
 import redCardImage from '../imagenes/Tarjeta roja.png';
 import coinVideo from '../imagenes/Moneda.mp4';
+import oleVideo from '../videos/ole.mp4';
 import {
   AUTO_PASS_BY_DEFENSE,
   BASE_DECK_DEFINITION,
@@ -64,6 +65,7 @@ const YELLOW_CARD_IMAGE = yellowCardImage;
 const RED_CARD_IMAGE = redCardImage;
 const BALL_IMAGE = CARD_IMAGE_BY_NAME.balon ?? null;
 const AI_STATUS_TIMEOUT_MS = 1900;
+const DRIBBLE_CARD_ID = 'reg';
 const ONLINE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const CARD_IMAGE_ALIASES = {
   'barrida': ['barrida'],
@@ -530,9 +532,12 @@ export default function App() {
   const [opponentDisplayName, setOpponentDisplayName] = useState('RIVAL');
   const [fieldEventAnimation, setFieldEventAnimation] = useState(null);
   const [onlineCoinFlipReveal, setOnlineCoinFlipReveal] = useState(null);
+  const [isDribbleVideoPlaying, setIsDribbleVideoPlaying] = useState(false);
   const onlineCoinFlipTimeoutRef = useRef(null);
   const onlineCoinFlipPreviewTimeoutRef = useRef(null);
   const lastOnlineEventRef = useRef(null);
+  const dribbleVideoRef = useRef(null);
+  const pendingDribbleActionRef = useRef(null);
 
   const isPlayerTurn = currentTurn === 'player';
   const isOpponentTurn = currentTurn === 'opponent';
@@ -558,6 +563,18 @@ export default function App() {
 
   const addLog = (message) => {
     setGameLog((previousLog) => [message, ...previousLog].slice(0, 5));
+  };
+
+  const clearDribbleAnimation = () => {
+    pendingDribbleActionRef.current = null;
+    setIsDribbleVideoPlaying(false);
+  };
+
+  const finishDribbleAnimation = () => {
+    const pendingAction = pendingDribbleActionRef.current;
+    pendingDribbleActionRef.current = null;
+    setIsDribbleVideoPlaying(false);
+    pendingAction?.();
   };
 
   const playCardSfx = (card) => {
@@ -730,6 +747,25 @@ export default function App() {
 
     return () => window.clearTimeout(timeoutId);
   }, [fieldEventAnimation]);
+
+  useEffect(() => {
+    if (!isDribbleVideoPlaying) {
+      return undefined;
+    }
+
+    const videoNode = dribbleVideoRef.current;
+    if (!videoNode) {
+      return undefined;
+    }
+
+    videoNode.currentTime = 0;
+    const playPromise = videoNode.play();
+    if (playPromise && typeof playPromise.catch === 'function') {
+      playPromise.catch(() => {});
+    }
+
+    return undefined;
+  }, [isDribbleVideoPlaying]);
 
   useEffect(() => {
     if (!systemNotice) {
@@ -1559,6 +1595,7 @@ export default function App() {
     setOnlineRole(null);
     setShowOnlineCoinChoice(false);
     setOnlineError('');
+    clearDribbleAnimation();
   };
 
   const startOnlineMatchWithChoice = (choice) => {
@@ -1631,6 +1668,7 @@ export default function App() {
     setOnlineCoinFlipReveal(null);
     setSystemNotice('');
     setGameLog(['Posesion persistente activada']);
+    clearDribbleAnimation();
     clearTransientState();
   };
 
@@ -2114,16 +2152,25 @@ export default function App() {
   };
 
   const handleEndTurnButtonClick = () => {
+    if (isDribbleVideoPlaying) {
+      return;
+    }
     audioManagerRef.current?.playSfx('ui_end_turn');
     endTurn();
   };
 
   const handleDiscardButtonClick = () => {
+    if (isDribbleVideoPlaying) {
+      return;
+    }
     audioManagerRef.current?.playSfx('ui_discard');
     handleDiscard();
   };
 
   const endTurn = () => {
+    if (isDribbleVideoPlaying) {
+      return;
+    }
     if (onlineEnabled && socketRef.current) {
       socketRef.current.emit('match:end_turn');
       return;
@@ -2193,6 +2240,9 @@ export default function App() {
   };
 
   const handleDiscard = () => {
+    if (isDribbleVideoPlaying) {
+      return;
+    }
     if (!canUseDiscard) {
       if (hasReactionWindow) {
         addLog('No puedes descartar mientras se resuelve una contra carta o respuesta.');
@@ -2227,7 +2277,7 @@ export default function App() {
   const toggleDiscardSelection = (event, index) => {
     event?.stopPropagation();
 
-    if (hasActedThisTurn || !discardMode) {
+    if (isDribbleVideoPlaying || hasActedThisTurn || !discardMode) {
       return;
     }
 
@@ -2239,20 +2289,13 @@ export default function App() {
     setSelectedForDiscard((previous) => [...previous, index]);
   };
 
-  const playCard = (card, index, isFromPlayer) => {
+  const executePlayCard = (card, index, isFromPlayer) => {
     if (onlineEnabled && socketRef.current) {
       socketRef.current.emit('match:play_card', { index });
       return;
     }
 
     const actor = isFromPlayer ? 'player' : 'opponent';
-    const liveCard = getHand(actor)[index] ?? card;
-
-    if (!liveCard) {
-      return;
-    }
-
-    card = liveCard;
 
     const playCardAction = applyPlayCardAction({
       state: {
@@ -2484,8 +2527,29 @@ export default function App() {
     }
   };
 
+  const playCard = (card, index, isFromPlayer) => {
+    if (isDribbleVideoPlaying) {
+      return;
+    }
+
+    const actor = isFromPlayer ? 'player' : 'opponent';
+    const liveCard = getHand(actor)[index] ?? card;
+
+    if (!liveCard) {
+      return;
+    }
+
+    if (liveCard.id === DRIBBLE_CARD_ID) {
+      pendingDribbleActionRef.current = () => executePlayCard(liveCard, index, isFromPlayer);
+      setIsDribbleVideoPlaying(true);
+      return;
+    }
+
+    executePlayCard(liveCard, index, isFromPlayer);
+  };
+
   useEffect(() => {
-    if (onlineEnabled || !aiMode || gameState !== 'playing') {
+    if (onlineEnabled || !aiMode || gameState !== 'playing' || isDribbleVideoPlaying) {
       return undefined;
     }
 
@@ -2541,6 +2605,7 @@ export default function App() {
   }, [
     aiMode,
     gameState,
+    isDribbleVideoPlaying,
     currentTurn,
     playerHand,
     opponentHand,
@@ -2760,6 +2825,10 @@ export default function App() {
                     isSelected={selectedForDiscard.includes(index)}
                     onSelect={(event) => toggleDiscardSelection(event, index)}
                     onClick={() => {
+                      if (isDribbleVideoPlaying) {
+                        return;
+                      }
+
                       if (blindDiscardTargetActor === 'opponent' && pendingBlindDiscard.actor === 'player') {
                         if (onlineEnabled && socketRef.current) {
                           socketRef.current.emit('match:play_card', { index });
@@ -2773,8 +2842,8 @@ export default function App() {
                     }}
                     disabled={
                       blindDiscardTargetActor === 'opponent'
-                        ? pendingBlindDiscard.actor !== 'player'
-                        : !isOpponentTurn
+                        ? pendingBlindDiscard.actor !== 'player' || isDribbleVideoPlaying
+                        : !isOpponentTurn || isDribbleVideoPlaying
                     }
                     canSelectDiscard={false}
                     isDiscardMode={discardMode}
@@ -2896,8 +2965,11 @@ export default function App() {
               {canUseDiscard && isPlayerTurn && (
               <button
                 onClick={handleDiscardButtonClick}
+                disabled={isDribbleVideoPlaying}
                 className={`flex items-center gap-2 rounded-full px-6 py-2.5 text-[10px] font-black transition-all ${
-                  discardMode
+                  isDribbleVideoPlaying
+                    ? 'cursor-not-allowed bg-slate-700 text-white/50'
+                    : discardMode
                     ? selectedForDiscard.length > 0
                       ? 'scale-105 bg-orange-600 shadow-lg'
                       : 'bg-slate-700'
@@ -2910,9 +2982,9 @@ export default function App() {
 
               <button
                 onClick={handleEndTurnButtonClick}
-                disabled={Boolean(pendingBlindDiscard)}
+                disabled={Boolean(pendingBlindDiscard || isDribbleVideoPlaying)}
                 className={`flex items-center gap-2 rounded-full px-8 py-2.5 text-[10px] font-black shadow-xl ${
-                  pendingBlindDiscard
+                  pendingBlindDiscard || isDribbleVideoPlaying
                     ? 'cursor-not-allowed bg-slate-700 text-white/50'
                     : 'bg-emerald-500 hover:bg-emerald-400'
                 }`}
@@ -2929,7 +3001,7 @@ export default function App() {
                 isSelected={selectedForDiscard.includes(index)}
                 onSelect={(event) => toggleDiscardSelection(event, index)}
                 onClick={() => playCard(card, index, true)}
-                disabled={!isPlayerTurn || (pendingBlindDiscard?.actor === 'player' && blindDiscardTargetActor === 'opponent')}
+                disabled={!isPlayerTurn || isDribbleVideoPlaying || (pendingBlindDiscard?.actor === 'player' && blindDiscardTargetActor === 'opponent')}
                   canSelectDiscard={canUseDiscard}
                 isDiscardMode={discardMode}
                 hideContent={blindDiscardTargetActor === 'player'}
@@ -3304,6 +3376,22 @@ export default function App() {
                   </div>
                   <div className="text-3xl font-black uppercase tracking-[0.28em]">{goalCelebration.text}</div>
                 </div>
+              </div>
+            )}
+
+            {isDribbleVideoPlaying && (
+              <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/72 backdrop-blur-[2px]">
+                <video
+                  ref={dribbleVideoRef}
+                  src={oleVideo}
+                  autoPlay
+                  controls={false}
+                  onEnded={finishDribbleAnimation}
+                  onError={finishDribbleAnimation}
+                  playsInline
+                  preload="auto"
+                  className="h-auto w-[min(68vw,560px)] max-w-[92vw] rounded-[1.4rem] border border-white/20 shadow-[0_24px_60px_rgba(0,0,0,0.55)]"
+                />
               </div>
             )}
 
