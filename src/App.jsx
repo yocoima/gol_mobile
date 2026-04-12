@@ -64,6 +64,7 @@ const YELLOW_CARD_IMAGE = yellowCardImage;
 const RED_CARD_IMAGE = redCardImage;
 const BALL_IMAGE = CARD_IMAGE_BY_NAME.balon ?? null;
 const AI_STATUS_TIMEOUT_MS = 3400;
+const FIELD_EVENT_DURATION_MS = 3952;
 const DRIBBLE_CARD_ID = 'reg';
 const ONLINE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const CARD_IMAGE_ALIASES = {
@@ -742,7 +743,7 @@ export default function App() {
 
     const timeoutId = window.setTimeout(() => {
       setFieldEventAnimation(null);
-    }, 3952);
+    }, FIELD_EVENT_DURATION_MS);
 
     return () => window.clearTimeout(timeoutId);
   }, [fieldEventAnimation]);
@@ -2943,7 +2944,7 @@ export default function App() {
 
           {comboWindow && (
             <div
-              className={`mt-4 w-full max-w-lg rounded-[1.4rem] border px-5 py-4 text-center shadow-[0_18px_40px_rgba(0,0,0,0.28)] ${
+              className={`relative z-40 mt-4 w-full max-w-lg rounded-[1.4rem] border px-5 py-4 text-center shadow-[0_18px_40px_rgba(0,0,0,0.28)] ${
                 comboWindow.accent === 'lime'
                   ? 'border-lime-300/50 bg-lime-500/15 text-lime-100'
                   : comboWindow.accent === 'sky'
@@ -3430,7 +3431,7 @@ export default function App() {
                       ? 'border-blue-300/50 bg-blue-500/20 text-blue-100'
                       : 'border-red-300/50 bg-red-500/20 text-red-100'
                   }`}
-                  style={{ animation: 'goalPulse 1.456s ease-out forwards' }}
+                  style={{ animation: `goalPulse ${FIELD_EVENT_DURATION_MS}ms ease-out forwards` }}
                 >
                   <div className="text-sm font-black uppercase tracking-[0.24em]">
                     {fieldEventAnimation.text}
