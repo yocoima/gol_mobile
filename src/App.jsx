@@ -63,7 +63,7 @@ const CARD_IMAGE_BY_ID = {
 const YELLOW_CARD_IMAGE = yellowCardImage;
 const RED_CARD_IMAGE = redCardImage;
 const BALL_IMAGE = CARD_IMAGE_BY_NAME.balon ?? null;
-const AI_STATUS_TIMEOUT_MS = 1900;
+const AI_STATUS_TIMEOUT_MS = 2600;
 const DRIBBLE_CARD_ID = 'reg';
 const ONLINE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const CARD_IMAGE_ALIASES = {
@@ -742,7 +742,7 @@ export default function App() {
 
     const timeoutId = window.setTimeout(() => {
       setFieldEventAnimation(null);
-    }, 1600);
+    }, 2800);
 
     return () => window.clearTimeout(timeoutId);
   }, [fieldEventAnimation]);
@@ -773,7 +773,7 @@ export default function App() {
 
     const timeoutId = window.setTimeout(() => {
       setSystemNotice('');
-    }, 2600);
+    }, 3400);
 
     return () => window.clearTimeout(timeoutId);
   }, [systemNotice]);
@@ -2862,13 +2862,18 @@ export default function App() {
         </div>
 
         {gameState === 'playing' && !onlineCoinFlipReveal && !isDribbleVideoPlaying ? (
-          <div className="pointer-events-none absolute left-1/2 top-1/2 z-20 flex w-full max-w-[620px] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2 px-2 max-sm:max-w-[440px]">
+          <div className="pointer-events-none absolute left-1/2 top-[26%] z-20 flex w-full max-w-[300px] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2 px-2 max-sm:top-[28%] max-sm:max-w-[240px]">
             <DiscardLane title="Rival juega" pile={discardShowcase.opponent} />
             {laneNotices.opponent ? (
               <div className="rounded-full border border-white/10 bg-black/55 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-300 backdrop-blur-sm max-sm:px-3 max-sm:py-1 max-sm:text-[8px]">
                 {laneNotices.opponent}
               </div>
             ) : null}
+          </div>
+        ) : null}
+
+        {gameState === 'playing' && !onlineCoinFlipReveal && !isDribbleVideoPlaying ? (
+          <div className="pointer-events-none absolute left-1/2 bottom-[26%] z-20 flex w-full max-w-[300px] -translate-x-1/2 translate-y-1/2 flex-col items-center gap-2 px-2 max-sm:bottom-[28%] max-sm:max-w-[240px]">
             {laneNotices.player ? (
               <div className="rounded-full border border-white/10 bg-black/55 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-200 backdrop-blur-sm max-sm:px-3 max-sm:py-1 max-sm:text-[8px]">
                 {laneNotices.player}
@@ -2958,12 +2963,12 @@ export default function App() {
             </div>
           )}
 
-          <div className="relative z-10 w-full max-w-2xl pb-2 max-sm:max-w-full max-sm:pb-1">
+          <div className="relative z-10 w-full max-w-2xl pb-6 max-sm:max-w-full max-sm:pb-4">
           <div className="mb-3 text-center text-[11px] font-black uppercase tracking-[0.3em] text-white/70 max-sm:mb-2 max-sm:text-[9px] max-sm:tracking-[0.18em]">
             Turno actual: {currentTurnLabel}
           </div>
           <div className="mb-3 flex flex-wrap items-center justify-center gap-3 max-sm:mb-2 max-sm:gap-2">
-              {canUseDiscard && isPlayerTurn && (
+              {!aiMode && canUseDiscard && isPlayerTurn && (
               <button
                 onClick={handleDiscardButtonClick}
                 disabled={isDribbleVideoPlaying}
@@ -2994,7 +2999,7 @@ export default function App() {
               </button>
           </div>
 
-          <div className="grid w-full grid-cols-5 justify-items-center gap-1 sm:flex sm:flex-wrap sm:justify-center sm:gap-1.5">
+          <div className="mb-2 grid w-full grid-cols-5 justify-items-center gap-1 sm:mb-3 sm:flex sm:flex-wrap sm:justify-center sm:gap-1.5">
             {playerHand.map((card, index) => (
               <CardItem
                 key={`${card.id}-${index}`}
