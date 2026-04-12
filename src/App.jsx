@@ -3,7 +3,6 @@ import {
   ArrowRightCircle,
   Bot,
   BookOpen,
-  Library,
   PlayCircle,
   RefreshCcw,
   Trash2,
@@ -327,20 +326,20 @@ const DiscardLane = ({ title, pile }) => {
   const currentCards = pile.current;
 
   return (
-    <div className="w-full max-w-[280px] rounded-2xl border border-white/10 bg-slate-950/35 p-3 shadow-[0_10px_24px_rgba(0,0,0,0.2)] backdrop-blur-sm max-sm:max-w-[220px] max-sm:p-2">
+    <div className="w-full max-w-[260px] rounded-2xl border border-white/15 bg-slate-950/45 p-3 shadow-[0_14px_32px_rgba(0,0,0,0.32)] backdrop-blur-sm max-sm:max-w-[220px] max-sm:p-2">
       <div className="mb-2 flex items-center justify-between gap-3">
         <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/45 max-sm:text-[8px]">{title}</span>
         <span className="rounded-full border border-white/10 bg-slate-950/80 px-2 py-0.5 text-[9px] font-black text-white/70 max-sm:text-[8px]">
           {pile.archive.length + pile.current.length}
         </span>
       </div>
-      <div className="relative min-h-[112px] max-sm:min-h-[84px]">
+      <div className="relative min-h-[102px] max-sm:min-h-[84px]">
         {archivedCards.length > 0 ? (
-          <div className="absolute bottom-0 left-0 h-24 w-20 max-sm:h-20 max-sm:w-14">
+          <div className="absolute bottom-0 left-0 h-20 w-16 max-sm:h-20 max-sm:w-14">
             {archivedCards.map((card, index) => (
               <div
                 key={`archived-${card.visualId}`}
-                className="absolute left-0 top-0 h-24 w-16 overflow-hidden rounded-[14px] border border-white/10 shadow-[0_10px_22px_rgba(0,0,0,0.28)] max-sm:h-20 max-sm:w-12 max-sm:rounded-[10px]"
+                className="absolute left-0 top-0 h-20 w-12 overflow-hidden rounded-[12px] border border-white/10 shadow-[0_10px_22px_rgba(0,0,0,0.28)] max-sm:h-20 max-sm:w-12 max-sm:rounded-[10px]"
                 style={{
                   transform: `translateX(${index * 4}px) translateY(${index * 3}px) rotate(${(index - 1.5) * 2}deg)`,
                   zIndex: index + 1
@@ -365,11 +364,11 @@ const DiscardLane = ({ title, pile }) => {
           </div>
         ) : null}
         {currentCards.length > 0 ? (
-          <div className="relative ml-20 flex min-h-[112px] flex-wrap items-end gap-2 max-sm:ml-14 max-sm:min-h-[84px] max-sm:gap-1">
+          <div className="relative ml-16 flex min-h-[102px] flex-wrap items-end gap-2 max-sm:ml-14 max-sm:min-h-[84px] max-sm:gap-1">
             {currentCards.map((card, index) => (
               <div
                 key={card.visualId}
-                className="relative h-24 w-16 overflow-hidden rounded-[14px] border border-white/10 shadow-[0_10px_24px_rgba(0,0,0,0.32)] max-sm:h-20 max-sm:w-12 max-sm:rounded-[10px]"
+                className="relative h-20 w-12 overflow-hidden rounded-[12px] border border-white/10 shadow-[0_10px_24px_rgba(0,0,0,0.32)] max-sm:h-20 max-sm:w-12 max-sm:rounded-[10px]"
                 style={{
                   animation: 'discardCardSlideIn 320ms cubic-bezier(0.22,0.8,0.2,1) both',
                   animationDelay: `${index * 60}ms`
@@ -394,7 +393,7 @@ const DiscardLane = ({ title, pile }) => {
             ))}
           </div>
         ) : (
-          <div className="ml-20 flex min-h-[112px] items-center text-[9px] font-black uppercase tracking-[0.18em] text-white/28 max-sm:ml-14 max-sm:min-h-[84px] max-sm:text-[8px]">
+          <div className="ml-16 flex min-h-[102px] items-center text-[9px] font-black uppercase tracking-[0.18em] text-white/28 max-sm:ml-14 max-sm:min-h-[84px] max-sm:text-[8px]">
             Sin cartas en esta jugada
           </div>
         )}
@@ -2653,7 +2652,7 @@ export default function App() {
             100% { transform: translateY(0) scale(1); opacity: 1; }
           }
         `}</style>
-        <div className="z-20 border-b-2 border-emerald-500 bg-slate-900 p-2 shadow-2xl max-sm:p-0.5">
+        <div className="z-20 border-b-2 border-cyan-500/35 bg-[linear-gradient(90deg,#0a1b45_0%,#111e40_44%,#2c173a_100%)] p-2 shadow-2xl max-sm:p-0.5">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 max-sm:px-0.5">
           <div className={`flex items-center gap-4 rounded-2xl p-3 transition-all max-sm:gap-1 max-sm:rounded-xl max-sm:p-1 ${
             possession === 'player'
@@ -2782,17 +2781,18 @@ export default function App() {
         </div>
       </div>
 
-        <div className="relative flex flex-1 flex-col items-center justify-between overflow-hidden border-x-[16px] border-emerald-800 bg-emerald-900 p-3 shadow-inner max-sm:border-x-4 max-sm:p-1.5">
-          <div className="pointer-events-none absolute inset-0 opacity-[0.18]">
-            <div className="absolute left-3 right-3 top-3 bottom-3 rounded-2xl border border-white/18 max-sm:left-2 max-sm:right-2 max-sm:top-2 max-sm:bottom-2" />
-            <div className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 bg-white/28" />
-            <div className="absolute left-1/2 top-1/2 h-40 w-40 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/24 max-sm:h-28 max-sm:w-28" />
-            <div className="absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/25 max-sm:h-2 max-sm:w-2" />
-            <div className="absolute left-[18%] right-[18%] top-3 h-20 border border-white/16 border-t-0 max-sm:top-2 max-sm:h-14" />
-            <div className="absolute left-[32%] right-[32%] top-3 h-10 border border-white/16 border-t-0 max-sm:top-2 max-sm:h-8" />
+        <div className="relative flex flex-1 flex-col items-center justify-between overflow-hidden border-x-[16px] border-emerald-900 p-3 shadow-inner max-sm:border-x-4 max-sm:p-1.5">
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(8,28,14,0.62),rgba(8,28,14,0.2)_38%,rgba(8,28,14,0.66)),repeating-linear-gradient(0deg,rgba(58,143,58,0.34)_0px,rgba(58,143,58,0.34)_48px,rgba(31,102,38,0.36)_48px,rgba(31,102,38,0.36)_96px),radial-gradient(circle_at_center,rgba(118,193,104,0.24),rgba(25,88,35,0.72)_68%)]" />
+          <div className="pointer-events-none absolute inset-0 opacity-[0.22]">
+            <div className="absolute left-3 right-3 top-3 bottom-3 rounded-2xl border border-white/12 max-sm:left-2 max-sm:right-2 max-sm:top-2 max-sm:bottom-2" />
+            <div className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 bg-white/32" />
+            <div className="absolute left-1/2 top-1/2 h-44 w-44 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white/26 max-sm:h-28 max-sm:w-28" />
+            <div className="absolute left-1/2 top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/28 max-sm:h-2 max-sm:w-2" />
+            <div className="absolute left-[18%] right-[18%] top-3 h-20 border border-white/14 border-t-0 max-sm:top-2 max-sm:h-14" />
+            <div className="absolute left-[32%] right-[32%] top-3 h-10 border border-white/14 border-t-0 max-sm:top-2 max-sm:h-8" />
             <div className="absolute left-1/2 top-[13%] h-2 w-2 -translate-x-1/2 rounded-full bg-white/22 max-sm:top-[11%]" />
-            <div className="absolute left-[18%] right-[18%] bottom-3 h-20 border border-white/16 border-b-0 max-sm:bottom-2 max-sm:h-14" />
-            <div className="absolute left-[32%] right-[32%] bottom-3 h-10 border border-white/16 border-b-0 max-sm:bottom-2 max-sm:h-8" />
+            <div className="absolute left-[18%] right-[18%] bottom-3 h-20 border border-white/14 border-b-0 max-sm:bottom-2 max-sm:h-14" />
+            <div className="absolute left-[32%] right-[32%] bottom-3 h-10 border border-white/14 border-b-0 max-sm:bottom-2 max-sm:h-8" />
             <div className="absolute left-1/2 bottom-[13%] h-2 w-2 -translate-x-1/2 rounded-full bg-white/22 max-sm:bottom-[11%]" />
           </div>
 
@@ -2862,18 +2862,24 @@ export default function App() {
         </div>
 
         {gameState === 'playing' && !onlineCoinFlipReveal && !isDribbleVideoPlaying ? (
-          <div className="absolute left-3 top-[13%] z-20 flex w-[290px] flex-col gap-2 max-sm:left-2 max-sm:top-[10%] max-sm:w-[220px]">
+          <div className="pointer-events-none absolute left-1/2 top-1/2 z-20 flex w-full max-w-[620px] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2 px-2 max-sm:max-w-[440px]">
             <DiscardLane title="Rival juega" pile={discardShowcase.opponent} />
             {laneNotices.opponent ? (
-              <div className="self-start rounded-full border border-white/10 bg-black/55 px-4 py-2 text-[11px] font-bold text-emerald-300 backdrop-blur-sm max-sm:px-3 max-sm:py-1 max-sm:text-[9px]">
+              <div className="rounded-full border border-white/10 bg-black/55 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-300 backdrop-blur-sm max-sm:px-3 max-sm:py-1 max-sm:text-[8px]">
                 {laneNotices.opponent}
               </div>
             ) : null}
+            {laneNotices.player ? (
+              <div className="rounded-full border border-white/10 bg-black/55 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-200 backdrop-blur-sm max-sm:px-3 max-sm:py-1 max-sm:text-[8px]">
+                {laneNotices.player}
+              </div>
+            ) : null}
+            <DiscardLane title="Jugador juega" pile={discardShowcase.player} />
           </div>
         ) : null}
 
         <div
-          className="z-10 flex w-full max-w-4xl items-center justify-between gap-4 px-4 max-sm:gap-2 max-sm:px-1"
+          className="z-10 flex w-full max-w-4xl items-center justify-center gap-4 px-4 max-sm:gap-2 max-sm:px-1"
           style={{ transform: 'translateY(8%)' }}
         >
           <div className="flex flex-1 justify-center gap-2 overflow-x-auto py-4 max-sm:py-2">
@@ -2900,14 +2906,6 @@ export default function App() {
                 </div>
               ))
             )}
-          </div>
-
-          <div className="flex flex-col items-center gap-2 max-sm:gap-1">
-            <div className="flex h-28 w-20 flex-col items-center justify-center rounded-xl border-2 border-white/20 bg-slate-800 shadow-2xl max-sm:h-20 max-sm:w-14">
-              <Library className="mb-1 text-white/20 max-sm:mb-0.5" size={24} />
-              <span className="text-xl font-black max-sm:text-lg">{deck.length}</span>
-            </div>
-            <span className="text-[9px] font-black uppercase text-white/40 max-sm:text-[8px]">Mazo</span>
           </div>
         </div>
 
