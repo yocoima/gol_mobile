@@ -730,7 +730,7 @@ export default function App() {
 
     const timeoutId = window.setTimeout(() => {
       setGoalCelebration(null);
-    }, 1800);
+    }, 1872);
 
     return () => window.clearTimeout(timeoutId);
   }, [goalCelebration]);
@@ -742,7 +742,7 @@ export default function App() {
 
     const timeoutId = window.setTimeout(() => {
       setFieldEventAnimation(null);
-    }, 3800);
+    }, 3952);
 
     return () => window.clearTimeout(timeoutId);
   }, [fieldEventAnimation]);
@@ -2883,6 +2883,11 @@ export default function App() {
         {gameState === 'playing' && !onlineCoinFlipReveal && !isDribbleVideoPlaying ? (
           <div className="pointer-events-none absolute left-1/2 top-[16%] z-20 flex w-full max-w-[300px] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2 px-2 max-sm:top-[18%] max-sm:max-w-[240px]">
             <DiscardLane title="Rival juega" pile={discardShowcase.opponent} />
+            {laneNotices.opponent ? (
+              <div className="rounded-full border border-emerald-300/35 bg-black/55 px-4 py-2 text-center text-[11px] font-black uppercase tracking-[0.16em] text-emerald-200 shadow-[0_12px_28px_rgba(0,0,0,0.32)] backdrop-blur-sm max-sm:px-3 max-sm:text-[9px]">
+                {laneNotices.opponent}
+              </div>
+            ) : null}
           </div>
         ) : null}
 
@@ -2891,6 +2896,11 @@ export default function App() {
             <div className="rounded-3xl border border-cyan-300/35 bg-cyan-500/5 p-1.5 shadow-[0_0_26px_rgba(56,189,248,0.24)]">
               <DiscardLane title="Jugador juega" pile={discardShowcase.player} />
             </div>
+            {laneNotices.player ? (
+              <div className="rounded-full border border-cyan-300/35 bg-black/55 px-4 py-2 text-center text-[11px] font-black uppercase tracking-[0.16em] text-cyan-200 shadow-[0_12px_28px_rgba(0,0,0,0.32)] backdrop-blur-sm max-sm:px-3 max-sm:text-[9px]">
+                {laneNotices.player}
+              </div>
+            ) : null}
           </div>
         ) : null}
 
@@ -3376,14 +3386,14 @@ export default function App() {
             )}
 
             {goalCelebration && (
-              <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/35 backdrop-blur-[2px]">
+              <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/42 backdrop-blur-[5px]">
                 <div
                   className={`rounded-[2rem] border px-10 py-8 text-center shadow-[0_0_60px_rgba(255,255,255,0.12)] ${
                     goalCelebration.scorer === 'player'
                       ? 'border-blue-300/50 bg-blue-500/20 text-blue-100'
                       : 'border-red-300/50 bg-red-500/20 text-red-100'
                   }`}
-                  style={{ animation: 'goalPulse 1.8s ease-out forwards' }}
+                  style={{ animation: 'goalPulse 1.872s ease-out forwards' }}
                 >
                   <div
                     className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/15"
@@ -3413,35 +3423,18 @@ export default function App() {
             )}
 
             {fieldEventAnimation && (
-              <div className="pointer-events-none fixed inset-0 z-[69] flex items-center justify-center bg-black/36 backdrop-blur-[3px]">
+              <div className="pointer-events-none fixed inset-0 z-[69] flex items-center justify-center bg-black/42 backdrop-blur-[5px]">
                 <div
                   className={`rounded-[1.6rem] border px-8 py-5 text-center shadow-[0_0_45px_rgba(255,255,255,0.1)] ${
                     fieldEventAnimation.actor === 'player'
                       ? 'border-blue-300/50 bg-blue-500/20 text-blue-100'
                       : 'border-red-300/50 bg-red-500/20 text-red-100'
                   }`}
-                  style={{ animation: 'goalPulse 1.4s ease-out forwards' }}
+                  style={{ animation: 'goalPulse 1.456s ease-out forwards' }}
                 >
                   <div className="text-sm font-black uppercase tracking-[0.24em]">
                     {fieldEventAnimation.text}
                   </div>
-                </div>
-              </div>
-            )}
-
-            {(laneNotices.player || laneNotices.opponent) && (
-              <div className="pointer-events-none fixed inset-0 z-[68] flex items-center justify-center bg-black/30 backdrop-blur-[3px] px-4">
-                <div className="w-full max-w-lg rounded-[1.4rem] border border-white/20 bg-slate-950/85 px-5 py-4 text-center shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
-                  {laneNotices.opponent ? (
-                    <div className="rounded-full border border-emerald-300/35 bg-emerald-500/12 px-4 py-2 text-[11px] font-black uppercase tracking-[0.14em] text-emerald-200 max-sm:text-[9px]">
-                      {laneNotices.opponent}
-                    </div>
-                  ) : null}
-                  {laneNotices.player ? (
-                    <div className="mt-2 rounded-full border border-cyan-300/35 bg-cyan-500/12 px-4 py-2 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-200 max-sm:text-[9px]">
-                      {laneNotices.player}
-                    </div>
-                  ) : null}
                 </div>
               </div>
             )}
