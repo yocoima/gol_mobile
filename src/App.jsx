@@ -2858,7 +2858,7 @@ export default function App() {
           )}
         </div>
 
-        {gameState === 'playing' && !onlineCoinFlipReveal ? (
+        {gameState === 'playing' && !onlineCoinFlipReveal && !isDribbleVideoPlaying ? (
           <div className="absolute left-3 top-[13%] z-20 flex w-[290px] flex-col gap-2 max-sm:left-2 max-sm:top-[10%] max-sm:w-[220px]">
             <DiscardLane title="Rival juega" pile={discardShowcase.opponent} />
             {laneNotices.opponent ? (
