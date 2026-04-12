@@ -2947,6 +2947,52 @@ export default function App() {
               </div>
             )}
 
+            {comboWindow && (
+              <div className="pointer-events-none absolute inset-x-0 top-[10%] bottom-[24%] z-20 flex items-center justify-center px-4 max-sm:top-[12%] max-sm:bottom-[28%]">
+                <div className="absolute inset-0 rounded-[2rem] bg-black/42 backdrop-blur-[5px]" />
+                <div
+                  className={`relative w-full max-w-lg rounded-[1.6rem] border px-6 py-5 text-center shadow-[0_0_45px_rgba(255,255,255,0.1)] ${
+                    comboWindow.accent === 'lime'
+                      ? 'border-lime-300/50 bg-lime-500/20 text-lime-100'
+                      : comboWindow.accent === 'sky'
+                        ? 'border-sky-300/50 bg-sky-500/20 text-sky-100'
+                        : comboWindow.accent === 'indigo'
+                          ? 'border-indigo-300/50 bg-indigo-500/20 text-indigo-100'
+                          : 'border-orange-300/50 bg-orange-500/20 text-orange-100'
+                  }`}
+                >
+                  <div className="text-[10px] font-black uppercase tracking-[0.35em]">
+                    {comboWindow.title}
+                  </div>
+                  <div className="mt-2 text-sm font-black">
+                    {comboWindow.actor === 'player' ? 'Jugador' : 'Rival'} en combinacion especial
+                  </div>
+                  <div className="mt-2 text-sm font-semibold leading-tight text-white">
+                    {comboWindow.required}
+                  </div>
+                  <div className="mt-4 flex items-center justify-center gap-3">
+                    {comboWindow.slots.map((slot) => (
+                      <div
+                        key={slot.label}
+                        className={`flex h-20 w-24 flex-col items-center justify-center rounded-2xl border text-center shadow-lg ${
+                          slot.filled
+                            ? 'border-orange-200/80 bg-orange-400/90 text-slate-950'
+                            : 'border-white/15 bg-slate-950/60 text-white/55'
+                        }`}
+                      >
+                        <span className="px-2 text-[10px] font-black uppercase leading-tight tracking-[0.18em]">
+                          {slot.label}
+                        </span>
+                        <span className="mt-2 text-[9px] font-black uppercase">
+                          {slot.filled ? 'Listo' : 'Pendiente'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
           <div className="relative z-30 w-full max-w-2xl pb-6 max-sm:max-w-full max-sm:pb-4">
           <div className="mb-3 text-center text-[11px] font-black uppercase tracking-[0.3em] text-white/70 max-sm:mb-2 max-sm:text-[9px] max-sm:tracking-[0.18em]">
             Turno actual: {currentTurnLabel}
@@ -3397,51 +3443,6 @@ export default function App() {
                 >
                   <div className="text-sm font-black uppercase tracking-[0.24em]">
                     {fieldEventAnimation.text}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {comboWindow && (
-              <div className="pointer-events-none fixed inset-0 z-[68] flex items-center justify-center bg-black/42 backdrop-blur-[5px] px-4">
-                <div
-                  className={`w-full max-w-lg rounded-[1.6rem] border px-6 py-5 text-center shadow-[0_0_45px_rgba(255,255,255,0.1)] ${
-                    comboWindow.accent === 'lime'
-                      ? 'border-lime-300/50 bg-lime-500/20 text-lime-100'
-                      : comboWindow.accent === 'sky'
-                        ? 'border-sky-300/50 bg-sky-500/20 text-sky-100'
-                        : comboWindow.accent === 'indigo'
-                          ? 'border-indigo-300/50 bg-indigo-500/20 text-indigo-100'
-                          : 'border-orange-300/50 bg-orange-500/20 text-orange-100'
-                  }`}
-                >
-                  <div className="text-[10px] font-black uppercase tracking-[0.35em]">
-                    {comboWindow.title}
-                  </div>
-                  <div className="mt-2 text-sm font-black">
-                    {comboWindow.actor === 'player' ? 'Jugador' : 'Rival'} en combinacion especial
-                  </div>
-                  <div className="mt-2 text-sm font-semibold leading-tight text-white">
-                    {comboWindow.required}
-                  </div>
-                  <div className="mt-4 flex items-center justify-center gap-3">
-                    {comboWindow.slots.map((slot) => (
-                      <div
-                        key={slot.label}
-                        className={`flex h-20 w-24 flex-col items-center justify-center rounded-2xl border text-center shadow-lg ${
-                          slot.filled
-                            ? 'border-orange-200/80 bg-orange-400/90 text-slate-950'
-                            : 'border-white/15 bg-slate-950/60 text-white/55'
-                        }`}
-                      >
-                        <span className="px-2 text-[10px] font-black uppercase leading-tight tracking-[0.18em]">
-                          {slot.label}
-                        </span>
-                        <span className="mt-2 text-[9px] font-black uppercase">
-                          {slot.filled ? 'Listo' : 'Pendiente'}
-                        </span>
-                      </div>
-                    ))}
                   </div>
                 </div>
               </div>
