@@ -1534,7 +1534,14 @@ export default function App() {
         if (latestAction?.type === 'play' && latestAction?.card?.id === DRIBBLE_CARD_ID) {
           queueActionVideo(oleVideo);
         }
-        if (latestAction?.type === 'play' && latestAction?.card?.id === CHILENA_CARD_ID) {
+        if (
+          latestAction?.type === 'play' &&
+          latestAction?.card?.id === 'tg' &&
+          localMatchState.recentActions?.[1]?.card?.id === 'pa' &&
+          localMatchState.recentActions?.[2]?.card?.id === CHILENA_CARD_ID &&
+          localMatchState.recentActions?.[1]?.actor === latestAction.actor &&
+          localMatchState.recentActions?.[2]?.actor === latestAction.actor
+        ) {
           queueActionVideo(chilenaVideo);
         }
         if (latestAction?.type === 'discard') {
@@ -2548,8 +2555,10 @@ export default function App() {
       consumeCard(actor, index, card);
       applyEngineStatePatch(playCardAction.statePatch);
       if (pendingCombo?.type === 'chilena_followup') {
-        setPendingCombo(null);
-        startShotResolution(actor, 'chilena');
+        queueActionVideo(chilenaVideo, () => {
+          setPendingCombo(null);
+          startShotResolution(actor, 'chilena');
+        });
         return;
       }
 
@@ -2594,11 +2603,6 @@ export default function App() {
 
     if (!onlineEnabled && liveCard.id === DRIBBLE_CARD_ID) {
       queueActionVideo(oleVideo, () => executePlayCard(liveCard, index, isFromPlayer));
-      return;
-    }
-
-    if (!onlineEnabled && liveCard.id === CHILENA_CARD_ID) {
-      queueActionVideo(chilenaVideo, () => executePlayCard(liveCard, index, isFromPlayer));
       return;
     }
 
