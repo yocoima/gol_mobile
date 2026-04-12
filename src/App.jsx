@@ -786,6 +786,18 @@ export default function App() {
   }, [systemNotice]);
 
   useEffect(() => {
+    if (!laneNotices.player && !laneNotices.opponent) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setLaneNotices({ player: '', opponent: '' });
+    }, 4200);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [laneNotices.player, laneNotices.opponent]);
+
+  useEffect(() => {
     if (!audioManagerRef.current) {
       audioManagerRef.current = new AudioManager({
         ambienceUrl: ambienceAudio,
@@ -2871,21 +2883,11 @@ export default function App() {
         {gameState === 'playing' && !onlineCoinFlipReveal && !isDribbleVideoPlaying ? (
           <div className="pointer-events-none absolute left-1/2 top-[16%] z-20 flex w-full max-w-[300px] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2 px-2 max-sm:top-[18%] max-sm:max-w-[240px]">
             <DiscardLane title="Rival juega" pile={discardShowcase.opponent} />
-            {laneNotices.opponent ? (
-              <div className="rounded-full border border-white/10 bg-black/55 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-300 backdrop-blur-sm max-sm:px-3 max-sm:py-1 max-sm:text-[8px]">
-                {laneNotices.opponent}
-              </div>
-            ) : null}
           </div>
         ) : null}
 
         {gameState === 'playing' && !onlineCoinFlipReveal && !isDribbleVideoPlaying ? (
           <div className="pointer-events-none absolute left-1/2 bottom-[36%] z-20 flex w-full max-w-[300px] -translate-x-1/2 translate-y-1/2 flex-col items-center gap-2 px-2 max-sm:bottom-[38%] max-sm:max-w-[240px]">
-            {laneNotices.player ? (
-              <div className="rounded-full border border-white/10 bg-black/55 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-200 backdrop-blur-sm max-sm:px-3 max-sm:py-1 max-sm:text-[8px]">
-                {laneNotices.player}
-              </div>
-            ) : null}
             <div className="rounded-3xl border border-cyan-300/35 bg-cyan-500/5 p-1.5 shadow-[0_0_26px_rgba(56,189,248,0.24)]">
               <DiscardLane title="Jugador juega" pile={discardShowcase.player} />
             </div>
@@ -3008,7 +3010,7 @@ export default function App() {
               </button>
           </div>
 
-          <div className="mb-2 grid w-full grid-cols-5 justify-items-center gap-1 sm:mb-3 sm:flex sm:flex-wrap sm:justify-center sm:gap-1.5">
+          <div className="mb-2 grid w-full grid-cols-5 justify-items-center gap-1 sm:mb-3 sm:flex sm:flex-wrap sm:justify-center sm:gap-1.5" style={{ marginBottom: '2%' }}>
             {playerHand.map((card, index) => (
               <CardItem
                 key={`${card.id}-${index}`}
@@ -3411,7 +3413,7 @@ export default function App() {
             )}
 
             {fieldEventAnimation && (
-              <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center">
+              <div className="pointer-events-none fixed inset-0 z-[69] flex items-center justify-center bg-black/36 backdrop-blur-[3px]">
                 <div
                   className={`rounded-[1.6rem] border px-8 py-5 text-center shadow-[0_0_45px_rgba(255,255,255,0.1)] ${
                     fieldEventAnimation.actor === 'player'
@@ -3423,6 +3425,23 @@ export default function App() {
                   <div className="text-sm font-black uppercase tracking-[0.24em]">
                     {fieldEventAnimation.text}
                   </div>
+                </div>
+              </div>
+            )}
+
+            {(laneNotices.player || laneNotices.opponent) && (
+              <div className="pointer-events-none fixed inset-0 z-[68] flex items-center justify-center bg-black/30 backdrop-blur-[3px] px-4">
+                <div className="w-full max-w-lg rounded-[1.4rem] border border-white/20 bg-slate-950/85 px-5 py-4 text-center shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+                  {laneNotices.opponent ? (
+                    <div className="rounded-full border border-emerald-300/35 bg-emerald-500/12 px-4 py-2 text-[11px] font-black uppercase tracking-[0.14em] text-emerald-200 max-sm:text-[9px]">
+                      {laneNotices.opponent}
+                    </div>
+                  ) : null}
+                  {laneNotices.player ? (
+                    <div className="mt-2 rounded-full border border-cyan-300/35 bg-cyan-500/12 px-4 py-2 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-200 max-sm:text-[9px]">
+                      {laneNotices.player}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             )}
