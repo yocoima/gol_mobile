@@ -2881,7 +2881,7 @@ export default function App() {
         </div>
 
         {gameState === 'playing' && !onlineCoinFlipReveal && !isDribbleVideoPlaying ? (
-          <div className="pointer-events-none absolute left-1/2 top-[16%] z-20 flex w-full max-w-[300px] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2 px-2 max-sm:top-[18%] max-sm:max-w-[240px]">
+          <div className="pointer-events-none absolute left-1/2 top-[16%] z-10 flex w-full max-w-[300px] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2 px-2 max-sm:top-[18%] max-sm:max-w-[240px]">
             <DiscardLane title="Rival juega" pile={discardShowcase.opponent} />
             {laneNotices.opponent ? (
               <div className="rounded-full border border-emerald-300/35 bg-black/55 px-4 py-2 text-center text-[11px] font-black uppercase tracking-[0.16em] text-emerald-200 shadow-[0_12px_28px_rgba(0,0,0,0.32)] backdrop-blur-sm max-sm:px-3 max-sm:text-[9px]">
@@ -2892,7 +2892,7 @@ export default function App() {
         ) : null}
 
         {gameState === 'playing' && !onlineCoinFlipReveal && !isDribbleVideoPlaying ? (
-          <div className="pointer-events-none absolute left-1/2 bottom-[36%] z-20 flex w-full max-w-[300px] -translate-x-1/2 translate-y-1/2 flex-col items-center gap-2 px-2 max-sm:bottom-[38%] max-sm:max-w-[240px]">
+          <div className="pointer-events-none absolute left-1/2 bottom-[36%] z-10 flex w-full max-w-[300px] -translate-x-1/2 translate-y-1/2 flex-col items-center gap-2 px-2 max-sm:bottom-[38%] max-sm:max-w-[240px]">
             <div className="rounded-3xl border border-cyan-300/35 bg-cyan-500/5 p-1.5 shadow-[0_0_26px_rgba(56,189,248,0.24)]">
               <DiscardLane title="Jugador juega" pile={discardShowcase.player} />
             </div>
@@ -2984,7 +2984,7 @@ export default function App() {
             </div>
           )}
 
-          <div className="relative z-10 w-full max-w-2xl pb-6 max-sm:max-w-full max-sm:pb-4">
+          <div className="relative z-30 w-full max-w-2xl pb-6 max-sm:max-w-full max-sm:pb-4">
           <div className="mb-3 text-center text-[11px] font-black uppercase tracking-[0.3em] text-white/70 max-sm:mb-2 max-sm:text-[9px] max-sm:tracking-[0.18em]">
             Turno actual: {currentTurnLabel}
           </div>
