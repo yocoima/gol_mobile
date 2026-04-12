@@ -63,7 +63,7 @@ const CARD_IMAGE_BY_ID = {
 const YELLOW_CARD_IMAGE = yellowCardImage;
 const RED_CARD_IMAGE = redCardImage;
 const BALL_IMAGE = CARD_IMAGE_BY_NAME.balon ?? null;
-const AI_STATUS_TIMEOUT_MS = 2600;
+const AI_STATUS_TIMEOUT_MS = 3400;
 const DRIBBLE_CARD_ID = 'reg';
 const ONLINE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const CARD_IMAGE_ALIASES = {
@@ -742,7 +742,7 @@ export default function App() {
 
     const timeoutId = window.setTimeout(() => {
       setFieldEventAnimation(null);
-    }, 2800);
+    }, 3800);
 
     return () => window.clearTimeout(timeoutId);
   }, [fieldEventAnimation]);
@@ -780,7 +780,7 @@ export default function App() {
 
     const timeoutId = window.setTimeout(() => {
       setSystemNotice('');
-    }, 3400);
+    }, 4400);
 
     return () => window.clearTimeout(timeoutId);
   }, [systemNotice]);
@@ -2869,7 +2869,7 @@ export default function App() {
         </div>
 
         {gameState === 'playing' && !onlineCoinFlipReveal && !isDribbleVideoPlaying ? (
-          <div className="pointer-events-none absolute left-1/2 top-[26%] z-20 flex w-full max-w-[300px] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2 px-2 max-sm:top-[28%] max-sm:max-w-[240px]">
+          <div className="pointer-events-none absolute left-1/2 top-[16%] z-20 flex w-full max-w-[300px] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2 px-2 max-sm:top-[18%] max-sm:max-w-[240px]">
             <DiscardLane title="Rival juega" pile={discardShowcase.opponent} />
             {laneNotices.opponent ? (
               <div className="rounded-full border border-white/10 bg-black/55 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.12em] text-emerald-300 backdrop-blur-sm max-sm:px-3 max-sm:py-1 max-sm:text-[8px]">
@@ -2880,7 +2880,7 @@ export default function App() {
         ) : null}
 
         {gameState === 'playing' && !onlineCoinFlipReveal && !isDribbleVideoPlaying ? (
-          <div className="pointer-events-none absolute left-1/2 bottom-[26%] z-20 flex w-full max-w-[300px] -translate-x-1/2 translate-y-1/2 flex-col items-center gap-2 px-2 max-sm:bottom-[28%] max-sm:max-w-[240px]">
+          <div className="pointer-events-none absolute left-1/2 bottom-[36%] z-20 flex w-full max-w-[300px] -translate-x-1/2 translate-y-1/2 flex-col items-center gap-2 px-2 max-sm:bottom-[38%] max-sm:max-w-[240px]">
             {laneNotices.player ? (
               <div className="rounded-full border border-white/10 bg-black/55 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.12em] text-cyan-200 backdrop-blur-sm max-sm:px-3 max-sm:py-1 max-sm:text-[8px]">
                 {laneNotices.player}
