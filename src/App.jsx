@@ -71,6 +71,7 @@ const DRIBBLE_CARD_ID = 'reg';
 const CHILENA_CARD_ID = 'ch';
 const GOALKEEPER_SAVE_CARD_ID = 'paq';
 const ONLINE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+const ONLINE_CLIENT_ID_STORAGE_KEY = 'gol-online-client-id';
 const CARD_IMAGE_ALIASES = {
   'barrida': ['barrida'],
   'saque banda': ['saque de banda', 'saque banda'],
@@ -106,6 +107,37 @@ const withCardImage = (card) => {
 };
 
 const withCardsImage = (cards = []) => cards.map((card) => withCardImage(card));
+
+const getPersistentOnlineClientId = () => {
+  if (typeof window === 'undefined') {
+    return 'server-render';
+  }
+
+  const existingClientId = window.localStorage.getItem(ONLINE_CLIENT_ID_STORAGE_KEY);
+  if (existingClientId) {
+    return existingClientId;
+  }
+
+  const nextClientId =
+    typeof window.crypto?.randomUUID === 'function'
+      ? window.crypto.randomUUID()
+      : `client-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  window.localStorage.setItem(ONLINE_CLIENT_ID_STORAGE_KEY, nextClientId);
+  return nextClientId;
+};
+
+const onlineDebugLog = (message, extra) => {
+  if (typeof console === 'undefined') {
+    return;
+  }
+
+  if (typeof extra === 'undefined') {
+    console.info(`[gol-online] ${message}`);
+    return;
+  }
+
+  console.info(`[gol-online] ${message}`, extra);
+};
 
 const DECK_DEFINITION = BASE_DECK_DEFINITION.map((card) => withCardImage(card));
 
@@ -887,31 +919,47 @@ export default function App() {
   useEffect(() => {
     if (!onlineEnabled) {
       if (socketRef.current) {
+        onlineDebugLog('disconnecting socket because online mode was disabled');
         socketRef.current.disconnect();
         socketRef.current = null;
       }
       return undefined;
     }
 
+    const clientId = getPersistentOnlineClientId();
     const socket = io(ONLINE_API_URL, {
-      transports: ['websocket', 'polling']
+      transports: ['websocket', 'polling'],
+      auth: { clientId },
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 10000
     });
     socketRef.current = socket;
+    onlineDebugLog('creating online socket', { apiUrl: ONLINE_API_URL, clientId });
+
+    const manager = socket.io;
 
     socket.on('connect', () => {
+      onlineDebugLog('socket connected', { socketId: socket.id, clientId });
       setOnlineSocketId(socket.id);
+      setOnlineError('');
       const pendingAction = pendingOnlineActionRef.current;
       if (pendingAction) {
+        onlineDebugLog('flushing pending action after connect', pendingAction);
         socket.emit(pendingAction.event, pendingAction.payload);
         pendingOnlineActionRef.current = null;
       }
     });
 
     socket.on('server:ready', ({ socketId }) => {
+      onlineDebugLog('server ready received', { socketId });
       setOnlineSocketId(socketId);
     });
 
     socket.on('room:created', ({ room, youAreHost }) => {
+      onlineDebugLog('room created', { roomCode: room?.code, youAreHost });
       setOnlineRoom(room);
       setOnlineRoomCode(room.code);
       setOnlineRole(youAreHost ? 'player' : null);
@@ -919,6 +967,12 @@ export default function App() {
     });
 
     socket.on('room:updated', ({ room }) => {
+      onlineDebugLog('room updated', {
+        roomCode: room?.code,
+        status: room?.status,
+        playerCount: room?.playerCount,
+        players: room?.players
+      });
       setOnlineRoom(room);
       setOnlineRoomCode(room.code);
       const localSocketId = socket.id || onlineSocketId;
@@ -933,6 +987,12 @@ export default function App() {
     });
 
     socket.on('match:started', ({ room, matchState }) => {
+      onlineDebugLog('match started', {
+        roomCode: room?.code,
+        role: matchState?.playerRole,
+        currentTurn: matchState?.currentTurn,
+        possession: matchState?.possession
+      });
       setOnlineRoom(room);
       setOnlineRole(matchState.playerRole);
       setShowOnlineCoinChoice(false);
@@ -954,31 +1014,73 @@ export default function App() {
     });
 
     socket.on('match:updated', ({ room, matchState }) => {
+      onlineDebugLog('match updated', {
+        roomCode: room?.code,
+        role: matchState?.playerRole,
+        currentTurn: matchState?.currentTurn,
+        possession: matchState?.possession,
+        pendingDefense: matchState?.pendingDefense,
+        pendingShot: matchState?.pendingShot
+      });
       setOnlineRoom(room);
       setOnlineRole(matchState.playerRole);
       hydrateFromOnlineState(matchState);
     });
 
     socket.on('room:error', ({ message }) => {
+      onlineDebugLog('room error', { message });
       setOnlineError(message);
       addLog(message);
     });
 
     socket.on('match:error', ({ message }) => {
+      onlineDebugLog('match error', { message });
       setOnlineError(message);
       addLog(message);
     });
 
     socket.on('match:terminated', ({ message }) => {
+      onlineDebugLog('match terminated', { message });
       resetMatch();
       setSystemNotice(message || 'La partida fue terminada.');
     });
 
-    socket.on('connect_error', () => {
+    socket.on('disconnect', (reason) => {
+      onlineDebugLog('socket disconnected', { reason, roomCode: onlineRoomCode });
+      setOnlineError('La conexion online se interrumpio. Intentando reconectar...');
+    });
+
+    socket.on('connect_error', (error) => {
+      onlineDebugLog('connect error', { message: error?.message });
       setOnlineError('No se pudo conectar con el servidor online.');
     });
 
+    manager.on('reconnect_attempt', (attempt) => {
+      onlineDebugLog('reconnect attempt', { attempt });
+      setOnlineError(`Reconectando con el servidor online... intento ${attempt}`);
+    });
+
+    manager.on('reconnect', (attempt) => {
+      onlineDebugLog('socket reconnected', { attempt, socketId: socket.id });
+      setOnlineError('');
+      setSystemNotice('Conexion online recuperada.');
+    });
+
+    manager.on('reconnect_error', (error) => {
+      onlineDebugLog('reconnect error', { message: error?.message });
+    });
+
+    manager.on('reconnect_failed', () => {
+      onlineDebugLog('reconnect failed');
+      setOnlineError('No se pudo recuperar la conexion online. Vuelve a entrar a la sala.');
+    });
+
     return () => {
+      onlineDebugLog('cleaning up socket listeners');
+      manager.off('reconnect_attempt');
+      manager.off('reconnect');
+      manager.off('reconnect_error');
+      manager.off('reconnect_failed');
       socket.disconnect();
       if (socketRef.current === socket) {
         socketRef.current = null;
@@ -1603,6 +1705,11 @@ export default function App() {
 
   const emitOnlineEvent = (event, payload) => {
     const socket = connectOnline();
+    onlineDebugLog('queueing/emitting online event', {
+      event,
+      payload,
+      connected: Boolean(socket?.connected)
+    });
 
     if (socket?.connected) {
       socket.emit(event, payload);
@@ -1635,6 +1742,7 @@ export default function App() {
   };
 
   const leaveOnlineRoom = () => {
+    onlineDebugLog('leaving online room', { roomCode: onlineRoomCode });
     socketRef.current?.emit('room:leave');
     pendingOnlineActionRef.current = null;
     lastOnlineEventRef.current = null;
@@ -1655,6 +1763,7 @@ export default function App() {
       return;
     }
 
+    onlineDebugLog('starting online match', { choice, roomCode: onlineRoomCode });
     socketRef.current.emit('match:start', { choice });
     setShowOnlineCoinChoice(false);
   };
