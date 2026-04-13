@@ -504,6 +504,40 @@ const clearDisconnectTimer = (roomCode, clientId) => {
   disconnectTimers.delete(timerKey);
 };
 
+const removeClientFromAllRooms = (clientId) => {
+  if (!clientId) {
+    return;
+  }
+
+  for (const room of rooms.values()) {
+    const nextPlayers = room.players.filter((player) => player.clientId !== clientId);
+    if (nextPlayers.length === room.players.length) {
+      continue;
+    }
+
+    clearDisconnectTimer(room.code, clientId);
+    room.players = nextPlayers;
+
+    if (room.hostId && !room.players.some((player) => player.id === room.hostId)) {
+      room.hostId = room.players[0]?.id ?? null;
+    }
+
+    if (room.players.length === 0) {
+      rooms.delete(room.code);
+      continue;
+    }
+
+    room.status = room.matchState ? 'in_match' : room.players.length === 2 ? 'ready' : 'waiting';
+    if (room.players.length < 2) {
+      room.matchState = null;
+    }
+
+    io.to(room.code).emit('room:updated', {
+      room: getPublicRoom(room)
+    });
+  }
+};
+
 app.use(
   cors(corsOptions)
 );
@@ -582,6 +616,7 @@ io.on('connection', (socket) => {
 
   socket.on('room:create', ({ playerName } = {}) => {
     const safeName = typeof playerName === 'string' && playerName.trim() ? playerName.trim() : 'Jugador 1';
+    removeClientFromAllRooms(clientId);
     let code = createRoomCode();
 
     while (rooms.has(code)) {
@@ -622,6 +657,7 @@ io.on('connection', (socket) => {
   socket.on('room:join', ({ code, playerName } = {}) => {
     const normalizedCode = typeof code === 'string' ? code.trim().toUpperCase() : '';
     const safeName = typeof playerName === 'string' && playerName.trim() ? playerName.trim() : 'Jugador 2';
+    removeClientFromAllRooms(clientId);
     const room = rooms.get(normalizedCode);
 
     if (!room) {
@@ -1065,7 +1101,7 @@ io.on('connection', (socket) => {
 
     clearDisconnectTimer(room.code, clientId);
 
-    room.players = room.players.filter((player) => player.id !== socket.id);
+    room.players = room.players.filter((player) => player.clientId !== clientId && player.id !== socket.id);
     socket.leave(room.code);
 
     if (room.players.length === 0) {

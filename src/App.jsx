@@ -3,7 +3,6 @@ import {
   ArrowRightCircle,
   Bot,
   BookOpen,
-  PlayCircle,
   RefreshCcw,
   Trash2,
   Volume2,
@@ -556,7 +555,7 @@ export default function App() {
   const [onlineEnabled, setOnlineEnabled] = useState(false);
   const [onlineRoomCode, setOnlineRoomCode] = useState('');
   const [onlineJoinCode, setOnlineJoinCode] = useState('');
-  const [onlinePlayerName, setOnlinePlayerName] = useState('Jugador 1');
+  const [onlinePlayerName, setOnlinePlayerName] = useState('');
   const [onlineRoom, setOnlineRoom] = useState(null);
   const [onlineRole, setOnlineRole] = useState(null);
   const [onlineSocketId, setOnlineSocketId] = useState(null);
@@ -2458,12 +2457,13 @@ export default function App() {
     setSelectedForDiscard((previous) => [...previous, index]);
   };
 
-  const executePlayCard = (card, index, isFromPlayer) => {
+  const executePlayCard = (card, index, isFromPlayer, options = {}) => {
     if (onlineEnabled && socketRef.current) {
       socketRef.current.emit('match:play_card', { index });
       return;
     }
 
+    const { skipSuccessAnimation = false } = options;
     const actor = isFromPlayer ? 'player' : 'opponent';
 
     const playCardAction = applyPlayCardAction({
@@ -2493,6 +2493,11 @@ export default function App() {
       if (playCardAction.logMessage) {
         addLog(playCardAction.logMessage);
       }
+      return;
+    }
+
+    if (!skipSuccessAnimation && card.id === DRIBBLE_CARD_ID) {
+      queueActionVideo(oleVideo, () => executePlayCard(card, index, isFromPlayer, { skipSuccessAnimation: true }));
       return;
     }
 
@@ -2595,6 +2600,14 @@ export default function App() {
           clearTransientState();
         }
         applyEngineStatePatch(playCardAction.statePatch);
+        if (card.id === GOALKEEPER_SAVE_CARD_ID) {
+          queueActionVideo(saveVideo, () => {
+            setFieldEventAnimation({
+              actor,
+              text: `Atajada de ${actor === 'player' ? playerDisplayName : opponentDisplayName}`
+            });
+          });
+        }
         addLog(saveResponsePlan.logMessage);
         return;
       }
@@ -2707,11 +2720,6 @@ export default function App() {
     const liveCard = getHand(actor)[index] ?? card;
 
     if (!liveCard) {
-      return;
-    }
-
-    if (!onlineEnabled && liveCard.id === DRIBBLE_CARD_ID) {
-      queueActionVideo(oleVideo, () => executePlayCard(liveCard, index, isFromPlayer));
       return;
     }
 
@@ -3205,7 +3213,7 @@ export default function App() {
                   <input
                     value={onlinePlayerName}
                     onChange={(event) => setOnlinePlayerName(event.target.value)}
-                    placeholder="Tu nombre"
+                    placeholder="Ingresa tu nombre"
                     className="mb-3 w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-sm text-white outline-none"
                   />
                   <div className="grid gap-3 md:grid-cols-2">
@@ -3241,7 +3249,7 @@ export default function App() {
                       <div className="text-xs font-black uppercase tracking-[0.2em] text-white/70">
                         Sala: {onlineRoomCode}
                       </div>
-                      <div className="rounded-xl border border-white/10 bg-slate-900/70 p-3 text-sm font-semibold text-white/75">
+                      <div className="rounded-lg border border-white/8 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-white/60">
                         {onlineRoom?.playerCount === 2
                           ? 'Sala completa. Lista para iniciar la partida online.'
                           : 'Esperando a que se una otro jugador.'}
@@ -3286,12 +3294,6 @@ export default function App() {
                   ) : null}
                 </div>
                   <div className="flex flex-wrap items-center justify-center gap-4">
-                    <button
-                      onClick={() => startFromMenu(false)}
-                      className="flex items-center gap-3 rounded-2xl bg-emerald-500 px-8 py-4 text-sm font-black text-slate-950 transition-all hover:bg-emerald-400"
-                    >
-                      <PlayCircle size={18} /> JUGAR
-                    </button>
                     <button
                       onClick={() => startFromMenu(true)}
                       className="flex items-center gap-3 rounded-2xl bg-cyan-400 px-8 py-4 text-sm font-black text-slate-950 transition-all hover:bg-cyan-300"
