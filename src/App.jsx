@@ -3169,9 +3169,9 @@ export default function App() {
 
               <button
                 onClick={handleEndTurnButtonClick}
-                disabled={Boolean(pendingBlindDiscard || isDribbleVideoPlaying)}
+                disabled={Boolean(!isPlayerTurn || pendingBlindDiscard || isDribbleVideoPlaying)}
                 className={`flex items-center gap-2 rounded-full px-8 py-2.5 text-[10px] font-black shadow-xl ${
-                  pendingBlindDiscard || isDribbleVideoPlaying
+                  !isPlayerTurn || pendingBlindDiscard || isDribbleVideoPlaying
                     ? 'cursor-not-allowed bg-slate-700 text-white/50'
                     : 'bg-emerald-500 hover:bg-emerald-400'
                 }`}
