@@ -3025,15 +3025,14 @@ export default function App() {
           className="z-10 flex w-full max-w-4xl items-center justify-center gap-4 px-4 max-sm:gap-2 max-sm:px-1"
           style={{ transform: 'translateY(8%)' }}
         >
-          <div className="flex flex-1 justify-center overflow-x-auto py-4 max-sm:py-2">
+          <div className="flex min-h-[150px] flex-1 justify-center overflow-visible py-6 max-sm:min-h-[118px] max-sm:py-3">
             {tablePlay.length === 0 ? (
               null
             ) : (
               tablePlay.map((card, index) => {
                 const isRivalCard = card.tableActor === 'opponent';
-                const overlapOffset = index === 0 ? '0' : '-24px';
-                const verticalOffset = isRivalCard ? '-22px' : '22px';
-                const horizontalNudge = isRivalCard ? '-4px' : '4px';
+                const overlapOffset = index === 0 ? '0px' : '-18px';
+                const verticalLift = isRivalCard ? '22px' : '0px';
 
                 return (
                   <div
@@ -3041,7 +3040,7 @@ export default function App() {
                     className={`${card.color || 'bg-slate-800'} relative flex h-24 min-w-[70px] flex-col justify-between overflow-hidden rounded-lg border-2 border-white/40 p-2 shadow-lg max-sm:h-20 max-sm:min-w-[56px] max-sm:p-1`}
                     style={{
                       marginLeft: overlapOffset,
-                      transform: index === 0 ? 'translate(0, 0)' : `translate(${horizontalNudge}, ${verticalOffset})`,
+                      marginBottom: verticalLift,
                       zIndex: index + 1
                     }}
                   >
@@ -3071,7 +3070,7 @@ export default function App() {
             )}
 
             {comboWindow && (
-              <div className="pointer-events-none absolute inset-x-0 top-[10%] z-20 flex justify-center px-4 max-sm:top-[12%]">
+              <div className="pointer-events-none fixed inset-x-0 top-24 z-[68] flex justify-center px-4 max-sm:top-20">
                 <div
                   className={`relative w-full max-w-lg rounded-[1.6rem] border bg-black/38 px-6 py-5 text-center shadow-[0_0_45px_rgba(255,255,255,0.1)] backdrop-blur-[5px] ${
                     comboWindow.accent === 'lime'
