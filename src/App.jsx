@@ -3036,11 +3036,11 @@ export default function App() {
                   index === 0
                     ? '0px'
                     : isRivalCard
-                      ? '-26px'
+                      ? '-32px'
                       : previousActor === 'opponent'
                         ? '-18px'
                         : '6px';
-                const verticalLift = isRivalCard ? '24px' : '0px';
+                const verticalLift = isRivalCard ? '36px' : '0px';
 
                 return (
                   <div
@@ -3576,7 +3576,7 @@ export default function App() {
             )}
 
             {fieldEventAnimation && (
-              <div className="pointer-events-none fixed inset-x-0 top-20 z-[69] flex justify-center px-4 max-sm:top-16">
+              <div className="pointer-events-none fixed inset-x-0 top-24 z-[69] flex justify-center px-4 max-sm:top-20">
                 <div
                   className={`max-w-xl rounded-[1.4rem] border px-6 py-4 text-center shadow-[0_18px_40px_rgba(0,0,0,0.4)] ${
                     fieldEventAnimation.actor === 'player'
