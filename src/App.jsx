@@ -358,85 +358,61 @@ const CardItem = ({
 };
 
 const DiscardLane = ({ title, pile }) => {
-  const archivedCards = pile.archive.slice(0, 4).reverse();
-  const currentCards = pile.current;
+  const totalCards = pile.archive.length + pile.current.length;
+  const visibleBacks = Array.from({ length: Math.min(totalCards, 5) }, (_, index) => index);
 
   return (
     <div className="w-full max-w-[260px] rounded-2xl border border-white/15 bg-slate-950/45 p-3 shadow-[0_14px_32px_rgba(0,0,0,0.32)] backdrop-blur-sm max-sm:max-w-[220px] max-sm:p-2">
       <div className="mb-2 flex items-center justify-between gap-3">
         <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/45 max-sm:text-[8px]">{title}</span>
         <span className="rounded-full border border-white/10 bg-slate-950/80 px-2 py-0.5 text-[9px] font-black text-white/70 max-sm:text-[8px]">
-          {pile.archive.length + pile.current.length}
+          {totalCards}
         </span>
       </div>
-      <div className="relative min-h-[102px] max-sm:min-h-[84px]">
-        {archivedCards.length > 0 ? (
-          <div className="absolute bottom-0 left-0 h-20 w-16 max-sm:h-20 max-sm:w-14">
-            {archivedCards.map((card, index) => (
+      <div className="relative flex min-h-[92px] items-center justify-center max-sm:min-h-[78px]">
+        {visibleBacks.length > 0 ? (
+          <div className="relative h-20 w-16 max-sm:h-[72px] max-sm:w-14">
+            {visibleBacks.map((index) => (
               <div
-                key={`archived-${card.visualId}`}
-                className="absolute left-0 top-0 h-20 w-12 overflow-hidden rounded-[12px] border border-white/10 shadow-[0_10px_22px_rgba(0,0,0,0.28)] max-sm:h-20 max-sm:w-12 max-sm:rounded-[10px]"
+                key={`${title}-back-${index}`}
+                className="absolute left-1/2 top-1/2 h-20 w-12 -translate-x-1/2 -translate-y-1/2 rounded-[12px] border border-white/15 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(8,47,73,0.94))] shadow-[0_10px_24px_rgba(0,0,0,0.35)] max-sm:h-[72px] max-sm:w-11 max-sm:rounded-[10px]"
                 style={{
-                  transform: `translateX(${index * 4}px) translateY(${index * 3}px) rotate(${(index - 1.5) * 2}deg)`,
+                  transform: `translate(-50%, -50%) translateX(${index * 3}px) translateY(${index * 2}px) rotate(${(index - 2) * 2}deg)`,
                   zIndex: index + 1
                 }}
               >
-                {card.imageUrl ? (
-                  <>
-                    <img
-                      src={card.imageUrl}
-                      alt={card.name}
-                      className="absolute inset-0 h-full w-full object-cover object-center"
-                    />
-                    <div className="absolute inset-0 bg-black/18" />
-                  </>
-                ) : (
-                  <div className={`${card.color || 'bg-slate-800'} flex h-full w-full items-end justify-center px-2 pb-2 text-center text-[8px] font-black uppercase leading-tight text-white`}>
-                    {card.name}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : null}
-        {currentCards.length > 0 ? (
-          <div className="relative ml-16 flex min-h-[102px] flex-wrap items-end gap-2 max-sm:ml-14 max-sm:min-h-[84px] max-sm:gap-1">
-            {currentCards.map((card, index) => (
-              <div
-                key={card.visualId}
-                className="relative h-20 w-12 overflow-hidden rounded-[12px] border border-white/10 shadow-[0_10px_24px_rgba(0,0,0,0.32)] max-sm:h-20 max-sm:w-12 max-sm:rounded-[10px]"
-                style={{
-                  animation: 'discardCardSlideIn 320ms cubic-bezier(0.22,0.8,0.2,1) both',
-                  animationDelay: `${index * 60}ms`
-                }}
-              >
-                {card.imageUrl ? (
-                  <>
-                    <img
-                      src={card.imageUrl}
-                      alt={card.name}
-                      className="absolute inset-0 h-full w-full object-cover object-center"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-b from-black/14 via-transparent to-black/22" />
-                  </>
-                ) : (
-                  <div className={`${card.color || 'bg-slate-800'} flex h-full w-full items-end justify-center px-2 pb-2 text-center text-[8px] font-black uppercase leading-tight text-white`}>
-                    {card.name}
-                  </div>
-                )}
-                <div className="absolute inset-[3px] rounded-[11px] border border-white/12" />
+                <div className="absolute inset-[3px] rounded-[10px] border border-cyan-200/18" />
+                <div className="absolute inset-0 rounded-[12px] bg-[radial-gradient(circle_at_center,rgba(34,211,238,0.18),transparent_58%)]" />
+                <div className="absolute inset-0 flex items-center justify-center text-[8px] font-black uppercase tracking-[0.22em] text-white/28">
+                  Gol
+                </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="ml-16 flex min-h-[102px] items-center text-[9px] font-black uppercase tracking-[0.18em] text-white/28 max-sm:ml-14 max-sm:min-h-[84px] max-sm:text-[8px]">
-            Sin cartas en esta jugada
+          <div className="flex min-h-[92px] items-center text-[9px] font-black uppercase tracking-[0.18em] text-white/28 max-sm:min-h-[78px] max-sm:text-[8px]">
+            Sin descarte
           </div>
         )}
       </div>
     </div>
   );
 };
+
+const TABLE_OVERLAY_CARD_IDS = new Set([
+  'reg',
+  'ba',
+  'fa',
+  'sb',
+  'sc',
+  'cont',
+  'off',
+  'paq',
+  'var',
+  'ta',
+  'tr',
+  'rem'
+]);
 
 const TutorialStepCard = ({ label }) => {
   const normalizedLabel = normalizeAssetName(label);
@@ -3065,7 +3041,7 @@ export default function App() {
           className="z-10 flex w-full max-w-4xl items-center justify-center gap-4 px-4 max-sm:gap-2 max-sm:px-1"
           style={{ transform: 'translateY(8%)' }}
         >
-          <div className="flex flex-1 justify-center gap-2 overflow-x-auto py-4 max-sm:py-2">
+          <div className="flex flex-1 justify-center overflow-x-auto py-4 max-sm:py-2">
             {activePlay.length === 0 ? (
               null
             ) : (
@@ -3073,6 +3049,15 @@ export default function App() {
                 <div
                   key={`${card.id}-${index}`}
                   className={`${card.color || 'bg-slate-800'} relative flex h-24 min-w-[70px] flex-col justify-between overflow-hidden rounded-lg border-2 border-white/40 p-2 shadow-lg max-sm:h-20 max-sm:min-w-[56px] max-sm:p-1`}
+                  style={{
+                    marginLeft:
+                      index > 0 && TABLE_OVERLAY_CARD_IDS.has(card.id)
+                        ? '-18px'
+                        : index > 0
+                          ? '8px'
+                          : '0',
+                    zIndex: TABLE_OVERLAY_CARD_IDS.has(card.id) ? index + 8 : index + 1
+                  }}
                 >
                   {card.imageUrl ? (
                     <>
