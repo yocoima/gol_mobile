@@ -182,6 +182,23 @@ const setupReadyRoom = async () => {
   return { baseUrl, host, guest, roomCode: roomCreated.room.code };
 };
 
+const setupStartedMatch = async () => {
+  const { host, guest, roomCode, baseUrl } = await setupReadyRoom();
+  const hostStartedPromise = waitForSocketEvent(host, 'match:started');
+  const guestStartedPromise = waitForSocketEvent(guest, 'match:started');
+  guest.emit('match:start', { choice: 'cara' });
+  const [hostStarted, guestStarted] = await Promise.all([hostStartedPromise, guestStartedPromise]);
+
+  return {
+    baseUrl,
+    host,
+    guest,
+    roomCode,
+    hostStarted,
+    guestStarted
+  };
+};
+
 afterEach(async () => {
   while (serverProcesses.length > 0) {
     const serverProcess = serverProcesses.pop();
@@ -288,15 +305,9 @@ describe('online server integration', () => {
   });
 
   it('starts an online match and notifies both players with their roles', async () => {
-    const { host, guest, roomCode } = await setupReadyRoom();
+    const { host, guest, roomCode, hostStarted, guestStarted } = await setupStartedMatch();
 
     try {
-      const hostStartedPromise = waitForSocketEvent(host, 'match:started');
-      const guestStartedPromise = waitForSocketEvent(guest, 'match:started');
-      guest.emit('match:start', { choice: 'cara' });
-
-      const [hostStarted, guestStarted] = await Promise.all([hostStartedPromise, guestStartedPromise]);
-
       expect(hostStarted.room.code).toBe(roomCode);
       expect(guestStarted.room.code).toBe(roomCode);
       expect(hostStarted.matchState.playerRole).toBe('player');
@@ -312,14 +323,9 @@ describe('online server integration', () => {
   });
 
   it('advances the turn when the current online player ends turn', async () => {
-    const { host, guest } = await setupReadyRoom();
+    const { host, guest, hostStarted, guestStarted } = await setupStartedMatch();
 
     try {
-      const hostStartedPromise = waitForSocketEvent(host, 'match:started');
-      const guestStartedPromise = waitForSocketEvent(guest, 'match:started');
-      guest.emit('match:start', { choice: 'cara' });
-
-      const [hostStarted, guestStarted] = await Promise.all([hostStartedPromise, guestStartedPromise]);
       const currentTurn = hostStarted.matchState.currentTurn;
       const actorSocket = currentTurn === 'player' ? host : guest;
       const observerSocket = currentTurn === 'player' ? guest : host;
@@ -334,6 +340,76 @@ describe('online server integration', () => {
       expect(actorUpdate.room.status).toBe('in_match');
       expect(observerUpdate.room.status).toBe('in_match');
       expect(guestStarted.matchState.playerRole).toBe('opponent');
+    } finally {
+      await closeClient(host);
+      await closeClient(guest);
+    }
+  });
+
+  it('rejects play_card from the player who is not currently allowed to act', async () => {
+    const { host, guest, hostStarted } = await setupStartedMatch();
+
+    try {
+      const currentTurn = hostStarted.matchState.currentTurn;
+      const outOfTurnSocket = currentTurn === 'player' ? guest : host;
+      const errorPromise = waitForSocketEvent(outOfTurnSocket, 'match:error');
+
+      outOfTurnSocket.emit('match:play_card', { index: 0 });
+      const error = await errorPromise;
+
+      expect(error.message).toContain('Aun no es tu turno');
+    } finally {
+      await closeClient(host);
+      await closeClient(guest);
+    }
+  });
+
+  it('rejects discard requests without any selected indexes', async () => {
+    const { host, guest, hostStarted } = await setupStartedMatch();
+
+    try {
+      const currentTurn = hostStarted.matchState.currentTurn;
+      const actorSocket = currentTurn === 'player' ? host : guest;
+      const errorPromise = waitForSocketEvent(actorSocket, 'match:error');
+
+      actorSocket.emit('match:discard', { indexes: [] });
+      const error = await errorPromise;
+
+      expect(error.message).toBe('Selecciona al menos una carta para descartar.');
+    } finally {
+      await closeClient(host);
+      await closeClient(guest);
+    }
+  });
+
+  it('applies a valid play_card action and syncs the updated match state to both players', async () => {
+    const { host, guest, hostStarted, guestStarted } = await setupStartedMatch();
+
+    try {
+      const currentTurn = hostStarted.matchState.currentTurn;
+      const actorSocket = currentTurn === 'player' ? host : guest;
+      const observerSocket = currentTurn === 'player' ? guest : host;
+      const actorStart = currentTurn === 'player' ? hostStarted : guestStarted;
+
+      const playableIndex = actorStart.matchState.yourHand.findIndex((card) =>
+        ['pc', 'pl', 'pa', 'pe', 'sc', 'ch', 'tg'].includes(card.id)
+      );
+
+      expect(playableIndex).toBeGreaterThanOrEqual(0);
+
+      const actorUpdatePromise = waitForSocketEvent(actorSocket, 'match:updated');
+      const observerUpdatePromise = waitForSocketEvent(observerSocket, 'match:updated');
+      actorSocket.emit('match:play_card', { index: playableIndex });
+
+      const [actorUpdate, observerUpdate] = await Promise.all([actorUpdatePromise, observerUpdatePromise]);
+
+      expect(actorUpdate.matchState.playerRole).toBe(currentTurn);
+      expect(observerUpdate.matchState.playerRole).toBe(currentTurn === 'player' ? 'opponent' : 'player');
+      expect(actorUpdate.matchState.yourHand).toHaveLength(5);
+      expect(actorUpdate.matchState.hasActedThisTurn).toBe(true);
+      expect(observerUpdate.matchState.hasActedThisTurn).toBe(true);
+      expect(Array.isArray(actorUpdate.matchState.recentActions)).toBe(true);
+      expect(actorUpdate.matchState.recentActions.length).toBeGreaterThan(0);
     } finally {
       await closeClient(host);
       await closeClient(guest);
