@@ -398,21 +398,6 @@ const DiscardLane = ({ title, pile }) => {
   );
 };
 
-const TABLE_OVERLAY_CARD_IDS = new Set([
-  'reg',
-  'ba',
-  'fa',
-  'sb',
-  'sc',
-  'cont',
-  'off',
-  'paq',
-  'var',
-  'ta',
-  'tr',
-  'rem'
-]);
-
 const TABLE_SEQUENCE_START_TYPES = new Set([
   'pass-play',
   'special-corner',
@@ -1448,12 +1433,12 @@ export default function App() {
     }
   };
 
-  const appendCardToTable = (card) => {
+  const appendCardToTable = (card, actor = null) => {
     if (!card) {
       return;
     }
 
-    setTablePlay((previousPlay) => [...previousPlay, card]);
+    setTablePlay((previousPlay) => [...previousPlay, { ...card, tableActor: actor ?? card.tableActor ?? null }]);
   };
 
   const shouldResetTableForNewSequence = (actor, playType) =>
@@ -2139,7 +2124,7 @@ export default function App() {
 
   const startDefenseResolution = (defender, defenseCard) => {
     const possessor = getOpponent(defender);
-    appendCardToTable(defenseCard);
+    appendCardToTable(defenseCard, defender);
     const defensePlan = getDefenseResolutionPlan({
       defender,
       defenseCardId: defenseCard.id,
@@ -2486,7 +2471,7 @@ export default function App() {
       const redCardVarPlan = playCardAction.plan;
 
       consumeCard(actor, index, card);
-      appendCardToTable(card);
+      appendCardToTable(card, actor);
       clearSanctionFor(redCardVarPlan.clearSanctionFor);
       if (redCardVarPlan.clearTransientState) {
         setPendingShot(null);
@@ -2503,7 +2488,7 @@ export default function App() {
     if (playCardAction.type === 'defense-response') {
       const defenseResponsePlan = playCardAction.plan;
       consumeCard(actor, index, card);
-      appendCardToTable(card);
+      appendCardToTable(card, actor);
 
       if (defenseResponsePlan.type === 'await-var') {
         applyEngineStatePatch(playCardAction.statePatch);
@@ -2549,7 +2534,7 @@ export default function App() {
     if (playCardAction.type === 'penalty-response') {
       const penaltyResponsePlan = playCardAction.plan;
       consumeCard(actor, index, card);
-      appendCardToTable(card);
+      appendCardToTable(card, actor);
 
       if (penaltyResponsePlan.type === 'turn-change') {
         if (penaltyResponsePlan.clearTransientState) {
@@ -2572,7 +2557,7 @@ export default function App() {
     if (playCardAction.type === 'save-response') {
       const saveResponsePlan = playCardAction.plan;
       consumeCard(actor, index, card);
-      appendCardToTable(card);
+      appendCardToTable(card, actor);
 
       if (saveResponsePlan.type === 'turn-change') {
         if (saveResponsePlan.clearTransientState) {
@@ -2598,7 +2583,7 @@ export default function App() {
     if (playCardAction.type === 'offside-var-response') {
       const offsideVarPlan = playCardAction.plan;
       consumeCard(actor, index, card);
-      appendCardToTable(card);
+      appendCardToTable(card, actor);
 
       if (offsideVarPlan.type === 'goal') {
         scoreGoal(offsideVarPlan.scorer, offsideVarPlan.reason);
@@ -2612,7 +2597,7 @@ export default function App() {
 
     if (playCardAction.type === 'remate-response') {
         consumeCard(actor, index, card);
-        appendCardToTable(card);
+        appendCardToTable(card, actor);
         applyEngineStatePatch(playCardAction.statePatch);
         startShotResolution(actor, 'remate');
         return;
@@ -2620,7 +2605,7 @@ export default function App() {
 
     if (playCardAction.type === 'steal-defense') {
       consumeCard(actor, index, card);
-      appendCardToTable(card);
+      appendCardToTable(card, actor);
       applyEngineStatePatch(playCardAction.statePatch);
       startDefenseResolution(actor, card);
       return;
@@ -2629,7 +2614,7 @@ export default function App() {
     if (playCardAction.type === 'pass-play') {
       const passPlayPlan = playCardAction.plan;
       consumeCard(actor, index, card);
-      appendCardToTable(card);
+      appendCardToTable(card, actor);
       applyEngineStatePatch(playCardAction.statePatch);
       setActivePlay((previousPlay) => [...previousPlay, card]);
       addLog(passPlayPlan.logMessage);
@@ -2643,7 +2628,7 @@ export default function App() {
 
     if (playCardAction.type === 'special-corner') {
       consumeCard(actor, index, card);
-      appendCardToTable(card);
+      appendCardToTable(card, actor);
       applyEngineStatePatch(playCardAction.statePatch);
       addLog(playCardAction.logMessage);
       return;
@@ -2651,7 +2636,7 @@ export default function App() {
 
     if (playCardAction.type === 'shoot-card') {
       consumeCard(actor, index, card);
-      appendCardToTable(card);
+      appendCardToTable(card, actor);
       applyEngineStatePatch(playCardAction.statePatch);
       if (pendingCombo?.type === 'chilena_followup') {
         queueActionVideo(chilenaVideo, () => {
@@ -2675,7 +2660,7 @@ export default function App() {
 
     if (playCardAction.type === 'penalty-card') {
       consumeCard(actor, index, card);
-      appendCardToTable(card);
+      appendCardToTable(card, actor);
       applyEngineStatePatch(playCardAction.statePatch);
       startShotResolution(actor, 'penalty');
       return;
@@ -2683,7 +2668,7 @@ export default function App() {
 
     if (playCardAction.type === 'special-chilena') {
       consumeCard(actor, index, card);
-      appendCardToTable(card);
+      appendCardToTable(card, actor);
       applyEngineStatePatch(playCardAction.statePatch);
       addLog(playCardAction.logMessage);
       return;
@@ -3044,34 +3029,37 @@ export default function App() {
             {tablePlay.length === 0 ? (
               null
             ) : (
-              tablePlay.map((card, index) => (
-                <div
-                  key={`${card.id}-${index}`}
-                  className={`${card.color || 'bg-slate-800'} relative flex h-24 min-w-[70px] flex-col justify-between overflow-hidden rounded-lg border-2 border-white/40 p-2 shadow-lg max-sm:h-20 max-sm:min-w-[56px] max-sm:p-1`}
-                  style={{
-                    marginLeft:
-                      index > 0 && TABLE_OVERLAY_CARD_IDS.has(card.id)
-                        ? '-18px'
-                        : index > 0
-                          ? '8px'
-                          : '0',
-                    zIndex: TABLE_OVERLAY_CARD_IDS.has(card.id) ? index + 8 : index + 1
-                  }}
-                >
-                  {card.imageUrl ? (
-                    <>
-                      <img
-                        src={card.imageUrl}
-                        alt={card.name}
-                        className="absolute inset-0 h-full w-full object-cover object-center"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/32" />
-                    </>
-                  ) : null}
-                  <p className="relative z-10 text-[7px] font-black uppercase leading-none max-sm:text-[6px]">{card.name}</p>
-                  <p className="relative z-10 text-center text-xl font-black max-sm:text-base">+{card.value}</p>
-                </div>
-              ))
+              tablePlay.map((card, index) => {
+                const isRivalCard = card.tableActor === 'opponent';
+                const overlapOffset = index === 0 ? '0' : '-24px';
+                const verticalOffset = isRivalCard ? '-22px' : '22px';
+                const horizontalNudge = isRivalCard ? '-4px' : '4px';
+
+                return (
+                  <div
+                    key={`${card.visualId || card.id}-${index}`}
+                    className={`${card.color || 'bg-slate-800'} relative flex h-24 min-w-[70px] flex-col justify-between overflow-hidden rounded-lg border-2 border-white/40 p-2 shadow-lg max-sm:h-20 max-sm:min-w-[56px] max-sm:p-1`}
+                    style={{
+                      marginLeft: overlapOffset,
+                      transform: index === 0 ? 'translate(0, 0)' : `translate(${horizontalNudge}, ${verticalOffset})`,
+                      zIndex: index + 1
+                    }}
+                  >
+                    {card.imageUrl ? (
+                      <>
+                        <img
+                          src={card.imageUrl}
+                          alt={card.name}
+                          className="absolute inset-0 h-full w-full object-cover object-center"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/32" />
+                      </>
+                    ) : null}
+                    <p className="relative z-10 text-[7px] font-black uppercase leading-none max-sm:text-[6px]">{card.name}</p>
+                    <p className="relative z-10 text-center text-xl font-black max-sm:text-base">+{card.value}</p>
+                  </div>
+                );
+              })
             )}
           </div>
         </div>
@@ -3083,29 +3071,39 @@ export default function App() {
             )}
 
             {comboWindow && (
-              <div className="pointer-events-none absolute inset-x-0 top-[10%] bottom-[24%] z-20 flex items-center justify-center px-4 max-sm:top-[12%] max-sm:bottom-[28%]">
-                <div className="absolute inset-0 rounded-[2rem] bg-black/52" />
+              <div className="pointer-events-none absolute inset-x-0 top-[10%] z-20 flex justify-center px-4 max-sm:top-[12%]">
                 <div
-                  className={`relative w-full max-w-lg rounded-[1.6rem] border px-6 py-5 text-center shadow-[0_0_45px_rgba(255,255,255,0.1)] ${
+                  className={`relative w-full max-w-lg rounded-[1.6rem] border bg-black/38 px-6 py-5 text-center shadow-[0_0_45px_rgba(255,255,255,0.1)] backdrop-blur-[5px] ${
                     comboWindow.accent === 'lime'
-                      ? 'border-lime-300/50 bg-lime-500/20 text-lime-100'
+                      ? 'border-lime-300/50 text-lime-100'
                       : comboWindow.accent === 'sky'
-                        ? 'border-sky-300/50 bg-sky-500/20 text-sky-100'
+                        ? 'border-sky-300/50 text-sky-100'
                         : comboWindow.accent === 'indigo'
-                          ? 'border-indigo-300/50 bg-indigo-500/20 text-indigo-100'
-                          : 'border-orange-300/50 bg-orange-500/20 text-orange-100'
+                          ? 'border-indigo-300/50 text-indigo-100'
+                          : 'border-orange-300/50 text-orange-100'
                   }`}
                 >
-                  <div className="text-[10px] font-black uppercase tracking-[0.35em]">
+                  <div
+                    className={`absolute inset-0 rounded-[1.6rem] ${
+                      comboWindow.accent === 'lime'
+                        ? 'bg-lime-500/20'
+                        : comboWindow.accent === 'sky'
+                          ? 'bg-sky-500/20'
+                          : comboWindow.accent === 'indigo'
+                            ? 'bg-indigo-500/20'
+                            : 'bg-orange-500/20'
+                    }`}
+                  />
+                  <div className="relative z-10 text-[10px] font-black uppercase tracking-[0.35em]">
                     {comboWindow.title}
                   </div>
-                  <div className="mt-2 text-sm font-black">
+                  <div className="relative z-10 mt-2 text-sm font-black">
                     {comboWindow.actor === 'player' ? 'Jugador' : 'Rival'} en combinacion especial
                   </div>
-                  <div className="mt-2 text-sm font-semibold leading-tight text-white">
+                  <div className="relative z-10 mt-2 text-sm font-semibold leading-tight text-white">
                     {comboWindow.required}
                   </div>
-                  <div className="mt-4 flex items-center justify-center gap-3">
+                  <div className="relative z-10 mt-4 flex items-center justify-center gap-3">
                     {comboWindow.slots.map((slot) => (
                       <div
                         key={slot.label}
@@ -3571,16 +3569,16 @@ export default function App() {
             )}
 
             {fieldEventAnimation && (
-              <div className="pointer-events-none fixed inset-0 z-[69] flex items-center justify-center bg-black/52">
+              <div className="pointer-events-none fixed inset-x-0 top-20 z-[69] flex justify-center px-4 max-sm:top-16">
                 <div
-                  className={`rounded-[1.6rem] border px-8 py-5 text-center shadow-[0_0_45px_rgba(255,255,255,0.1)] ${
+                  className={`max-w-xl rounded-[1.4rem] border px-6 py-4 text-center shadow-[0_18px_40px_rgba(0,0,0,0.4)] ${
                     fieldEventAnimation.actor === 'player'
                       ? 'border-blue-300/50 bg-blue-500/20 text-blue-100'
                       : 'border-red-300/50 bg-red-500/20 text-red-100'
                   }`}
                   style={{ animation: `goalPulse ${FIELD_EVENT_DURATION_MS}ms ease-out forwards` }}
                 >
-                  <div className="text-sm font-black uppercase tracking-[0.24em]">
+                  <div className="text-sm font-black uppercase tracking-[0.22em] max-sm:text-[11px]">
                     {fieldEventAnimation.text}
                   </div>
                 </div>
@@ -3665,9 +3663,6 @@ export default function App() {
                   </div>
                   <div className="mb-5 text-xl font-black text-white">
                     Elige Cara o Sello para el sorteo
-                  </div>
-                  <div className="mb-5 text-sm font-semibold text-white/70">
-                    Esta eleccion se realiza antes del video del lanzamiento.
                   </div>
                   <div className="flex justify-center gap-3">
                     <button
