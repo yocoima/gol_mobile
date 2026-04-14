@@ -52,6 +52,40 @@ const waitForSocketEvent = (socket, eventName, timeoutMs = 4000) =>
     socket.once('connect_error', onConnectError);
   });
 
+const waitForAnySocketEvent = (socket, eventNames, timeoutMs = 4000) =>
+  new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      cleanup();
+      reject(new Error(`Timed out waiting for one of: ${eventNames.join(', ')}`));
+    }, timeoutMs);
+
+    const eventHandlers = new Map();
+
+    const onConnectError = (error) => {
+      cleanup();
+      reject(error);
+    };
+
+    const cleanup = () => {
+      clearTimeout(timeoutId);
+      for (const [eventName, handler] of eventHandlers.entries()) {
+        socket.off(eventName, handler);
+      }
+      socket.off('connect_error', onConnectError);
+    };
+
+    for (const eventName of eventNames) {
+      const handler = (payload) => {
+        cleanup();
+        resolve({ eventName, payload });
+      };
+      eventHandlers.set(eventName, handler);
+      socket.once(eventName, handler);
+    }
+
+    socket.once('connect_error', onConnectError);
+  });
+
 const startServer = async () => {
   const port = await getFreePort();
   const serverProcess = spawn(process.execPath, ['server/index.js'], {
@@ -131,6 +165,23 @@ const closeClient = async (socket) => {
   await wait(20);
 };
 
+const setupReadyRoom = async () => {
+  const { baseUrl } = await startServer();
+  const host = await createClient(baseUrl, 'host-client');
+  const guest = await createClient(baseUrl, 'guest-client');
+
+  const roomCreatedPromise = waitForSocketEvent(host, 'room:created');
+  host.emit('room:create', { playerName: 'Host' });
+  const roomCreated = await roomCreatedPromise;
+
+  const hostRoomUpdatedPromise = waitForSocketEvent(host, 'room:updated');
+  const guestRoomUpdatedPromise = waitForSocketEvent(guest, 'room:updated');
+  guest.emit('room:join', { code: roomCreated.room.code, playerName: 'Guest' });
+  await Promise.all([hostRoomUpdatedPromise, guestRoomUpdatedPromise]);
+
+  return { baseUrl, host, guest, roomCode: roomCreated.room.code };
+};
+
 afterEach(async () => {
   while (serverProcesses.length > 0) {
     const serverProcess = serverProcesses.pop();
@@ -204,20 +255,9 @@ describe('online server integration', () => {
   });
 
   it('reattaches a disconnected player to the same room before the grace timeout expires', async () => {
-    const { baseUrl } = await startServer();
-    const host = await createClient(baseUrl, 'host-client');
-    const guest = await createClient(baseUrl, 'guest-client');
+    const { baseUrl, host, guest, roomCode } = await setupReadyRoom();
 
     try {
-      const roomCreatedPromise = waitForSocketEvent(host, 'room:created');
-      host.emit('room:create', { playerName: 'Host' });
-      const roomCreated = await roomCreatedPromise;
-
-      const hostReadyPromise = waitForSocketEvent(host, 'room:updated');
-      const guestReadyPromise = waitForSocketEvent(guest, 'room:updated');
-      guest.emit('room:join', { code: roomCreated.room.code, playerName: 'Guest' });
-      await Promise.all([hostReadyPromise, guestReadyPromise]);
-
       const disconnectedUpdatePromise = waitForSocketEvent(host, 'room:updated');
       guest.disconnect();
       const disconnectedUpdate = await disconnectedUpdatePromise;
@@ -235,12 +275,81 @@ describe('online server integration', () => {
         reconnectedGuest.connect();
         await waitForSocketEvent(reconnectedGuest, 'connect');
         const [recreatedRoom] = await Promise.all([recreatedRoomPromise, reconnectedReadyPromise]);
-        expect(recreatedRoom.room.code).toBe(roomCreated.room.code);
+        expect(recreatedRoom.room.code).toBe(roomCode);
         expect(recreatedRoom.room.playerCount).toBe(2);
         expect(recreatedRoom.room.players.find((player) => player.name === 'Guest')?.connected).toBe(true);
       } finally {
         await closeClient(reconnectedGuest);
       }
+    } finally {
+      await closeClient(host);
+      await closeClient(guest);
+    }
+  });
+
+  it('starts an online match and notifies both players with their roles', async () => {
+    const { host, guest, roomCode } = await setupReadyRoom();
+
+    try {
+      const hostStartedPromise = waitForSocketEvent(host, 'match:started');
+      const guestStartedPromise = waitForSocketEvent(guest, 'match:started');
+      guest.emit('match:start', { choice: 'cara' });
+
+      const [hostStarted, guestStarted] = await Promise.all([hostStartedPromise, guestStartedPromise]);
+
+      expect(hostStarted.room.code).toBe(roomCode);
+      expect(guestStarted.room.code).toBe(roomCode);
+      expect(hostStarted.matchState.playerRole).toBe('player');
+      expect(guestStarted.matchState.playerRole).toBe('opponent');
+      expect(hostStarted.matchState.yourHand).toHaveLength(5);
+      expect(guestStarted.matchState.yourHand).toHaveLength(5);
+      expect(['player', 'opponent']).toContain(hostStarted.matchState.currentTurn);
+      expect(hostStarted.matchState.currentTurn).toBe(guestStarted.matchState.currentTurn);
+    } finally {
+      await closeClient(host);
+      await closeClient(guest);
+    }
+  });
+
+  it('advances the turn when the current online player ends turn', async () => {
+    const { host, guest } = await setupReadyRoom();
+
+    try {
+      const hostStartedPromise = waitForSocketEvent(host, 'match:started');
+      const guestStartedPromise = waitForSocketEvent(guest, 'match:started');
+      guest.emit('match:start', { choice: 'cara' });
+
+      const [hostStarted, guestStarted] = await Promise.all([hostStartedPromise, guestStartedPromise]);
+      const currentTurn = hostStarted.matchState.currentTurn;
+      const actorSocket = currentTurn === 'player' ? host : guest;
+      const observerSocket = currentTurn === 'player' ? guest : host;
+
+      const actorUpdatePromise = waitForSocketEvent(actorSocket, 'match:updated');
+      const observerUpdatePromise = waitForSocketEvent(observerSocket, 'match:updated');
+      actorSocket.emit('match:end_turn');
+
+      const [actorUpdate, observerUpdate] = await Promise.all([actorUpdatePromise, observerUpdatePromise]);
+      expect(actorUpdate.matchState.currentTurn).toBe(currentTurn === 'player' ? 'opponent' : 'player');
+      expect(observerUpdate.matchState.currentTurn).toBe(actorUpdate.matchState.currentTurn);
+      expect(actorUpdate.room.status).toBe('in_match');
+      expect(observerUpdate.room.status).toBe('in_match');
+      expect(guestStarted.matchState.playerRole).toBe('opponent');
+    } finally {
+      await closeClient(host);
+      await closeClient(guest);
+    }
+  });
+
+  it('rejects match:start when the host tries to trigger the coin flip', async () => {
+    const { host, guest } = await setupReadyRoom();
+
+    try {
+      const hostErrorPromise = waitForAnySocketEvent(host, ['room:error', 'match:error']);
+      host.emit('match:start', { choice: 'cara' });
+
+      const result = await hostErrorPromise;
+      expect(result.eventName).toBe('room:error');
+      expect(result.payload.message).toContain('Solo el jugador invitado');
     } finally {
       await closeClient(host);
       await closeClient(guest);
