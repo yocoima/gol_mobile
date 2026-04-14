@@ -86,6 +86,38 @@ const waitForAnySocketEvent = (socket, eventNames, timeoutMs = 4000) =>
     socket.once('connect_error', onConnectError);
   });
 
+const waitForSocketEventMatching = (socket, eventName, matcher, timeoutMs = 4000) =>
+  new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      cleanup();
+      reject(new Error(`Timed out waiting for socket event "${eventName}" matching predicate`));
+    }, timeoutMs);
+
+    const onEvent = (payload) => {
+      if (!matcher(payload)) {
+        socket.once(eventName, onEvent);
+        return;
+      }
+
+      cleanup();
+      resolve(payload);
+    };
+
+    const onConnectError = (error) => {
+      cleanup();
+      reject(error);
+    };
+
+    const cleanup = () => {
+      clearTimeout(timeoutId);
+      socket.off(eventName, onEvent);
+      socket.off('connect_error', onConnectError);
+    };
+
+    socket.once(eventName, onEvent);
+    socket.once('connect_error', onConnectError);
+  });
+
 const startServer = async (extraEnv = {}) => {
   const port = await getFreePort();
   const serverProcess = spawn(process.execPath, ['server/index.js'], {
@@ -536,6 +568,195 @@ describe('online server integration', () => {
       expect(guestUpdate.matchState.lastEvent.type).toBe('save_success');
       expect(hostUpdate.matchState.lastEvent.type).toBe('save_success');
       expect(guestUpdate.matchState.currentTurn).toBe('opponent');
+    } finally {
+      await closeClient(host);
+      await closeClient(guest);
+    }
+  });
+
+  it('opens a red-card VAR window online after a foul response', async () => {
+    const preset = createTestPreset({
+      playerHand: ['tr', 'pc', 'pc', 'pc', 'pc'],
+      opponentHand: ['var', 'pc', 'pc', 'pc', 'pc'],
+      deck: ['pc', 'pc', 'pc', 'pc', 'pc', 'pc'],
+      currentTurn: 'player',
+      possession: 'player',
+      pendingDefense: {
+        defender: 'opponent',
+        possessor: 'player',
+        defenseCardId: 'fa'
+      }
+    });
+    const { host, guest } = await setupStartedMatch({ TEST_MATCH_PRESET: preset });
+
+    try {
+      const hostUpdatePromise = waitForSocketEvent(host, 'match:updated');
+      const guestUpdatePromise = waitForSocketEvent(guest, 'match:updated');
+      host.emit('match:play_card', { index: 0 });
+
+      const [hostUpdate, guestUpdate] = await Promise.all([hostUpdatePromise, guestUpdatePromise]);
+      expect(hostUpdate.matchState.pendingDefense.defenseCardId).toBe('red_card_var');
+      expect(guestUpdate.matchState.pendingDefense.defenseCardId).toBe('red_card_var');
+      expect(hostUpdate.matchState.currentTurn).toBe('opponent');
+      expect(guestUpdate.matchState.currentTurn).toBe('opponent');
+    } finally {
+      await closeClient(host);
+      await closeClient(guest);
+    }
+  });
+
+  it('lets the defender cancel a red card with VAR online', async () => {
+    const preset = createTestPreset({
+      playerHand: ['pc', 'pc', 'pc', 'pc', 'pc'],
+      opponentHand: ['var', 'pc', 'pc', 'pc', 'pc'],
+      deck: ['pc', 'pc', 'pc', 'pc', 'pc', 'pc'],
+      currentTurn: 'opponent',
+      possession: 'player',
+      pendingDefense: {
+        defender: 'opponent',
+        possessor: 'player',
+        defenseCardId: 'red_card_var'
+      },
+      activePlay: [{ id: 'pc_auto', name: 'Pase Corto', value: 1, color: 'bg-emerald-500' }]
+    });
+    const { host, guest } = await setupStartedMatch({ TEST_MATCH_PRESET: preset });
+
+    try {
+      const guestUpdatePromise = waitForSocketEvent(guest, 'match:updated');
+      const hostUpdatePromise = waitForSocketEvent(host, 'match:updated');
+      guest.emit('match:play_card', { index: 0 });
+
+      const [guestUpdate, hostUpdate] = await Promise.all([guestUpdatePromise, hostUpdatePromise]);
+      expect(guestUpdate.matchState.pendingDefense).toBeNull();
+      expect(hostUpdate.matchState.pendingDefense).toBeNull();
+      expect(guestUpdate.matchState.currentTurn).toBe('opponent');
+      expect(hostUpdate.matchState.currentTurn).toBe('opponent');
+      expect(guestUpdate.matchState.activePlay).toEqual([]);
+    } finally {
+      await closeClient(host);
+      await closeClient(guest);
+    }
+  });
+
+  it('lets the defender cancel a penalty with VAR online', async () => {
+    const preset = createTestPreset({
+      playerHand: ['pc', 'pc', 'pc', 'pc', 'pc'],
+      opponentHand: ['var', 'pc', 'pc', 'pc', 'pc'],
+      deck: ['pc', 'pc', 'pc', 'pc', 'pc', 'pc'],
+      currentTurn: 'opponent',
+      possession: 'player',
+      pendingShot: {
+        attacker: 'player',
+        defender: 'opponent',
+        shotType: 'penalty',
+        phase: 'penalty_response'
+      }
+    });
+    const { host, guest } = await setupStartedMatch({ TEST_MATCH_PRESET: preset });
+
+    try {
+      const guestUpdatePromise = waitForSocketEvent(guest, 'match:updated');
+      const hostUpdatePromise = waitForSocketEvent(host, 'match:updated');
+      guest.emit('match:play_card', { index: 0 });
+
+      const [guestUpdate, hostUpdate] = await Promise.all([guestUpdatePromise, hostUpdatePromise]);
+      expect(guestUpdate.matchState.pendingShot).toBeNull();
+      expect(hostUpdate.matchState.pendingShot).toBeNull();
+      expect(guestUpdate.matchState.currentTurn).toBe('opponent');
+      expect(hostUpdate.matchState.currentTurn).toBe('opponent');
+      expect(guestUpdate.matchState.possession).toBe('opponent');
+      expect(hostUpdate.matchState.possession).toBe('opponent');
+    } finally {
+      await closeClient(host);
+      await closeClient(guest);
+    }
+  });
+
+  it('opens and resolves the blind discard flow after a red-card foul online', async () => {
+    const preset = createTestPreset({
+      playerHand: ['tr', 'pc', 'pc', 'pc', 'pc'],
+      opponentHand: ['pc', 'pl', 'pa', 'pc', 'pc'],
+      deck: ['pc', 'pc', 'pc', 'pc', 'pc', 'pc'],
+      currentTurn: 'player',
+      possession: 'player',
+      pendingDefense: {
+        defender: 'opponent',
+        possessor: 'player',
+        defenseCardId: 'fa'
+      }
+    });
+    const { host, guest } = await setupStartedMatch({ TEST_MATCH_PRESET: preset });
+
+    try {
+      const hostPenaltyPromise = waitForSocketEvent(host, 'match:updated');
+      const guestPenaltyPromise = waitForSocketEvent(guest, 'match:updated');
+      host.emit('match:play_card', { index: 0 });
+
+      const [hostPenaltyUpdate, guestPenaltyUpdate] = await Promise.all([hostPenaltyPromise, guestPenaltyPromise]);
+      expect(hostPenaltyUpdate.matchState.pendingBlindDiscard).not.toBeNull();
+      expect(guestPenaltyUpdate.matchState.pendingBlindDiscard).not.toBeNull();
+      expect(hostPenaltyUpdate.matchState.redCardPenalty.opponent).toBe(3);
+      expect(guestPenaltyUpdate.matchState.redCardPenalty.opponent).toBe(3);
+
+      const hostDiscardPromise = waitForSocketEvent(host, 'match:updated');
+      const guestDiscardPromise = waitForSocketEvent(guest, 'match:updated');
+      host.emit('match:play_card', { index: 1 });
+
+      const [hostDiscardUpdate, guestDiscardUpdate] = await Promise.all([hostDiscardPromise, guestDiscardPromise]);
+      expect(hostDiscardUpdate.matchState.pendingBlindDiscard).toBeNull();
+      expect(guestDiscardUpdate.matchState.pendingBlindDiscard).toBeNull();
+      expect(hostDiscardUpdate.matchState.currentTurn).toBe('player');
+      expect(Array.isArray(hostDiscardUpdate.matchState.recentActions)).toBe(true);
+      expect(hostDiscardUpdate.matchState.recentActions.some((action) => action.type === 'discard')).toBe(true);
+    } finally {
+      await closeClient(host);
+      await closeClient(guest);
+    }
+  });
+
+  it('terminates an online match and resets the room back to waiting/ready state', async () => {
+    const { host, guest } = await setupStartedMatch();
+
+    try {
+      const guestTerminatedPromise = waitForSocketEvent(guest, 'match:terminated');
+      const hostRoomUpdatedPromise = waitForSocketEventMatching(host, 'room:updated', (payload) => payload.room.status === 'ready');
+      const guestRoomUpdatedPromise = waitForSocketEventMatching(guest, 'room:updated', (payload) => payload.room.status === 'ready');
+      host.emit('match:terminate');
+
+      const [guestTerminated, hostRoomUpdated, guestRoomUpdated] = await Promise.all([
+        guestTerminatedPromise,
+        hostRoomUpdatedPromise,
+        guestRoomUpdatedPromise
+      ]);
+
+      expect(guestTerminated.message).toContain('termino la partida');
+      expect(hostRoomUpdated.room.status).toBe('ready');
+      expect(guestRoomUpdated.room.status).toBe('ready');
+      expect(hostRoomUpdated.room.hasMatch).toBe(false);
+      expect(guestRoomUpdated.room.hasMatch).toBe(false);
+    } finally {
+      await closeClient(host);
+      await closeClient(guest);
+    }
+  });
+
+  it('removes a player from the room when they leave explicitly online', async () => {
+    const { host, guest, roomCode, baseUrl } = await setupReadyRoom();
+
+    try {
+      const hostRoomUpdatedPromise = waitForSocketEvent(host, 'room:updated');
+      guest.emit('room:leave');
+      const hostRoomUpdated = await hostRoomUpdatedPromise;
+
+      expect(hostRoomUpdated.room.playerCount).toBe(1);
+      expect(hostRoomUpdated.room.status).toBe('waiting');
+      expect(hostRoomUpdated.room.players.map((player) => player.name)).toEqual(['Host']);
+
+      const roomsResponse = await fetch(`${baseUrl}/rooms`);
+      const roomsBody = await roomsResponse.json();
+      expect(roomsBody.rooms).toHaveLength(1);
+      expect(roomsBody.rooms[0].code).toBe(roomCode);
+      expect(roomsBody.rooms[0].playerCount).toBe(1);
     } finally {
       await closeClient(host);
       await closeClient(guest);
