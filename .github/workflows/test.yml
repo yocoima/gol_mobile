@@ -1,0 +1,32 @@
+name: Test Suite
+
+on:
+  push:
+    branches:
+      - main
+      - feature/**
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  vitest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Root Dependencies
+        run: npm ci
+
+      - name: Install Server Dependencies
+        run: npm --prefix server ci
+
+      - name: Run Vitest
+        run: npm test
