@@ -3025,14 +3025,22 @@ export default function App() {
           className="z-10 flex w-full max-w-4xl items-center justify-center gap-4 px-4 max-sm:gap-2 max-sm:px-1"
           style={{ transform: 'translateY(8%)' }}
         >
-          <div className="flex min-h-[150px] flex-1 justify-center overflow-visible py-6 max-sm:min-h-[118px] max-sm:py-3">
+          <div className="flex min-h-[150px] flex-1 items-end justify-center overflow-visible py-6 max-sm:min-h-[118px] max-sm:py-3">
             {tablePlay.length === 0 ? (
               null
             ) : (
               tablePlay.map((card, index) => {
                 const isRivalCard = card.tableActor === 'opponent';
-                const overlapOffset = index === 0 ? '0px' : '-18px';
-                const verticalLift = isRivalCard ? '22px' : '0px';
+                const previousActor = index > 0 ? tablePlay[index - 1]?.tableActor : null;
+                const overlapOffset =
+                  index === 0
+                    ? '0px'
+                    : isRivalCard
+                      ? '-26px'
+                      : previousActor === 'opponent'
+                        ? '-18px'
+                        : '6px';
+                const verticalLift = isRivalCard ? '24px' : '0px';
 
                 return (
                   <div
