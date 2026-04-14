@@ -2,7 +2,7 @@ import cors from 'cors';
 import express from 'express';
 import { createServer } from 'node:http';
 import { Server } from 'socket.io';
-import { createInitialMatchState, PRE_SHOT_DEFENSE_CARD_IDS } from '../shared/game/core.js';
+import { BASE_DECK_DEFINITION, createInitialMatchState, PRE_SHOT_DEFENSE_CARD_IDS } from '../shared/game/core.js';
 import { applyEndTurnAction, applyPlayCardAction } from '../shared/game/engine.js';
 import {
   getBlindDiscardPlan,
@@ -71,6 +71,66 @@ const serverDebugLog = (message, extra = {}) => {
 };
 
 const createRoomCode = () => Math.random().toString(36).slice(2, 8).toUpperCase();
+const deckCardById = new Map(BASE_DECK_DEFINITION.map((card) => [card.id, card]));
+
+const createCardInstance = (cardId, suffix) => {
+  const baseCard = deckCardById.get(cardId);
+  if (!baseCard) {
+    throw new Error(`Unknown test card id: ${cardId}`);
+  }
+
+  return {
+    ...baseCard,
+    instanceId: `${cardId}-${suffix}-${Math.random().toString(36).slice(2, 8)}`
+  };
+};
+
+const parseTestMatchPreset = () => {
+  if (!process.env.TEST_MATCH_PRESET) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(process.env.TEST_MATCH_PRESET);
+  } catch (error) {
+    console.warn('[gol-server] Invalid TEST_MATCH_PRESET JSON', error);
+    return null;
+  }
+};
+
+const createMatchStateForRoom = (startingPlayer) => {
+  const preset = parseTestMatchPreset();
+  if (!preset) {
+    return createInitialMatchState({ startingPlayer });
+  }
+
+  const baseState = createInitialMatchState({ startingPlayer });
+  const playerHand = Array.isArray(preset.playerHand)
+    ? preset.playerHand.map((cardId, index) => createCardInstance(cardId, `player-${index}`))
+    : baseState.playerHand;
+  const opponentHand = Array.isArray(preset.opponentHand)
+    ? preset.opponentHand.map((cardId, index) => createCardInstance(cardId, `opponent-${index}`))
+    : baseState.opponentHand;
+  const deck = Array.isArray(preset.deck)
+    ? preset.deck.map((cardId, index) => createCardInstance(cardId, `deck-${index}`))
+    : baseState.deck;
+
+  return {
+    ...baseState,
+    playerHand,
+    opponentHand,
+    deck,
+    currentTurn: preset.currentTurn ?? baseState.currentTurn,
+    possession: preset.possession ?? baseState.possession,
+    activePlay: preset.activePlay ?? baseState.activePlay,
+    pendingShot: preset.pendingShot ?? baseState.pendingShot,
+    pendingDefense: preset.pendingDefense ?? baseState.pendingDefense,
+    pendingCombo: preset.pendingCombo ?? baseState.pendingCombo,
+    pendingBlindDiscard: preset.pendingBlindDiscard ?? baseState.pendingBlindDiscard,
+    hasActedThisTurn: preset.hasActedThisTurn ?? baseState.hasActedThisTurn,
+    bonusTurnFor: preset.bonusTurnFor ?? baseState.bonusTurnFor
+  };
+};
 
 const getClientIdFromSocket = (socket) => {
   const authClientId = socket.handshake.auth?.clientId;
@@ -724,7 +784,7 @@ io.on('connection', (socket) => {
     const result = Math.random() > 0.5 ? 'Cara' : 'Sello';
     const invitedWon = invitedChoice === result;
     const starter = invitedWon ? 'opponent' : 'player';
-    room.matchState = createInitialMatchState({ startingPlayer: starter });
+    room.matchState = createMatchStateForRoom(starter);
     room.matchState.playerNames = {
       player: room.players[0]?.name ?? 'Jugador 1',
       opponent: room.players[1]?.name ?? 'Jugador 2'

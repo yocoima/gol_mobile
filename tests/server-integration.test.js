@@ -86,14 +86,15 @@ const waitForAnySocketEvent = (socket, eventNames, timeoutMs = 4000) =>
     socket.once('connect_error', onConnectError);
   });
 
-const startServer = async () => {
+const startServer = async (extraEnv = {}) => {
   const port = await getFreePort();
   const serverProcess = spawn(process.execPath, ['server/index.js'], {
     cwd: process.cwd(),
     env: {
       ...process.env,
       PORT: String(port),
-      DISCONNECT_GRACE_MS: '250'
+      DISCONNECT_GRACE_MS: '250',
+      ...extraEnv
     },
     stdio: ['ignore', 'pipe', 'pipe']
   });
@@ -165,8 +166,8 @@ const closeClient = async (socket) => {
   await wait(20);
 };
 
-const setupReadyRoom = async () => {
-  const { baseUrl } = await startServer();
+const setupReadyRoom = async (extraEnv = {}) => {
+  const { baseUrl } = await startServer(extraEnv);
   const host = await createClient(baseUrl, 'host-client');
   const guest = await createClient(baseUrl, 'guest-client');
 
@@ -182,8 +183,8 @@ const setupReadyRoom = async () => {
   return { baseUrl, host, guest, roomCode: roomCreated.room.code };
 };
 
-const setupStartedMatch = async () => {
-  const { host, guest, roomCode, baseUrl } = await setupReadyRoom();
+const setupStartedMatch = async (extraEnv = {}) => {
+  const { host, guest, roomCode, baseUrl } = await setupReadyRoom(extraEnv);
   const hostStartedPromise = waitForSocketEvent(host, 'match:started');
   const guestStartedPromise = waitForSocketEvent(guest, 'match:started');
   guest.emit('match:start', { choice: 'cara' });
@@ -198,6 +199,8 @@ const setupStartedMatch = async () => {
     guestStarted
   };
 };
+
+const createTestPreset = (preset) => JSON.stringify(preset);
 
 afterEach(async () => {
   while (serverProcesses.length > 0) {
@@ -383,7 +386,14 @@ describe('online server integration', () => {
   });
 
   it('applies a valid play_card action and syncs the updated match state to both players', async () => {
-    const { host, guest, hostStarted, guestStarted } = await setupStartedMatch();
+    const preset = createTestPreset({
+      playerHand: ['pc', 'pl', 'pa', 'pc', 'tg'],
+      opponentHand: ['pc', 'pc', 'pc', 'pc', 'pc'],
+      deck: ['pc', 'pc', 'pc', 'pc', 'pc', 'pc'],
+      currentTurn: 'player',
+      possession: 'player'
+    });
+    const { host, guest, hostStarted, guestStarted } = await setupStartedMatch({ TEST_MATCH_PRESET: preset });
 
     try {
       const currentTurn = hostStarted.matchState.currentTurn;
@@ -392,7 +402,7 @@ describe('online server integration', () => {
       const actorStart = currentTurn === 'player' ? hostStarted : guestStarted;
 
       const playableIndex = actorStart.matchState.yourHand.findIndex((card) =>
-        ['pc', 'pl', 'pa', 'pe', 'sc', 'ch', 'tg'].includes(card.id)
+        ['pc', 'pl', 'pa', 'pe'].includes(card.id)
       );
 
       expect(playableIndex).toBeGreaterThanOrEqual(0);
@@ -426,6 +436,106 @@ describe('online server integration', () => {
       const result = await hostErrorPromise;
       expect(result.eventName).toBe('room:error');
       expect(result.payload.message).toContain('Solo el jugador invitado');
+    } finally {
+      await closeClient(host);
+      await closeClient(guest);
+    }
+  });
+
+  it('opens an offside VAR response online with deterministic test hands', async () => {
+    const preset = createTestPreset({
+      playerHand: ['var', 'pc', 'pc', 'pc', 'tg'],
+      opponentHand: ['off', 'pc', 'pc', 'pc', 'pc'],
+      deck: ['pc', 'pc', 'pc', 'pc', 'pc', 'pc'],
+      currentTurn: 'opponent',
+      possession: 'opponent',
+      pendingShot: {
+        attacker: 'player',
+        defender: 'opponent',
+        shotType: 'regular',
+        phase: 'save',
+        allowOffside: true
+      }
+    });
+    const { host, guest } = await setupStartedMatch({ TEST_MATCH_PRESET: preset });
+
+    try {
+      const guestUpdatePromise = waitForSocketEvent(guest, 'match:updated');
+      const hostUpdatePromise = waitForSocketEvent(host, 'match:updated');
+      guest.emit('match:play_card', { index: 0 });
+
+      const [guestUpdate, hostUpdate] = await Promise.all([guestUpdatePromise, hostUpdatePromise]);
+      expect(guestUpdate.matchState.pendingShot.phase).toBe('offside_var');
+      expect(hostUpdate.matchState.pendingShot.phase).toBe('offside_var');
+      expect(guestUpdate.matchState.currentTurn).toBe('player');
+      expect(hostUpdate.matchState.currentTurn).toBe('player');
+    } finally {
+      await closeClient(host);
+      await closeClient(guest);
+    }
+  });
+
+  it('lets the attacker answer offside with VAR online and returns to the save phase', async () => {
+    const preset = createTestPreset({
+      playerHand: ['var', 'pc', 'pc', 'pc', 'pc'],
+      opponentHand: ['paq', 'pc', 'pc', 'pc', 'pc'],
+      deck: ['pc', 'pc', 'pc', 'pc', 'pc', 'pc'],
+      currentTurn: 'player',
+      possession: 'player',
+      pendingShot: {
+        attacker: 'player',
+        defender: 'opponent',
+        shotType: 'regular',
+        phase: 'offside_var',
+        allowOffside: false
+      }
+    });
+    const { host, guest } = await setupStartedMatch({ TEST_MATCH_PRESET: preset });
+
+    try {
+      const hostUpdatePromise = waitForSocketEvent(host, 'match:updated');
+      const guestUpdatePromise = waitForSocketEvent(guest, 'match:updated');
+      host.emit('match:play_card', { index: 0 });
+
+      const [hostUpdate, guestUpdate] = await Promise.all([hostUpdatePromise, guestUpdatePromise]);
+      expect(hostUpdate.matchState.pendingShot.phase).toBe('save');
+      expect(guestUpdate.matchState.pendingShot.phase).toBe('save');
+      expect(hostUpdate.matchState.currentTurn).toBe('opponent');
+      expect(guestUpdate.matchState.currentTurn).toBe('opponent');
+    } finally {
+      await closeClient(host);
+      await closeClient(guest);
+    }
+  });
+
+  it('records a successful goalkeeper save online when there is no remate available', async () => {
+    const preset = createTestPreset({
+      playerHand: ['pc', 'pc', 'pc', 'pc', 'pc'],
+      opponentHand: ['paq', 'pc', 'pc', 'pc', 'pc'],
+      deck: ['pc', 'pc', 'pc', 'pc', 'pc', 'pc'],
+      currentTurn: 'opponent',
+      possession: 'opponent',
+      pendingShot: {
+        attacker: 'player',
+        defender: 'opponent',
+        shotType: 'regular',
+        phase: 'save',
+        allowOffside: false
+      }
+    });
+    const { host, guest } = await setupStartedMatch({ TEST_MATCH_PRESET: preset });
+
+    try {
+      const guestUpdatePromise = waitForSocketEvent(guest, 'match:updated');
+      const hostUpdatePromise = waitForSocketEvent(host, 'match:updated');
+      guest.emit('match:play_card', { index: 0 });
+
+      const [guestUpdate, hostUpdate] = await Promise.all([guestUpdatePromise, hostUpdatePromise]);
+      expect(guestUpdate.matchState.pendingShot).toBeNull();
+      expect(hostUpdate.matchState.pendingShot).toBeNull();
+      expect(guestUpdate.matchState.lastEvent.type).toBe('save_success');
+      expect(hostUpdate.matchState.lastEvent.type).toBe('save_success');
+      expect(guestUpdate.matchState.currentTurn).toBe('opponent');
     } finally {
       await closeClient(host);
       await closeClient(guest);
