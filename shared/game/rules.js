@@ -95,8 +95,8 @@ export const getCardPenaltyResponsePlan = ({ actor, defender, cardId }) => {
     sanctionActor: defender,
     sanction: createRedCardSanction(3),
     penaltyTurns: 3,
-    blindDiscardReason: 'Tarjeta Roja: el jugador sancionado descarta 1 carta cubierta elegida por el rival.',
-    logMessage: 'Tarjeta Roja: mantienes la posesion y el rival jugara con 4 cartas durante 3 turnos.'
+    blindDiscardReason: 'Tarjeta Roja: el rival juega con 4 cartas durante 3 turnos. Elige 1 de sus cartas para descartarla.',
+    logMessage: 'Tarjeta Roja: el rival jugara con 4 cartas durante 3 turnos. Ahora elige 1 carta rival para descartarla.'
   };
 };
 

@@ -1256,7 +1256,9 @@ export default function App() {
   };
   const reactionBannerMessage =
     pendingBlindDiscard
-      ? `DESCARTE OCULTO: ${pendingBlindDiscard.actor === 'player' ? 'JUGADOR' : 'RIVAL'} ELIGE UNA CARTA DEL ${blindDiscardTargetActor === 'player' ? 'JUGADOR' : 'RIVAL'}`
+      ? pendingBlindDiscard.reason?.toLowerCase?.().includes('tarjeta roja')
+        ? `ROJA: ${pendingBlindDiscard.actor === 'player' ? 'JUGADOR' : 'RIVAL'} ELIGE 1 CARTA DEL ${blindDiscardTargetActor === 'player' ? 'JUGADOR' : 'RIVAL'}`
+        : `DESCARTE OCULTO: ${pendingBlindDiscard.actor === 'player' ? 'JUGADOR' : 'RIVAL'} ELIGE UNA CARTA DEL ${blindDiscardTargetActor === 'player' ? 'JUGADOR' : 'RIVAL'}`
       : pendingShot?.phase === 'penalty_response'
         ? `VENTANA DE RESPUESTA DEL ${pendingShot.defender === 'player' ? 'JUGADOR' : 'RIVAL'}: PENALTI`
         : pendingShot?.phase === 'offside_var'
@@ -1295,6 +1297,14 @@ export default function App() {
     rawStatusBannerMessage && rawStatusBannerMessage.toLowerCase().includes('empieza la jugada')
       ? null
       : rawStatusBannerMessage;
+  const playerRedCardStatus =
+    sanctions.player?.type === 'red' || redCardPenalty.player > 0
+      ? `ROJA: ${redCardPenalty.player || sanctions.player?.turnsRemaining || 0} turnos con 4 cartas`
+      : null;
+  const opponentRedCardStatus =
+    sanctions.opponent?.type === 'red' || redCardPenalty.opponent > 0
+      ? `ROJA: ${redCardPenalty.opponent || sanctions.opponent?.turnsRemaining || 0} turnos con 4 cartas`
+      : null;
   const comboWindow =
     pendingCombo?.type === 'chilena_followup'
       ? {
@@ -1855,10 +1865,13 @@ export default function App() {
     if (pendingBlindDiscard?.actor) {
       const chooserLabel = getActorLabel(pendingBlindDiscard.actor);
       const targetLabel = getActorLabel(blindDiscardTargetActor);
+      const isRedCardDiscard = pendingBlindDiscard.reason?.toLowerCase?.().includes('tarjeta roja');
       nextHint = {
         key: `blind-${pendingBlindDiscard.actor}-${blindDiscardTargetActor}-${pendingBlindDiscard.reason || ''}`,
         actor: pendingBlindDiscard.actor,
-        text: `${chooserLabel} elige 1 carta para descarte de ${targetLabel}.`
+        text: isRedCardDiscard
+          ? `${chooserLabel} elige 1 carta para descarte de ${targetLabel}. Roja activa por 3 turnos con 4 cartas.`
+          : `${chooserLabel} elige 1 carta para descarte de ${targetLabel}.`
       };
     } else if (pendingDefense?.defenseCardId === 'ba') {
       nextHint = {
@@ -2870,6 +2883,11 @@ export default function App() {
               <span className="mt-1 block text-[10px] font-black uppercase tracking-widest text-yellow-500 max-sm:mt-0.5 max-sm:text-[7px]">
                 Puntos jugada: {getPassTrackerTotal('player')} / 4
               </span>
+              {playerRedCardStatus ? (
+                <div className="mt-1 inline-flex max-w-[180px] rounded-full border border-red-200/75 bg-red-500/90 px-2.5 py-1 text-center text-[9px] font-black uppercase tracking-[0.14em] text-white shadow-[0_8px_18px_rgba(127,29,29,0.35)] max-sm:max-w-[108px] max-sm:px-1.5 max-sm:py-0.5 max-sm:text-[6px]">
+                  {playerRedCardStatus}
+                </div>
+              ) : null}
               {sanctions.player && (
                 <div
                   className={`mt-2 hidden max-w-[220px] items-start gap-2 rounded-xl border px-3 py-2 text-left shadow-lg sm:flex ${
@@ -2938,6 +2956,11 @@ export default function App() {
               <span className="mt-1 block text-[10px] font-black uppercase tracking-widest text-yellow-500 max-sm:mt-0.5 max-sm:text-[7px]">
                 Puntos jugada: {getPassTrackerTotal('opponent')} / 4
               </span>
+              {opponentRedCardStatus ? (
+                <div className="mt-1 inline-flex max-w-[180px] rounded-full border border-red-200/75 bg-red-500/90 px-2.5 py-1 text-center text-[9px] font-black uppercase tracking-[0.14em] text-white shadow-[0_8px_18px_rgba(127,29,29,0.35)] max-sm:max-w-[108px] max-sm:px-1.5 max-sm:py-0.5 max-sm:text-[6px]">
+                  {opponentRedCardStatus}
+                </div>
+              ) : null}
               {sanctions.opponent && (
                 <div
                   className={`mt-2 hidden max-w-[220px] items-start gap-2 rounded-xl border px-3 py-2 text-left shadow-lg sm:flex ${
