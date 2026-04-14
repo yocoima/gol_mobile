@@ -1720,6 +1720,36 @@ export default function App() {
     clearDribbleAnimation();
   };
 
+  const copyOnlineRoomCode = async () => {
+    const codeToCopy = onlineRoomCode?.trim();
+
+    if (!codeToCopy) {
+      setOnlineError('No hay un codigo de sala para copiar.');
+      return;
+    }
+
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(codeToCopy);
+      } else {
+        const tempInput = document.createElement('textarea');
+        tempInput.value = codeToCopy;
+        tempInput.setAttribute('readonly', '');
+        tempInput.style.position = 'absolute';
+        tempInput.style.left = '-9999px';
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        document.execCommand('copy');
+        document.body.removeChild(tempInput);
+      }
+
+      setSystemNotice('Codigo de invitacion copiado.');
+      setOnlineError('');
+    } catch (error) {
+      setOnlineError('No se pudo copiar el codigo de sala.');
+    }
+  };
+
   const startOnlineMatchWithChoice = (choice) => {
     if (!socketRef.current) {
       setOnlineError('No hay conexion con el servidor online.');
@@ -3235,8 +3265,16 @@ export default function App() {
                   </div>
                   {onlineRoomCode ? (
                     <div className="mt-3 space-y-3">
-                      <div className="text-xs font-black uppercase tracking-[0.2em] text-white/70">
-                        Sala: {onlineRoomCode}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="text-xs font-black uppercase tracking-[0.2em] text-white/70">
+                          Sala: {onlineRoomCode}
+                        </div>
+                        <button
+                          onClick={copyOnlineRoomCode}
+                          className="rounded-lg border border-cyan-300/25 bg-cyan-400/10 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-cyan-200 transition-all hover:bg-cyan-400/20"
+                        >
+                          COPIAR CODIGO
+                        </button>
                       </div>
                       <div className="rounded-lg border border-white/8 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-white/60">
                         {onlineRoom?.playerCount === 2
@@ -3296,12 +3334,14 @@ export default function App() {
                   ) : null}
                 </div>
                   <div className="flex flex-wrap items-center justify-center gap-4">
-                    <button
-                      onClick={() => startFromMenu(true)}
-                      className="flex items-center gap-3 rounded-2xl bg-cyan-400 px-8 py-4 text-sm font-black text-slate-950 transition-all hover:bg-cyan-300"
-                    >
-                      <Bot size={18} /> JUGAR CONTRA IA
-                    </button>
+                    {!onlineRoomCode ? (
+                      <button
+                        onClick={() => startFromMenu(true)}
+                        className="flex items-center gap-3 rounded-2xl bg-cyan-400 px-8 py-4 text-sm font-black text-slate-950 transition-all hover:bg-cyan-300"
+                      >
+                        <Bot size={18} /> JUGAR CONTRA IA
+                      </button>
+                    ) : null}
                     <button
                       onClick={() => setGameState('tutorial')}
                       className="flex items-center gap-3 rounded-2xl border border-white/15 bg-white/5 px-8 py-4 text-sm font-black text-white transition-all hover:bg-white/10"
