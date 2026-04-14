@@ -219,6 +219,22 @@ const refillActorHandToLimit = (matchState, actor, targetLimit) => {
 
 const getHandKey = (actor) => (actor === 'player' ? 'playerHand' : 'opponentHand');
 const createEventId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+const appendCardToActivePlay = (matchState, card) => {
+  if (!card) {
+    return;
+  }
+
+  matchState.activePlay = [...matchState.activePlay, card];
+};
+const shouldResetTableForNewSequence = (matchState, actor, playType) =>
+  ['pass-play', 'special-corner', 'special-chilena', 'shoot-card', 'penalty-card'].includes(playType) &&
+  matchState.possession === actor &&
+  !matchState.pendingShot &&
+  !matchState.pendingDefense &&
+  !matchState.pendingBlindDiscard &&
+  !matchState.pendingCombo &&
+  !matchState.hasActedThisTurn &&
+  matchState.activePlay.length > 0;
 const getExpectedActor = (matchState) => {
   if (matchState.pendingBlindDiscard?.actor) {
     return matchState.pendingBlindDiscard.actor;
@@ -424,6 +440,7 @@ const startShotResolution = (matchState, attacker, shotType) => {
 const startDefenseResolution = (matchState, defender, defenseCard) => {
   const possessor = getOpponent(defender);
   const possessorHand = matchState[getHandKey(possessor)];
+  appendCardToActivePlay(matchState, defenseCard);
   const defensePlan = getDefenseResolutionPlan({
     defender,
     defenseCardId: defenseCard.id,
@@ -439,7 +456,9 @@ const startDefenseResolution = (matchState, defender, defenseCard) => {
     return;
   }
 
+  const visibleSequence = [...matchState.activePlay];
   clearTransientState(matchState);
+  matchState.activePlay = visibleSequence;
   matchState.possession = defensePlan.nextPossession;
   matchState.currentTurn = defensePlan.nextTurn;
   matchState.hasActedThisTurn = true;
@@ -947,12 +966,21 @@ io.on('connection', (socket) => {
       return;
     }
 
+    if (shouldResetTableForNewSequence(room.matchState, actor, playCardAction.type)) {
+      room.matchState.activePlay = [];
+    }
+
     consumeCard(room.matchState, actor, index, card);
 
     if (playCardAction.type === 'red-card-var-response') {
+      appendCardToActivePlay(room.matchState, card);
       room.matchState.sanctions[actor] = null;
       if (playCardAction.plan.clearTransientState) {
-        clearTransientState(room.matchState);
+        room.matchState.pendingShot = null;
+        room.matchState.pendingDefense = null;
+        room.matchState.pendingCombo = null;
+        room.matchState.bonusTurnFor = null;
+        room.matchState.counterAttackReady = false;
       }
       applyStatePatch(room.matchState, playCardAction.statePatch);
       emitMatchState(io, room);
@@ -960,6 +988,7 @@ io.on('connection', (socket) => {
     }
 
     if (playCardAction.type === 'defense-response') {
+      appendCardToActivePlay(room.matchState, card);
       const pendingDefenseBeforePatch = room.matchState.pendingDefense;
       applyStatePatch(room.matchState, playCardAction.statePatch);
 
@@ -999,8 +1028,13 @@ io.on('connection', (socket) => {
     }
 
     if (playCardAction.type === 'penalty-response' || playCardAction.type === 'save-response') {
+      appendCardToActivePlay(room.matchState, card);
       if (playCardAction.plan.type === 'turn-change' && playCardAction.plan.clearTransientState) {
-        clearTransientState(room.matchState);
+        room.matchState.pendingShot = null;
+        room.matchState.pendingDefense = null;
+        room.matchState.pendingCombo = null;
+        room.matchState.bonusTurnFor = null;
+        room.matchState.counterAttackReady = false;
       }
       if (playCardAction.type === 'save-response' && card.id === 'paq' && playCardAction.plan.type === 'turn-change') {
         room.matchState.lastEvent = { id: createEventId(), type: 'save_success', actor };
@@ -1011,6 +1045,7 @@ io.on('connection', (socket) => {
     }
 
     if (playCardAction.type === 'offside-var-response') {
+      appendCardToActivePlay(room.matchState, card);
       if (playCardAction.plan.type === 'goal') {
         applyGoal(room.matchState, playCardAction.plan.scorer, playCardAction.plan.reason);
       } else {
@@ -1021,6 +1056,7 @@ io.on('connection', (socket) => {
     }
 
     if (playCardAction.type === 'remate-response') {
+      appendCardToActivePlay(room.matchState, card);
       applyStatePatch(room.matchState, playCardAction.statePatch);
       startShotResolution(room.matchState, actor, 'remate');
       emitMatchState(io, room);
@@ -1028,7 +1064,7 @@ io.on('connection', (socket) => {
     }
 
     if (playCardAction.type === 'pass-play') {
-      room.matchState.activePlay = [...room.matchState.activePlay, card];
+      appendCardToActivePlay(room.matchState, card);
       applyStatePatch(room.matchState, playCardAction.statePatch);
 
       if (playCardAction.plan.preShotWindow?.open && playCardAction.plan.preShotWindow.needsDefenseWindow) {
@@ -1043,12 +1079,14 @@ io.on('connection', (socket) => {
     }
 
     if (playCardAction.type === 'special-corner' || playCardAction.type === 'special-chilena') {
+      appendCardToActivePlay(room.matchState, card);
       applyStatePatch(room.matchState, playCardAction.statePatch);
       emitMatchState(io, room);
       return;
     }
 
     if (playCardAction.type === 'shoot-card') {
+      appendCardToActivePlay(room.matchState, card);
       applyStatePatch(room.matchState, playCardAction.statePatch);
       if (room.matchState.pendingCombo?.type === 'chilena_followup') {
         room.matchState.pendingCombo = null;
@@ -1069,6 +1107,7 @@ io.on('connection', (socket) => {
     }
 
     if (playCardAction.type === 'penalty-card') {
+      appendCardToActivePlay(room.matchState, card);
       applyStatePatch(room.matchState, playCardAction.statePatch);
       startShotResolution(room.matchState, actor, 'penalty');
       emitMatchState(io, room);

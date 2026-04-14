@@ -414,6 +414,14 @@ const TABLE_OVERLAY_CARD_IDS = new Set([
   'rem'
 ]);
 
+const TABLE_SEQUENCE_START_TYPES = new Set([
+  'pass-play',
+  'special-corner',
+  'special-chilena',
+  'shoot-card',
+  'penalty-card'
+]);
+
 const TutorialStepCard = ({ label }) => {
   const normalizedLabel = normalizeAssetName(label);
   const tutorialAliases = {
@@ -1469,6 +1477,24 @@ export default function App() {
     }
   };
 
+  const appendCardToActivePlay = (card) => {
+    if (!card) {
+      return;
+    }
+
+    setActivePlay((previousPlay) => [...previousPlay, card]);
+  };
+
+  const shouldResetTableForNewSequence = (actor, playType) =>
+    TABLE_SEQUENCE_START_TYPES.has(playType) &&
+    possession === actor &&
+    !pendingShot &&
+    !pendingDefense &&
+    !pendingBlindDiscard &&
+    !pendingCombo &&
+    !hasActedThisTurn &&
+    activePlay.length > 0;
+
   const hydrateFromOnlineState = (matchState) => {
     const swapActor = (actor) => (actor === 'player' ? 'opponent' : actor === 'opponent' ? 'player' : actor);
     const buildShowcaseFromActions = (actions = []) => {
@@ -2139,6 +2165,7 @@ export default function App() {
 
   const startDefenseResolution = (defender, defenseCard) => {
     const possessor = getOpponent(defender);
+    appendCardToActivePlay(defenseCard);
     const defensePlan = getDefenseResolutionPlan({
       defender,
       defenseCardId: defenseCard.id,
@@ -2157,7 +2184,9 @@ export default function App() {
       return;
     }
 
+    const visibleSequence = [...activePlay, defenseCard];
     clearTransientState();
+    setActivePlay(visibleSequence);
     setPossession(defensePlan.nextPossession);
     setCurrentTurn(defensePlan.nextTurn);
     setHasActedThisTurn(true);
@@ -2472,6 +2501,10 @@ export default function App() {
       return;
     }
 
+    if (shouldResetTableForNewSequence(actor, playCardAction.type)) {
+      setActivePlay([]);
+    }
+
     if (!skipSuccessAnimation && card.id === DRIBBLE_CARD_ID) {
       queueActionVideo(oleVideo, () => executePlayCard(card, index, isFromPlayer, { skipSuccessAnimation: true }));
       return;
@@ -2486,9 +2519,14 @@ export default function App() {
       const redCardVarPlan = playCardAction.plan;
 
       consumeCard(actor, index, card);
+      appendCardToActivePlay(card);
       clearSanctionFor(redCardVarPlan.clearSanctionFor);
       if (redCardVarPlan.clearTransientState) {
-        clearTransientState();
+        setPendingShot(null);
+        setPendingDefense(null);
+        setPendingCombo(null);
+        setBonusTurnFor(null);
+        setCounterAttackReady(false);
       }
       applyEngineStatePatch(playCardAction.statePatch);
       addLog(redCardVarPlan.logMessage);
@@ -2498,6 +2536,7 @@ export default function App() {
     if (playCardAction.type === 'defense-response') {
       const defenseResponsePlan = playCardAction.plan;
       consumeCard(actor, index, card);
+      appendCardToActivePlay(card);
 
       if (defenseResponsePlan.type === 'await-var') {
         applyEngineStatePatch(playCardAction.statePatch);
@@ -2542,6 +2581,7 @@ export default function App() {
 
     if (playCardAction.type === 'pre-shot-defense') {
         consumeCard(actor, index, card);
+        appendCardToActivePlay(card);
         setHasActedThisTurn(true);
         setDiscardMode(false);
         setSelectedForDiscard([]);
@@ -2552,10 +2592,15 @@ export default function App() {
     if (playCardAction.type === 'penalty-response') {
       const penaltyResponsePlan = playCardAction.plan;
       consumeCard(actor, index, card);
+      appendCardToActivePlay(card);
 
       if (penaltyResponsePlan.type === 'turn-change') {
         if (penaltyResponsePlan.clearTransientState) {
-          clearTransientState();
+          setPendingShot(null);
+          setPendingDefense(null);
+          setPendingCombo(null);
+          setBonusTurnFor(null);
+          setCounterAttackReady(false);
         }
         applyEngineStatePatch(playCardAction.statePatch);
         addLog(penaltyResponsePlan.logMessage);
@@ -2570,10 +2615,15 @@ export default function App() {
     if (playCardAction.type === 'save-response') {
       const saveResponsePlan = playCardAction.plan;
       consumeCard(actor, index, card);
+      appendCardToActivePlay(card);
 
       if (saveResponsePlan.type === 'turn-change') {
         if (saveResponsePlan.clearTransientState) {
-          clearTransientState();
+          setPendingShot(null);
+          setPendingDefense(null);
+          setPendingCombo(null);
+          setBonusTurnFor(null);
+          setCounterAttackReady(false);
         }
         applyEngineStatePatch(playCardAction.statePatch);
         if (card.id === GOALKEEPER_SAVE_CARD_ID) {
@@ -2596,6 +2646,7 @@ export default function App() {
     if (playCardAction.type === 'offside-var-response') {
       const offsideVarPlan = playCardAction.plan;
       consumeCard(actor, index, card);
+      appendCardToActivePlay(card);
 
       if (offsideVarPlan.type === 'goal') {
         scoreGoal(offsideVarPlan.scorer, offsideVarPlan.reason);
@@ -2609,6 +2660,7 @@ export default function App() {
 
     if (playCardAction.type === 'remate-response') {
         consumeCard(actor, index, card);
+        appendCardToActivePlay(card);
         applyEngineStatePatch(playCardAction.statePatch);
         startShotResolution(actor, 'remate');
         return;
@@ -2616,6 +2668,7 @@ export default function App() {
 
     if (playCardAction.type === 'steal-defense') {
       consumeCard(actor, index, card);
+      appendCardToActivePlay(card);
       applyEngineStatePatch(playCardAction.statePatch);
       startDefenseResolution(actor, card);
       return;
@@ -2624,7 +2677,7 @@ export default function App() {
     if (playCardAction.type === 'pass-play') {
       const passPlayPlan = playCardAction.plan;
       consumeCard(actor, index, card);
-      setActivePlay((previousPlay) => [...previousPlay, card]);
+      appendCardToActivePlay(card);
       applyEngineStatePatch(playCardAction.statePatch);
       addLog(passPlayPlan.logMessage);
 
@@ -2644,6 +2697,7 @@ export default function App() {
 
     if (playCardAction.type === 'special-corner') {
       consumeCard(actor, index, card);
+      appendCardToActivePlay(card);
       applyEngineStatePatch(playCardAction.statePatch);
       addLog(playCardAction.logMessage);
       return;
@@ -2651,6 +2705,7 @@ export default function App() {
 
     if (playCardAction.type === 'shoot-card') {
       consumeCard(actor, index, card);
+      appendCardToActivePlay(card);
       applyEngineStatePatch(playCardAction.statePatch);
       if (pendingCombo?.type === 'chilena_followup') {
         queueActionVideo(chilenaVideo, () => {
@@ -2674,6 +2729,7 @@ export default function App() {
 
     if (playCardAction.type === 'penalty-card') {
       consumeCard(actor, index, card);
+      appendCardToActivePlay(card);
       applyEngineStatePatch(playCardAction.statePatch);
       startShotResolution(actor, 'penalty');
       return;
@@ -2681,6 +2737,7 @@ export default function App() {
 
     if (playCardAction.type === 'special-chilena') {
       consumeCard(actor, index, card);
+      appendCardToActivePlay(card);
       applyEngineStatePatch(playCardAction.statePatch);
       addLog(playCardAction.logMessage);
       return;
