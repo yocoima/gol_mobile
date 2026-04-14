@@ -519,6 +519,7 @@ export default function App() {
   const [playerHand, setPlayerHand] = useState([]);
   const [opponentHand, setOpponentHand] = useState([]);
   const [activePlay, setActivePlay] = useState([]);
+  const [tablePlay, setTablePlay] = useState([]);
   const [possession, setPossession] = useState(null);
   const [currentTurn, setCurrentTurn] = useState(null);
   const [hasActedThisTurn, setHasActedThisTurn] = useState(false);
@@ -578,7 +579,7 @@ export default function App() {
     redCardPenalty
   });
   const { currentPassTotal, getPassTrackerTotal, hasReactionWindow, canUseDiscard } = engineContext;
-  const lastActiveCard = activePlay[activePlay.length - 1];
+  const lastActiveCard = tablePlay[tablePlay.length - 1];
   const currentTutorial = TUTORIAL_SEQUENCES[tutorialPage] ?? TUTORIAL_SEQUENCES[0];
 
   const addLog = (message) => {
@@ -1477,12 +1478,12 @@ export default function App() {
     }
   };
 
-  const appendCardToActivePlay = (card) => {
+  const appendCardToTable = (card) => {
     if (!card) {
       return;
     }
 
-    setActivePlay((previousPlay) => [...previousPlay, card]);
+    setTablePlay((previousPlay) => [...previousPlay, card]);
   };
 
   const shouldResetTableForNewSequence = (actor, playType) =>
@@ -1493,7 +1494,7 @@ export default function App() {
     !pendingBlindDiscard &&
     !pendingCombo &&
     !hasActedThisTurn &&
-    activePlay.length > 0;
+    tablePlay.length > 0;
 
   const hydrateFromOnlineState = (matchState) => {
     const swapActor = (actor) => (actor === 'player' ? 'opponent' : actor === 'opponent' ? 'player' : actor);
@@ -1614,6 +1615,7 @@ export default function App() {
     setPendingCombo(localMatchState.pendingCombo ?? null);
     setPendingBlindDiscard(localMatchState.pendingBlindDiscard ?? null);
     setActivePlay(withCardsImage(localMatchState.activePlay || []));
+    setTablePlay(withCardsImage(localMatchState.tablePlay || localMatchState.activePlay || []));
     setBonusTurnFor(localMatchState.bonusTurnFor ?? null);
     setMatchWinner(localMatchState.matchWinner ?? null);
     setHasActedThisTurn(localMatchState.hasActedThisTurn ?? false);
@@ -1813,6 +1815,7 @@ export default function App() {
     setCurrentTurn(null);
     setRedCardPenalty({ player: 0, opponent: 0 });
     setPendingBlindDiscard(null);
+    setTablePlay([]);
     setGoalCelebration(null);
     setMatchWinner(null);
     setAiMode(false);
@@ -2165,7 +2168,7 @@ export default function App() {
 
   const startDefenseResolution = (defender, defenseCard) => {
     const possessor = getOpponent(defender);
-    appendCardToActivePlay(defenseCard);
+    appendCardToTable(defenseCard);
     const defensePlan = getDefenseResolutionPlan({
       defender,
       defenseCardId: defenseCard.id,
@@ -2184,9 +2187,7 @@ export default function App() {
       return;
     }
 
-    const visibleSequence = [...activePlay, defenseCard];
     clearTransientState();
-    setActivePlay(visibleSequence);
     setPossession(defensePlan.nextPossession);
     setCurrentTurn(defensePlan.nextTurn);
     setHasActedThisTurn(true);
@@ -2318,6 +2319,7 @@ export default function App() {
     setPendingCombo(matchSnapshot.pendingCombo);
     setPendingBlindDiscard(matchSnapshot.pendingBlindDiscard);
     setActivePlay(matchSnapshot.activePlay);
+    setTablePlay([]);
     setBonusTurnFor(matchSnapshot.bonusTurnFor);
     setGameState(matchSnapshot.gameState);
     setPlayerDisplayName('JUGADOR');
@@ -2502,7 +2504,7 @@ export default function App() {
     }
 
     if (shouldResetTableForNewSequence(actor, playCardAction.type)) {
-      setActivePlay([]);
+      setTablePlay([]);
     }
 
     if (!skipSuccessAnimation && card.id === DRIBBLE_CARD_ID) {
@@ -2519,7 +2521,7 @@ export default function App() {
       const redCardVarPlan = playCardAction.plan;
 
       consumeCard(actor, index, card);
-      appendCardToActivePlay(card);
+      appendCardToTable(card);
       clearSanctionFor(redCardVarPlan.clearSanctionFor);
       if (redCardVarPlan.clearTransientState) {
         setPendingShot(null);
@@ -2536,7 +2538,7 @@ export default function App() {
     if (playCardAction.type === 'defense-response') {
       const defenseResponsePlan = playCardAction.plan;
       consumeCard(actor, index, card);
-      appendCardToActivePlay(card);
+      appendCardToTable(card);
 
       if (defenseResponsePlan.type === 'await-var') {
         applyEngineStatePatch(playCardAction.statePatch);
@@ -2581,7 +2583,7 @@ export default function App() {
 
     if (playCardAction.type === 'pre-shot-defense') {
         consumeCard(actor, index, card);
-        appendCardToActivePlay(card);
+        appendCardToTable(card);
         setHasActedThisTurn(true);
         setDiscardMode(false);
         setSelectedForDiscard([]);
@@ -2592,7 +2594,7 @@ export default function App() {
     if (playCardAction.type === 'penalty-response') {
       const penaltyResponsePlan = playCardAction.plan;
       consumeCard(actor, index, card);
-      appendCardToActivePlay(card);
+      appendCardToTable(card);
 
       if (penaltyResponsePlan.type === 'turn-change') {
         if (penaltyResponsePlan.clearTransientState) {
@@ -2615,7 +2617,7 @@ export default function App() {
     if (playCardAction.type === 'save-response') {
       const saveResponsePlan = playCardAction.plan;
       consumeCard(actor, index, card);
-      appendCardToActivePlay(card);
+      appendCardToTable(card);
 
       if (saveResponsePlan.type === 'turn-change') {
         if (saveResponsePlan.clearTransientState) {
@@ -2646,7 +2648,7 @@ export default function App() {
     if (playCardAction.type === 'offside-var-response') {
       const offsideVarPlan = playCardAction.plan;
       consumeCard(actor, index, card);
-      appendCardToActivePlay(card);
+      appendCardToTable(card);
 
       if (offsideVarPlan.type === 'goal') {
         scoreGoal(offsideVarPlan.scorer, offsideVarPlan.reason);
@@ -2660,7 +2662,7 @@ export default function App() {
 
     if (playCardAction.type === 'remate-response') {
         consumeCard(actor, index, card);
-        appendCardToActivePlay(card);
+        appendCardToTable(card);
         applyEngineStatePatch(playCardAction.statePatch);
         startShotResolution(actor, 'remate');
         return;
@@ -2668,7 +2670,7 @@ export default function App() {
 
     if (playCardAction.type === 'steal-defense') {
       consumeCard(actor, index, card);
-      appendCardToActivePlay(card);
+      appendCardToTable(card);
       applyEngineStatePatch(playCardAction.statePatch);
       startDefenseResolution(actor, card);
       return;
@@ -2677,8 +2679,9 @@ export default function App() {
     if (playCardAction.type === 'pass-play') {
       const passPlayPlan = playCardAction.plan;
       consumeCard(actor, index, card);
-      appendCardToActivePlay(card);
+      appendCardToTable(card);
       applyEngineStatePatch(playCardAction.statePatch);
+      setActivePlay((previousPlay) => [...previousPlay, card]);
       addLog(passPlayPlan.logMessage);
 
       if (passPlayPlan.preShotWindow?.open) {
@@ -2697,7 +2700,7 @@ export default function App() {
 
     if (playCardAction.type === 'special-corner') {
       consumeCard(actor, index, card);
-      appendCardToActivePlay(card);
+      appendCardToTable(card);
       applyEngineStatePatch(playCardAction.statePatch);
       addLog(playCardAction.logMessage);
       return;
@@ -2705,7 +2708,7 @@ export default function App() {
 
     if (playCardAction.type === 'shoot-card') {
       consumeCard(actor, index, card);
-      appendCardToActivePlay(card);
+      appendCardToTable(card);
       applyEngineStatePatch(playCardAction.statePatch);
       if (pendingCombo?.type === 'chilena_followup') {
         queueActionVideo(chilenaVideo, () => {
@@ -2729,7 +2732,7 @@ export default function App() {
 
     if (playCardAction.type === 'penalty-card') {
       consumeCard(actor, index, card);
-      appendCardToActivePlay(card);
+      appendCardToTable(card);
       applyEngineStatePatch(playCardAction.statePatch);
       startShotResolution(actor, 'penalty');
       return;
@@ -2737,7 +2740,7 @@ export default function App() {
 
     if (playCardAction.type === 'special-chilena') {
       consumeCard(actor, index, card);
-      appendCardToActivePlay(card);
+      appendCardToTable(card);
       applyEngineStatePatch(playCardAction.statePatch);
       addLog(playCardAction.logMessage);
       return;
@@ -3072,7 +3075,6 @@ export default function App() {
 
         {gameState === 'playing' && !onlineCoinFlipReveal && !isDribbleVideoPlaying ? (
           <div className="pointer-events-none absolute left-1/2 top-[16%] z-10 flex w-full max-w-[300px] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2 px-2 max-sm:top-[18%] max-sm:max-w-[240px]">
-            <DiscardLane title="Rival juega" pile={discardShowcase.opponent} />
             {laneNotices.opponent ? (
               <div className="rounded-full border border-emerald-300/35 bg-black/55 px-4 py-2 text-center text-[11px] font-black uppercase tracking-[0.16em] text-emerald-200 shadow-[0_12px_28px_rgba(0,0,0,0.32)] backdrop-blur-sm max-sm:px-3 max-sm:text-[9px]">
                 {laneNotices.opponent}
@@ -3083,9 +3085,6 @@ export default function App() {
 
         {gameState === 'playing' && !onlineCoinFlipReveal && !isDribbleVideoPlaying ? (
           <div className="pointer-events-none absolute left-1/2 bottom-[36%] z-10 flex w-full max-w-[300px] -translate-x-1/2 translate-y-1/2 flex-col items-center gap-2 px-2 max-sm:bottom-[38%] max-sm:max-w-[240px]">
-            <div className="rounded-3xl border border-cyan-300/35 bg-cyan-500/5 p-1.5 shadow-[0_0_26px_rgba(56,189,248,0.24)]">
-              <DiscardLane title="Jugador juega" pile={discardShowcase.player} />
-            </div>
             {laneNotices.player ? (
               <div className="rounded-full border border-cyan-300/35 bg-black/55 px-4 py-2 text-center text-[11px] font-black uppercase tracking-[0.16em] text-cyan-200 shadow-[0_12px_28px_rgba(0,0,0,0.32)] backdrop-blur-sm max-sm:px-3 max-sm:text-[9px]">
                 {laneNotices.player}
@@ -3099,10 +3098,10 @@ export default function App() {
           style={{ transform: 'translateY(8%)' }}
         >
           <div className="flex flex-1 justify-center overflow-x-auto py-4 max-sm:py-2">
-            {activePlay.length === 0 ? (
+            {tablePlay.length === 0 ? (
               null
             ) : (
-              activePlay.map((card, index) => (
+              tablePlay.map((card, index) => (
                 <div
                   key={`${card.id}-${index}`}
                   className={`${card.color || 'bg-slate-800'} relative flex h-24 min-w-[70px] flex-col justify-between overflow-hidden rounded-lg border-2 border-white/40 p-2 shadow-lg max-sm:h-20 max-sm:min-w-[56px] max-sm:p-1`}
@@ -3297,13 +3296,26 @@ export default function App() {
                           : 'Esperando a que se una otro jugador.'}
                       </div>
                       {onlineRoom?.players?.length ? (
-                        <div className="flex flex-wrap gap-2">
+                        <div className="space-y-2">
                           {onlineRoom.players.map((player) => (
                             <div
                               key={player.id}
-                              className="rounded-full border border-white/10 bg-slate-900 px-3 py-2 text-xs font-black uppercase tracking-[0.14em] text-white/80"
+                              className="flex items-center gap-3 rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2"
                             >
-                              {player.name}
+                              <div className="relative flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-slate-800 text-white/70">
+                                <span className="text-sm font-black">1</span>
+                                <span className={`absolute -right-0.5 -bottom-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-slate-950 text-[9px] font-black ${player.connected ? 'bg-emerald-500 text-slate-950' : 'bg-slate-600 text-white/80'}`}>
+                                  {player.connected ? '✓' : '•'}
+                                </span>
+                              </div>
+                              <div className="min-w-0">
+                                <div className="text-xs font-black uppercase tracking-[0.14em] text-white/85">
+                                  {player.name}
+                                </div>
+                                <div className={`text-[10px] font-semibold uppercase tracking-[0.16em] ${player.connected ? 'text-emerald-300' : 'text-white/35'}`}>
+                                  {player.connected ? 'Online' : 'Desconectado'}
+                                </div>
+                              </div>
                             </div>
                           ))}
                         </div>

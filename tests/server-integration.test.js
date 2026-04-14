@@ -631,7 +631,8 @@ describe('online server integration', () => {
       expect(hostUpdate.matchState.pendingDefense).toBeNull();
       expect(guestUpdate.matchState.currentTurn).toBe('opponent');
       expect(hostUpdate.matchState.currentTurn).toBe('opponent');
-      expect(guestUpdate.matchState.activePlay.map((card) => card.id)).toEqual(['pc_auto', 'var']);
+      expect(guestUpdate.matchState.activePlay.map((card) => card.id)).toEqual(['pc_auto']);
+      expect(guestUpdate.matchState.tablePlay.map((card) => card.id)).toEqual(['pc_auto', 'var']);
     } finally {
       await closeClient(host);
       await closeClient(guest);
