@@ -138,15 +138,6 @@ export const getNoResponseResolutionPlan = ({ pendingShot, pendingDefense }) => 
     };
   }
 
-  if (pendingDefense?.defenseCardId === 'pre_shot') {
-    return {
-      type: 'pending-defense-release',
-      nextTurn: pendingDefense.possessor,
-      hasActedThisTurn: false,
-      logMessage: 'No hubo contra carta. Ahora se permite tirar a gol.'
-    };
-  }
-
   if (pendingDefense?.defenseCardId === 'red_card_var') {
     return {
       type: 'pending-defense-release',
@@ -185,7 +176,7 @@ export const getRedCardVarResponsePlan = ({ actor, pendingDefense, cardId }) => 
 };
 
 export const getDefenseResponsePlan = ({ actor, pendingDefense, cardId, defenderHasVar }) => {
-  if (!pendingDefense || pendingDefense.defenseCardId === 'pre_shot') {
+  if (!pendingDefense) {
     return { allowed: false };
   }
 

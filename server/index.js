@@ -2,7 +2,7 @@ import cors from 'cors';
 import express from 'express';
 import { createServer } from 'node:http';
 import { Server } from 'socket.io';
-import { BASE_DECK_DEFINITION, createInitialMatchState, PRE_SHOT_DEFENSE_CARD_IDS } from '../shared/game/core.js';
+import { BASE_DECK_DEFINITION, createInitialMatchState } from '../shared/game/core.js';
 import { applyEndTurnAction, applyPlayCardAction } from '../shared/game/engine.js';
 import {
   getBlindDiscardPlan,
@@ -227,6 +227,13 @@ const appendCardToTable = (matchState, card) => {
 
   matchState.tablePlay = [...(matchState.tablePlay || []), card];
 };
+const trimTablePlayOnPossessionChange = (matchState, previousPossession, nextPossession) => {
+  if (!previousPossession || !nextPossession || previousPossession === nextPossession) {
+    return;
+  }
+
+  matchState.tablePlay = (matchState.tablePlay || []).slice(-2);
+};
 const shouldResetTableForNewSequence = (matchState, actor, playType) =>
   ['pass-play', 'special-corner', 'special-chilena', 'shoot-card', 'penalty-card'].includes(playType) &&
   matchState.possession === actor &&
@@ -245,12 +252,8 @@ const getExpectedActor = (matchState) => {
     return matchState.pendingDefense.defender;
   }
 
-  if (matchState.pendingDefense?.defenseCardId && matchState.pendingDefense.defenseCardId !== 'pre_shot') {
+  if (matchState.pendingDefense?.defenseCardId) {
     return matchState.pendingDefense.possessor;
-  }
-
-  if (matchState.pendingDefense?.defenseCardId === 'pre_shot') {
-    return matchState.pendingDefense.defender;
   }
 
   if (matchState.pendingShot?.phase === 'penalty_response' || matchState.pendingShot?.phase === 'save') {
@@ -277,8 +280,13 @@ const applyStatePatch = (matchState, statePatch) => {
     return;
   }
 
+  const previousPossession = matchState.possession;
   for (const [key, value] of Object.entries(statePatch)) {
     matchState[key] = value;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(statePatch, 'possession')) {
+    trimTablePlayOnPossessionChange(matchState, previousPossession, statePatch.possession);
   }
 };
 
@@ -441,6 +449,7 @@ const startShotResolution = (matchState, attacker, shotType) => {
 const startDefenseResolution = (matchState, defender, defenseCard) => {
   const possessor = getOpponent(defender);
   const possessorHand = matchState[getHandKey(possessor)];
+  const previousPossession = matchState.possession;
   appendCardToTable(matchState, defenseCard);
   const defensePlan = getDefenseResolutionPlan({
     defender,
@@ -459,6 +468,7 @@ const startDefenseResolution = (matchState, defender, defenseCard) => {
 
   clearTransientState(matchState);
   matchState.possession = defensePlan.nextPossession;
+  trimTablePlayOnPossessionChange(matchState, previousPossession, defensePlan.nextPossession);
   matchState.currentTurn = defensePlan.nextTurn;
   matchState.hasActedThisTurn = true;
   if (defenseCard.id === 'ba' && defensePlan.nextPossession === defender) {
@@ -473,25 +483,6 @@ const startDefenseResolution = (matchState, defender, defenseCard) => {
     matchState.pendingCombo = defensePlan.pendingCombo;
   }
 };
-
-const canUsePreShotDefense = (matchState, actor) =>
-  PRE_SHOT_DEFENSE_CARD_IDS.some((cardId) => {
-    const hand = matchState[getHandKey(actor)];
-
-    if (cardId === 'sb') {
-      return hand.some((card) => card.id === 'sb') && hand.some((card) => card.id === 'pc');
-    }
-
-    if (cardId === 'sc') {
-      return hand.some((card) => card.id === 'sc') && hand.some((card) => card.id === 'pa') && hand.some((card) => card.id === 'tg');
-    }
-
-    if (cardId === 'cont') {
-      return hand.some((card) => card.id === 'cont') && hand.some((card) => card.type === 'pass') && hand.some((card) => card.id === 'tg');
-    }
-
-    return hand.some((card) => card.id === cardId);
-  });
 
 const emitMatchState = (ioServer, room) => {
   if (!room.matchState) {
@@ -873,7 +864,9 @@ io.on('connection', (socket) => {
           clearTransientState(room.matchState);
         }
 
+        const previousPossession = room.matchState.possession;
         room.matchState.possession = noResponsePlan.nextPossession;
+        trimTablePlayOnPossessionChange(room.matchState, previousPossession, noResponsePlan.nextPossession);
         room.matchState.currentTurn = noResponsePlan.nextTurn;
         emitMatchState(io, room);
         return;
@@ -953,8 +946,7 @@ io.on('connection', (socket) => {
       state: {
         ...room.matchState,
         currentTurn: expectedActor,
-        cardIndex: index,
-        defenderCanUsePreShotDefense: canUsePreShotDefense(room.matchState, getOpponent(actor))
+        cardIndex: index
       },
       actor,
       card,
@@ -1000,7 +992,9 @@ io.on('connection', (socket) => {
         });
 
         room.matchState.bonusTurnFor = penaltyResponsePlan.bonusTurnFor;
+        const previousPossession = room.matchState.possession;
         room.matchState.possession = penaltyResponsePlan.nextPossession;
+        trimTablePlayOnPossessionChange(room.matchState, previousPossession, penaltyResponsePlan.nextPossession);
         room.matchState.currentTurn = penaltyResponsePlan.nextTurn;
         room.matchState.sanctions[penaltyResponsePlan.sanctionActor] = penaltyResponsePlan.sanction;
 
@@ -1020,7 +1014,7 @@ io.on('connection', (socket) => {
       return;
     }
 
-    if (playCardAction.type === 'pre-shot-defense' || playCardAction.type === 'steal-defense') {
+    if (playCardAction.type === 'steal-defense') {
       applyStatePatch(room.matchState, playCardAction.statePatch);
       startDefenseResolution(room.matchState, actor, card);
       emitMatchState(io, room);
@@ -1067,13 +1061,6 @@ io.on('connection', (socket) => {
       appendCardToTable(room.matchState, card);
       room.matchState.activePlay = [...room.matchState.activePlay, card];
       applyStatePatch(room.matchState, playCardAction.statePatch);
-
-      if (playCardAction.plan.preShotWindow?.open && playCardAction.plan.preShotWindow.needsDefenseWindow) {
-        const defender = getOpponent(actor);
-        room.matchState.pendingDefense = { defender, possessor: actor, defenseCardId: 'pre_shot' };
-        room.matchState.currentTurn = defender;
-        room.matchState.hasActedThisTurn = false;
-      }
 
       emitMatchState(io, room);
       return;

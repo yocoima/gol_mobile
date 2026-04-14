@@ -22,7 +22,6 @@ import saveVideo from '../videos/parada_arquero.mp4';
 import {
   AUTO_PASS_BY_DEFENSE,
   BASE_DECK_DEFINITION,
-  PRE_SHOT_DEFENSE_CARD_IDS,
   normalizeAssetName
 } from '../shared/game/core.js';
 import {
@@ -557,6 +556,7 @@ export default function App() {
   const onlineCoinFlipTimeoutRef = useRef(null);
   const onlineCoinFlipPreviewTimeoutRef = useRef(null);
   const lastOnlineEventRef = useRef(null);
+  const previousPossessionRef = useRef(null);
   const dribbleVideoRef = useRef(null);
   const pendingDribbleActionRef = useRef(null);
 
@@ -1106,22 +1106,6 @@ export default function App() {
       return { ...previous, [actor]: nextTurns };
     });
   };
-  const canUsePreShotDefense = (actor) =>
-    PRE_SHOT_DEFENSE_CARD_IDS.some((cardId) => {
-      if (cardId === 'sb') {
-        return hasCardInHand(actor, 'sb') && hasCardInHand(actor, 'pc');
-      }
-
-      if (cardId === 'sc') {
-        return hasCardInHand(actor, 'sc') && hasCardInHand(actor, 'pa') && hasCardInHand(actor, 'tg');
-      }
-
-      if (cardId === 'cont') {
-        return hasCardInHand(actor, 'cont') && getHand(actor).some((card) => card.type === 'pass') && hasCardInHand(actor, 'tg');
-      }
-
-      return hasCardInHand(actor, cardId);
-    });
   const getFirstCardIndex = (actor, matcher) => getHand(actor).findIndex((card) => matcher(card));
   const getPreferredPassIndex = (actor, maxTotal = 4) => {
     const availablePasses = getHand(actor)
@@ -1186,18 +1170,6 @@ export default function App() {
             : getFirstCardIndex('opponent', (card) => card.id === 'tg')
         };
       }
-    }
-
-    if (pendingDefense?.defenseCardId === 'pre_shot' && pendingDefense.defender === 'opponent') {
-      const options = [
-        getFirstCardIndex('opponent', (card) => card.id === 'sc' && hasCardInHand('opponent', 'pa') && hasCardInHand('opponent', 'tg')),
-        getFirstCardIndex('opponent', (card) => card.id === 'cont' && hasCardInHand('opponent', 'tg') && getHand('opponent').some((handCard) => handCard.type === 'pass')),
-        getFirstCardIndex('opponent', (card) => card.id === 'sb' && hasCardInHand('opponent', 'pc')),
-        getFirstCardIndex('opponent', (card) => card.id === 'ba'),
-        getFirstCardIndex('opponent', (card) => card.id === 'fa')
-      ].filter((index) => index >= 0);
-
-      return options.length > 0 ? { type: 'play', index: options[0] } : { type: 'end' };
     }
 
     if (pendingDefense?.defenseCardId === 'red_card_var' && pendingDefense.defender === 'opponent') {
@@ -1284,11 +1256,9 @@ export default function App() {
           ? `VENTANA DE RESPUESTA DEL ${pendingShot.attacker === 'player' ? 'JUGADOR' : 'RIVAL'}: VAR CONTRA OFFSIDE`
         : pendingShot?.phase === 'save'
           ? `VENTANA DE RESPUESTA DEL ${pendingShot.defender === 'player' ? 'JUGADOR' : 'RIVAL'}: ${pendingShot.allowOffside ? 'OFFSIDE O PARADA' : 'PARADA DEL ARQUERO'}`
-          : pendingShot?.phase === 'remate'
+            : pendingShot?.phase === 'remate'
             ? `VENTANA DE RESPUESTA DEL ${pendingShot.attacker === 'player' ? 'JUGADOR' : 'RIVAL'}: REMATE`
-            : pendingDefense?.defenseCardId === 'pre_shot'
-              ? `VENTANA DE RESPUESTA DEL ${pendingDefense.defender === 'player' ? 'JUGADOR' : 'RIVAL'} ANTES DEL TIRO`
-              : pendingDefense?.defenseCardId === 'red_card_var'
+            : pendingDefense?.defenseCardId === 'red_card_var'
                 ? `VENTANA DE RESPUESTA DEL ${pendingDefense.defender === 'player' ? 'JUGADOR' : 'RIVAL'}: VAR`
                   : pendingDefense?.defenseCardId
                     ? `VENTANA DE RESPUESTA DEL ${pendingDefense.possessor === 'player' ? 'JUGADOR' : 'RIVAL'}: ${
@@ -1496,6 +1466,16 @@ export default function App() {
     !hasActedThisTurn &&
     tablePlay.length > 0;
 
+  useEffect(() => {
+    const previousPossession = previousPossessionRef.current;
+
+    if (previousPossession && possession && previousPossession !== possession) {
+      setTablePlay((previousPlay) => (previousPlay.length <= 2 ? previousPlay : previousPlay.slice(-2)));
+    }
+
+    previousPossessionRef.current = possession;
+  }, [possession]);
+
   const hydrateFromOnlineState = (matchState) => {
     const swapActor = (actor) => (actor === 'player' ? 'opponent' : actor === 'opponent' ? 'player' : actor);
     const buildShowcaseFromActions = (actions = []) => {
@@ -1687,12 +1667,7 @@ export default function App() {
       }
 
       if (event.type === 'save_success') {
-        queueActionVideo(saveVideo, () => {
-          setFieldEventAnimation({
-            actor: event.actor,
-            text: `Atajada de ${event.actor === 'player' ? localPlayerLabel : localOpponentLabel}`
-          });
-        });
+        queueActionVideo(saveVideo);
       }
     }
   };
@@ -1846,55 +1821,51 @@ export default function App() {
       nextHint = {
         key: `blind-${pendingBlindDiscard.actor}-${blindDiscardTargetActor}-${pendingBlindDiscard.reason || ''}`,
         actor: pendingBlindDiscard.actor,
-        text: `${chooserLabel} elige 1 carta cubierta de ${targetLabel}.`
-      };
-    } else if (pendingDefense?.defenseCardId === 'pre_shot') {
-      nextHint = {
-        key: `pre-shot-${pendingDefense.defender}`,
-        actor: pendingDefense.defender,
-        text: `${getActorLabel(pendingDefense.defender)} responde antes del tiro con una contracarta.`
+        text: `${chooserLabel} elige 1 carta para descarte de ${targetLabel}.`
       };
     } else if (pendingDefense?.defenseCardId === 'ba') {
       nextHint = {
         key: `defense-ba-${pendingDefense.possessor}`,
         actor: pendingDefense.possessor,
-        text: `${getActorLabel(pendingDefense.possessor)} debe responder Barrida con Regatear.`
+        text: `${getActorLabel(pendingDefense.possessor)} Puede Regatear.`
       };
     } else if (pendingDefense?.defenseCardId === 'fa') {
       nextHint = {
         key: `defense-fa-${pendingDefense.possessor}`,
         actor: pendingDefense.possessor,
-        text: `${getActorLabel(pendingDefense.possessor)} debe responder Falta Agresiva con Amarilla o Roja.`
+        text: `${getActorLabel(pendingDefense.possessor)} Puede sancionar con tarjeta.`
       };
     } else if (pendingDefense?.defenseCardId === 'red_card_var') {
       nextHint = {
         key: `defense-var-${pendingDefense.defender}`,
         actor: pendingDefense.defender,
-        text: `${getActorLabel(pendingDefense.defender)} puede jugar VAR para anular la Roja.`
+        text: `${getActorLabel(pendingDefense.defender)} Puede revisar la jugada con VAR.`
       };
     } else if (pendingShot?.phase === 'penalty_response') {
       nextHint = {
         key: `shot-penalty-${pendingShot.defender}`,
         actor: pendingShot.defender,
-        text: `${getActorLabel(pendingShot.defender)} responde al Penalti con VAR o Parada Arquero.`
+        text: `${getActorLabel(pendingShot.defender)} Puede revisar la jugada con VAR o Parada Arquero.`
       };
     } else if (pendingShot?.phase === 'save') {
       nextHint = {
         key: `shot-save-${pendingShot.defender}-${pendingShot.allowOffside ? 'off' : 'nooff'}`,
         actor: pendingShot.defender,
-        text: `${getActorLabel(pendingShot.defender)} responde al tiro con ${pendingShot.allowOffside ? 'Offside o Parada Arquero' : 'Parada Arquero'}.`
+        text: pendingShot.allowOffside
+          ? `${getActorLabel(pendingShot.defender)} Revisa Offside o Parada Arquero.`
+          : `${getActorLabel(pendingShot.defender)} Puede usar Parada Arquero.`
       };
     } else if (pendingShot?.phase === 'offside_var') {
       nextHint = {
         key: `shot-offside-var-${pendingShot.attacker}`,
         actor: pendingShot.attacker,
-        text: `${getActorLabel(pendingShot.attacker)} puede usar VAR para anular el Offside.`
+        text: `${getActorLabel(pendingShot.attacker)} Puede revisar el Offside con el VAR.`
       };
     } else if (pendingShot?.phase === 'remate') {
       nextHint = {
         key: `shot-remate-${pendingShot.attacker}`,
         actor: pendingShot.attacker,
-        text: `${getActorLabel(pendingShot.attacker)} puede cerrar la jugada con Remate.`
+        text: `${getActorLabel(pendingShot.attacker)} Puede jugar un Remate`
       };
     }
 
@@ -2201,12 +2172,7 @@ export default function App() {
     }
 
     if (!onlineEnabled && defenseCard.id === GOALKEEPER_SAVE_CARD_ID) {
-      queueActionVideo(saveVideo, () => {
-        setFieldEventAnimation({
-          actor: defender,
-          text: `Atajada de ${defender === 'player' ? playerDisplayName : opponentDisplayName}`
-        });
-      });
+      queueActionVideo(saveVideo);
     }
 
     addLog(defensePlan.logMessage);
@@ -2488,8 +2454,7 @@ export default function App() {
         hasActedThisTurn,
         bonusTurnFor,
         redCardPenalty,
-        counterAttackReady,
-        defenderCanUsePreShotDefense: canUsePreShotDefense(getOpponent(actor))
+        counterAttackReady
       },
       actor,
       card,
@@ -2581,16 +2546,6 @@ export default function App() {
       return;
     }
 
-    if (playCardAction.type === 'pre-shot-defense') {
-        consumeCard(actor, index, card);
-        appendCardToTable(card);
-        setHasActedThisTurn(true);
-        setDiscardMode(false);
-        setSelectedForDiscard([]);
-        startDefenseResolution(actor, card);
-        return;
-    }
-
     if (playCardAction.type === 'penalty-response') {
       const penaltyResponsePlan = playCardAction.plan;
       consumeCard(actor, index, card);
@@ -2629,12 +2584,7 @@ export default function App() {
         }
         applyEngineStatePatch(playCardAction.statePatch);
         if (card.id === GOALKEEPER_SAVE_CARD_ID) {
-          queueActionVideo(saveVideo, () => {
-            setFieldEventAnimation({
-              actor,
-              text: `Atajada de ${actor === 'player' ? playerDisplayName : opponentDisplayName}`
-            });
-          });
+          queueActionVideo(saveVideo);
         }
         addLog(saveResponsePlan.logMessage);
         return;
@@ -2685,13 +2635,6 @@ export default function App() {
       addLog(passPlayPlan.logMessage);
 
       if (passPlayPlan.preShotWindow?.open) {
-        if (passPlayPlan.preShotWindow.needsDefenseWindow) {
-          const defender = getOpponent(actor);
-          setPendingDefense({ defender, possessor: actor, defenseCardId: 'pre_shot' });
-          setCurrentTurn(defender);
-          setHasActedThisTurn(false);
-        }
-
         addLog(passPlayPlan.preShotWindow.logMessage);
       }
 
@@ -3141,7 +3084,7 @@ export default function App() {
 
             {comboWindow && (
               <div className="pointer-events-none absolute inset-x-0 top-[10%] bottom-[24%] z-20 flex items-center justify-center px-4 max-sm:top-[12%] max-sm:bottom-[28%]">
-                <div className="absolute inset-0 rounded-[2rem] bg-black/42 backdrop-blur-[5px]" />
+                <div className="absolute inset-0 rounded-[2rem] bg-black/52" />
                 <div
                   className={`relative w-full max-w-lg rounded-[1.6rem] border px-6 py-5 text-center shadow-[0_0_45px_rgba(255,255,255,0.1)] ${
                     comboWindow.accent === 'lime'
@@ -3501,9 +3444,6 @@ export default function App() {
                   Inicio del partido
                 </div>
                 <h2 className="mb-4 text-3xl font-black">Sorteo de saque</h2>
-                <p className="mx-auto mb-6 max-w-md text-sm font-semibold text-white/65">
-                  Elige cara o sello y lanza la moneda al aire para definir quien arranca con el balon.
-                </p>
 
                 <div className="relative mx-auto mb-7 flex w-full max-w-[320px] items-center justify-center">
                   <video
@@ -3594,7 +3534,7 @@ export default function App() {
             )}
 
             {goalCelebration && (
-              <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/42 backdrop-blur-[5px]">
+              <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-black/52">
                 <div
                   className={`rounded-[2rem] border px-10 py-8 text-center shadow-[0_0_60px_rgba(255,255,255,0.12)] ${
                     goalCelebration.scorer === 'player'
@@ -3631,7 +3571,7 @@ export default function App() {
             )}
 
             {fieldEventAnimation && (
-              <div className="pointer-events-none fixed inset-0 z-[69] flex items-center justify-center bg-black/42 backdrop-blur-[5px]">
+              <div className="pointer-events-none fixed inset-0 z-[69] flex items-center justify-center bg-black/52">
                 <div
                   className={`rounded-[1.6rem] border px-8 py-5 text-center shadow-[0_0_45px_rgba(255,255,255,0.1)] ${
                     fieldEventAnimation.actor === 'player'
