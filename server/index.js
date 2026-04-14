@@ -566,6 +566,20 @@ const findDisconnectedPlayerByClientId = (clientId) => {
   return null;
 };
 
+const findRoomByClientId = (clientId) => {
+  if (!clientId) {
+    return null;
+  }
+
+  for (const room of rooms.values()) {
+    if (room.players.some((player) => player.clientId === clientId)) {
+      return room;
+    }
+  }
+
+  return null;
+};
+
 const clearDisconnectTimer = (roomCode, clientId) => {
   const timerKey = getDisconnectTimerKey(roomCode, clientId);
   const timer = disconnectTimers.get(timerKey);
@@ -611,6 +625,60 @@ const removeClientFromAllRooms = (clientId) => {
   }
 };
 
+const syncSocketToExistingRoom = (socket, clientId, requestedCode = null) => {
+  const room = requestedCode ? rooms.get(requestedCode) ?? null : findRoomByClientId(clientId);
+
+  if (!room) {
+    socket.emit('session:missing', {
+      code: requestedCode ?? null,
+      message: 'La sala ya no esta disponible. Debes crear o unirte a una nueva.'
+    });
+    return false;
+  }
+
+  const player = room.players.find((entry) => entry.clientId === clientId || entry.id === socket.id);
+  if (!player) {
+    socket.emit('session:missing', {
+      code: requestedCode ?? room.code,
+      message: 'La sala ya no esta disponible. Debes crear o unirte a una nueva.'
+    });
+    return false;
+  }
+
+  clearDisconnectTimer(room.code, clientId);
+  const previousSocketId = player.id;
+  player.id = socket.id;
+  player.connected = true;
+  if (room.hostId === previousSocketId) {
+    room.hostId = socket.id;
+  }
+  room.status = room.matchState
+    ? 'in_match'
+    : room.players.length === 2
+      ? 'ready'
+      : 'waiting';
+
+  socket.join(room.code);
+  socket.emit('room:created', {
+    room: getPublicRoom(room),
+    youAreHost: room.hostId === socket.id
+  });
+
+  const role = getPlayerRole(room, socket.id);
+  if (room.matchState && role) {
+    io.to(socket.id).emit('match:updated', {
+      room: getPublicRoom(room),
+      matchState: sanitizeMatchStateForPlayer(room.matchState, role)
+    });
+  }
+
+  io.to(room.code).emit('room:updated', {
+    room: getPublicRoom(room)
+  });
+
+  return true;
+};
+
 app.use(
   cors(corsOptions)
 );
@@ -645,46 +713,27 @@ io.on('connection', (socket) => {
 
   const recoveredSession = findDisconnectedPlayerByClientId(clientId);
   if (recoveredSession && !recoveredSession.player.connected) {
-    const previousSocketId = recoveredSession.player.id;
-    clearDisconnectTimer(recoveredSession.room.code, clientId);
-    recoveredSession.player.id = socket.id;
-    recoveredSession.player.connected = true;
-    if (recoveredSession.room.hostId === previousSocketId) {
-      recoveredSession.room.hostId = socket.id;
-    }
-    recoveredSession.room.status = recoveredSession.room.matchState
-      ? 'in_match'
-      : recoveredSession.room.players.length === 2
-        ? 'ready'
-        : 'waiting';
-    socket.join(recoveredSession.room.code);
+    syncSocketToExistingRoom(socket, clientId, recoveredSession.room.code);
     serverDebugLog('player reattached to room', {
       roomCode: recoveredSession.room.code,
       socketId: socket.id,
       clientId
-    });
-
-    socket.emit('room:created', {
-      room: getPublicRoom(recoveredSession.room),
-      youAreHost: recoveredSession.room.hostId === socket.id
-    });
-
-    if (recoveredSession.room.matchState) {
-      const role = getPlayerRole(recoveredSession.room, socket.id);
-      io.to(socket.id).emit('match:updated', {
-        room: getPublicRoom(recoveredSession.room),
-        matchState: sanitizeMatchStateForPlayer(recoveredSession.room.matchState, role)
-      });
-    }
-
-    io.to(recoveredSession.room.code).emit('room:updated', {
-      room: getPublicRoom(recoveredSession.room)
     });
   }
 
   socket.emit('server:ready', {
     socketId: socket.id,
     message: 'Conexion establecida con el backend del juego.'
+  });
+
+  socket.on('room:sync_request', ({ code } = {}) => {
+    const normalizedCode = typeof code === 'string' ? code.trim().toUpperCase() : null;
+    serverDebugLog('room:sync_request received', {
+      roomCode: normalizedCode,
+      socketId: socket.id,
+      clientId
+    });
+    syncSocketToExistingRoom(socket, clientId, normalizedCode);
   });
 
   socket.on('room:create', ({ playerName } = {}) => {
@@ -1258,24 +1307,38 @@ io.on('connection', (socket) => {
       const timeout = setTimeout(() => {
         disconnectTimers.delete(timerKey);
         const currentRoom = rooms.get(room.code);
-        if (!currentRoom) {
-          return;
-        }
+      if (!currentRoom) {
+        return;
+      }
 
         const disconnectedPlayer = currentRoom.players.find((player) => player.clientId === clientId);
-        if (!disconnectedPlayer || disconnectedPlayer.connected) {
+      if (!disconnectedPlayer || disconnectedPlayer.connected) {
           return;
         }
 
+        const hadActiveMatch = Boolean(currentRoom.matchState);
+        currentRoom.players = currentRoom.players.filter((player) => player.clientId !== clientId);
+        if (currentRoom.hostId && !currentRoom.players.some((player) => player.id === currentRoom.hostId)) {
+          currentRoom.hostId = currentRoom.players[0]?.id ?? null;
+        }
+        if (currentRoom.players.length === 0) {
+          rooms.delete(currentRoom.code);
+          return;
+        }
         currentRoom.status = 'waiting';
         currentRoom.matchState = null;
         serverDebugLog('disconnect grace expired; room reset', {
           roomCode: currentRoom.code,
           clientId
+      });
+      if (hadActiveMatch) {
+        io.to(currentRoom.code).emit('match:terminated', {
+          message: 'La partida termino por desconexion prolongada de un jugador.'
         });
-        io.to(currentRoom.code).emit('room:updated', {
-          room: getPublicRoom(currentRoom)
-        });
+      }
+      io.to(currentRoom.code).emit('room:updated', {
+        room: getPublicRoom(currentRoom)
+      });
       }, disconnectGraceMs);
       disconnectTimers.set(timerKey, timeout);
     } else {

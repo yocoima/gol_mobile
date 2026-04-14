@@ -542,6 +542,7 @@ export default function App() {
   const onlineCoinFlipPreviewTimeoutRef = useRef(null);
   const lastOnlineEventRef = useRef(null);
   const previousPossessionRef = useRef(null);
+  const onlineRoomCodeRef = useRef('');
   const dribbleVideoRef = useRef(null);
   const pendingDribbleActionRef = useRef(null);
 
@@ -743,6 +744,10 @@ export default function App() {
   };
 
   useEffect(() => {
+    onlineRoomCodeRef.current = onlineRoomCode;
+  }, [onlineRoomCode]);
+
+  useEffect(() => {
     if (!goalCelebration) {
       return undefined;
     }
@@ -914,6 +919,11 @@ export default function App() {
       onlineDebugLog('socket connected', { socketId: socket.id, clientId });
       setOnlineSocketId(socket.id);
       setOnlineError('');
+      const currentRoomCode = onlineRoomCodeRef.current;
+      if (currentRoomCode) {
+        onlineDebugLog('requesting room sync after connect', { roomCode: currentRoomCode });
+        socket.emit('room:sync_request', { code: currentRoomCode });
+      }
       const pendingAction = pendingOnlineActionRef.current;
       if (pendingAction) {
         onlineDebugLog('flushing pending action after connect', pendingAction);
@@ -925,6 +935,11 @@ export default function App() {
     socket.on('server:ready', ({ socketId }) => {
       onlineDebugLog('server ready received', { socketId });
       setOnlineSocketId(socketId);
+      const currentRoomCode = onlineRoomCodeRef.current;
+      if (currentRoomCode) {
+        onlineDebugLog('requesting room sync after server ready', { roomCode: currentRoomCode });
+        socket.emit('room:sync_request', { code: currentRoomCode });
+      }
     });
 
     socket.on('room:created', ({ room, youAreHost }) => {
@@ -1014,6 +1029,12 @@ export default function App() {
       setSystemNotice(message || 'La partida fue terminada.');
     });
 
+    socket.on('session:missing', ({ message, code }) => {
+      onlineDebugLog('session missing after reconnect', { message, code });
+      resetMatch();
+      setSystemNotice(message || 'La sesion online ya no esta disponible.');
+    });
+
     socket.on('disconnect', (reason) => {
       onlineDebugLog('socket disconnected', { reason, roomCode: onlineRoomCode });
       setOnlineError('La conexion online se interrumpio. Intentando reconectar...');
@@ -1050,6 +1071,7 @@ export default function App() {
       manager.off('reconnect');
       manager.off('reconnect_error');
       manager.off('reconnect_failed');
+      socket.off('session:missing');
       socket.disconnect();
       if (socketRef.current === socket) {
         socketRef.current = null;

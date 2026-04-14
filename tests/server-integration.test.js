@@ -639,6 +639,54 @@ describe('online server integration', () => {
     }
   });
 
+  it('terminates the match for the remaining player when the disconnect grace expires', async () => {
+    const { host, guest } = await setupStartedMatch();
+
+    try {
+      const terminatedPromise = waitForSocketEvent(host, 'match:terminated', 5000);
+      const roomUpdatedPromise = waitForSocketEventMatching(
+        host,
+        'room:updated',
+        (payload) => payload.room.status === 'waiting',
+        5000
+      );
+
+      guest.disconnect();
+
+      const [terminated, roomUpdated] = await Promise.all([terminatedPromise, roomUpdatedPromise]);
+
+      expect(terminated.message).toContain('desconexion prolongada');
+      expect(roomUpdated.room.status).toBe('waiting');
+    } finally {
+      await closeClient(host);
+      await closeClient(guest);
+    }
+  });
+
+  it('reports a missing session when a client tries to sync after the match was dropped', async () => {
+    const { baseUrl, host, guest, roomCode } = await setupStartedMatch();
+
+    try {
+      guest.disconnect();
+      await wait(400);
+
+      const staleGuest = await createClient(baseUrl, 'guest-client');
+      try {
+        const missingPromise = waitForSocketEvent(staleGuest, 'session:missing');
+        staleGuest.emit('room:sync_request', { code: roomCode });
+        const missing = await missingPromise;
+
+        expect(missing.code).toBe(roomCode);
+        expect(missing.message).toContain('ya no esta disponible');
+      } finally {
+        await closeClient(staleGuest);
+      }
+    } finally {
+      await closeClient(host);
+      await closeClient(guest);
+    }
+  });
+
   it('lets the defender cancel a penalty with VAR online', async () => {
     const preset = createTestPreset({
       playerHand: ['pc', 'pc', 'pc', 'pc', 'pc'],
