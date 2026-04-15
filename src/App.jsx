@@ -312,7 +312,7 @@ const CardItem = ({
   const cardImage = card?.imageUrl;
 
   return (
-  <div className="relative group flex w-[82px] flex-col items-center max-sm:w-[64px]">
+  <div className="relative group flex w-[86px] flex-col items-center max-sm:w-[67px]">
     {canSelectDiscard && isDiscardMode && !disabled && (
       <button
         onClick={onSelect}
@@ -328,7 +328,7 @@ const CardItem = ({
       onClick={isDiscardMode ? onSelect : onClick}
       disabled={disabled}
       className={`
-        ${hideContent || cardImage ? 'bg-slate-900' : card?.color || 'bg-slate-800'} h-28 w-[82px] overflow-hidden rounded-[18px] border border-white/10 p-0 shadow-[0_14px_30px_rgba(0,0,0,0.35)] transition-all duration-200 max-sm:h-20 max-sm:w-[64px] max-sm:rounded-[14px]
+        ${hideContent || cardImage ? 'bg-slate-900' : card?.color || 'bg-slate-800'} h-[118px] w-[86px] overflow-hidden rounded-[18px] border border-white/10 p-0 shadow-[0_14px_30px_rgba(0,0,0,0.35)] transition-all duration-200 max-sm:h-[84px] max-sm:w-[67px] max-sm:rounded-[14px]
         flex flex-col justify-between
         ${!disabled ? 'hover:-translate-y-4 hover:shadow-emerald-400/30' : 'grayscale opacity-40 border-white/5'}
         ${isSelected ? 'scale-90 brightness-50 ring-2 ring-orange-300' : ''}
@@ -1306,7 +1306,9 @@ export default function App() {
       ? `ROJA: ${redCardPenalty.opponent || sanctions.opponent?.turnsRemaining || 0} turnos con 4 cartas`
       : null;
   const comboWindow =
-    pendingCombo?.type === 'chilena_followup'
+    isDribbleVideoPlaying
+      ? null
+      : pendingCombo?.type === 'chilena_followup'
       ? {
           title: 'Combinacion Chilena',
           actor: pendingCombo.actor,
@@ -2189,7 +2191,6 @@ export default function App() {
 
   const startDefenseResolution = (defender, defenseCard) => {
     const possessor = getOpponent(defender);
-    appendCardToTable(defenseCard, defender);
     const defensePlan = getDefenseResolutionPlan({
       defender,
       defenseCardId: defenseCard.id,
@@ -3120,7 +3121,7 @@ export default function App() {
                 return (
                   <div
                     key={`${card.visualId || card.id}-${index}`}
-                    className={`${card.color || 'bg-slate-800'} relative flex h-24 min-w-[70px] flex-col justify-between overflow-hidden rounded-lg border-2 border-white/40 p-2 shadow-lg max-sm:h-20 max-sm:min-w-[56px] max-sm:p-1`}
+                    className={`${card.color || 'bg-slate-800'} relative flex h-[101px] min-w-[74px] flex-col justify-between overflow-hidden rounded-lg border-2 border-white/40 p-2 shadow-lg max-sm:h-[84px] max-sm:min-w-[59px] max-sm:p-1`}
                     style={{
                       marginLeft: overlapOffset,
                       marginBottom: verticalLift,
@@ -3138,7 +3139,11 @@ export default function App() {
                       </>
                     ) : null}
                     <p className="relative z-10 text-[7px] font-black uppercase leading-none max-sm:text-[6px]">{card.name}</p>
-                    <p className="relative z-10 text-center text-xl font-black max-sm:text-base">+{card.value}</p>
+                    {card.value > 0 ? (
+                      <p className="relative z-10 text-center text-xl font-black max-sm:text-base">+{card.value}</p>
+                    ) : (
+                      <div className="relative z-10 h-7 max-sm:h-6" />
+                    )}
                   </div>
                 );
               })
