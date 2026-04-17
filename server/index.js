@@ -20,6 +20,7 @@ const httpServer = createServer(app);
 
 const port = Number(process.env.PORT || 3001);
 const disconnectGraceMs = Number(process.env.DISCONNECT_GRACE_MS || 30000);
+const onlineTurnTimeoutMs = Number(process.env.ONLINE_TURN_TIMEOUT_MS || 10000);
 const allowedOrigins = (process.env.CLIENT_ORIGIN || 'http://localhost:5173')
   .split(',')
   .map((origin) => origin.trim().replace(/\/$/, ''))
@@ -369,6 +370,135 @@ const applyGoal = (matchState, scorer, reason) => {
   return { logMessage: goalOutcome.logMessage };
 };
 
+const clearRoomTurnTimer = (room) => {
+  if (room?.turnTimer?.timeoutId) {
+    clearTimeout(room.turnTimer.timeoutId);
+  }
+
+  if (room) {
+    room.turnTimer = null;
+  }
+
+  if (room?.matchState) {
+    room.matchState.turnDeadlineAt = null;
+  }
+};
+
+const shouldRunOnlineTurnTimer = (matchState) =>
+  Boolean(
+    matchState &&
+    matchState.gameState === 'playing' &&
+    matchState.currentTurn &&
+    !matchState.pendingShot &&
+    !matchState.pendingDefense &&
+    !matchState.pendingBlindDiscard &&
+    !matchState.pendingCombo
+  );
+
+const resolveServerEndTurn = (room) => {
+  const endTurnAction = applyEndTurnAction(room.matchState);
+
+  if (!endTurnAction.ok) {
+    return { ok: false, message: endTurnAction.logMessage };
+  }
+
+  if (endTurnAction.type === 'no-response') {
+    const noResponsePlan = endTurnAction.resolution;
+
+    if (noResponsePlan.type === 'goal') {
+      applyGoal(room.matchState, noResponsePlan.scorer, noResponsePlan.reason);
+      return { ok: true };
+    }
+
+    if (noResponsePlan.type === 'turn-change') {
+      if (noResponsePlan.clearTransientState) {
+        clearTransientState(room.matchState);
+      }
+
+      const previousPossession = room.matchState.possession;
+      room.matchState.possession = noResponsePlan.nextPossession;
+      trimTablePlayOnPossessionChange(room.matchState, previousPossession, noResponsePlan.nextPossession);
+      room.matchState.currentTurn = noResponsePlan.nextTurn;
+      return { ok: true };
+    }
+
+    if (noResponsePlan.type === 'pending-defense-release') {
+      room.matchState.pendingDefense = null;
+      room.matchState.currentTurn = noResponsePlan.nextTurn;
+      room.matchState.hasActedThisTurn = noResponsePlan.hasActedThisTurn;
+      return { ok: true };
+    }
+  }
+
+  const flowPlan = endTurnAction.resolution;
+
+  if (flowPlan.keepsTurn) {
+    room.matchState.bonusTurnFor = null;
+    consumeSanctionTurn(room.matchState, flowPlan.opponentActor);
+  }
+
+  if (flowPlan.shouldApplyRedCardProgress) {
+    applyRedCardTurnProgress(room.matchState, flowPlan.actor);
+  }
+
+  room.matchState.currentTurn = flowPlan.nextActor;
+  room.matchState.hasActedThisTurn = false;
+  return { ok: true };
+};
+
+const syncRoomTurnTimer = (ioServer, room) => {
+  if (!room?.matchState || !shouldRunOnlineTurnTimer(room.matchState)) {
+    clearRoomTurnTimer(room);
+    return;
+  }
+
+  const actor = room.matchState.currentTurn;
+  if (room.turnTimer?.actor === actor && room.turnTimer?.deadlineAt === room.matchState.turnDeadlineAt) {
+    return;
+  }
+
+  clearRoomTurnTimer(room);
+
+  const deadlineAt = new Date(Date.now() + onlineTurnTimeoutMs).toISOString();
+  room.matchState.turnDeadlineAt = deadlineAt;
+  room.turnTimer = {
+    actor,
+    deadlineAt,
+    timeoutId: setTimeout(() => {
+      const latestRoom = rooms.get(room.code);
+      if (!latestRoom?.matchState) {
+        return;
+      }
+
+      if (!shouldRunOnlineTurnTimer(latestRoom.matchState)) {
+        clearRoomTurnTimer(latestRoom);
+        return;
+      }
+
+      if (latestRoom.matchState.currentTurn !== actor || latestRoom.matchState.turnDeadlineAt !== deadlineAt) {
+        return;
+      }
+
+      latestRoom.matchState.lastEvent = {
+        id: createEventId(),
+        type: 'turn_timeout',
+        actor
+      };
+      clearRoomTurnTimer(latestRoom);
+      const outcome = resolveServerEndTurn(latestRoom);
+      if (!outcome.ok) {
+        serverDebugLog('online turn timeout could not resolve end turn', {
+          roomCode: latestRoom.code,
+          actor,
+          message: outcome.message
+        });
+        return;
+      }
+      emitMatchState(ioServer, latestRoom);
+    }, onlineTurnTimeoutMs)
+  };
+};
+
 const openBlindDiscard = (matchState, actor, targetActor, reason, returnTurnTo) => {
   const targetHandLength = matchState[getHandKey(targetActor)].length;
   const blindDiscardPlan = getBlindDiscardPlan({
@@ -491,6 +621,8 @@ const emitMatchState = (ioServer, room) => {
   if (!room.matchState) {
     return;
   }
+
+  syncRoomTurnTimer(ioServer, room);
 
   for (const player of room.players) {
     const role = getPlayerRole(room, player.id);
@@ -751,6 +883,7 @@ io.on('connection', (socket) => {
       status: 'waiting',
       hostId: socket.id,
       matchState: null,
+      turnTimer: null,
       players: [
         {
           id: socket.id,
@@ -860,6 +993,7 @@ io.on('connection', (socket) => {
       winner: starter
     };
     room.status = 'in_match';
+    syncRoomTurnTimer(io, room);
 
     for (const player of room.players) {
       const role = getPlayerRole(room, player.id);
@@ -895,57 +1029,11 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const endTurnAction = applyEndTurnAction(room.matchState);
-
-    if (!endTurnAction.ok) {
-      socket.emit('match:error', { message: endTurnAction.logMessage });
+    const outcome = resolveServerEndTurn(room);
+    if (!outcome.ok) {
+      socket.emit('match:error', { message: outcome.message });
       return;
     }
-
-    if (endTurnAction.type === 'no-response') {
-      const noResponsePlan = endTurnAction.resolution;
-
-      if (noResponsePlan.type === 'goal') {
-        applyGoal(room.matchState, noResponsePlan.scorer, noResponsePlan.reason);
-        emitMatchState(io, room);
-        return;
-      }
-
-      if (noResponsePlan.type === 'turn-change') {
-        if (noResponsePlan.clearTransientState) {
-          clearTransientState(room.matchState);
-        }
-
-        const previousPossession = room.matchState.possession;
-        room.matchState.possession = noResponsePlan.nextPossession;
-        trimTablePlayOnPossessionChange(room.matchState, previousPossession, noResponsePlan.nextPossession);
-        room.matchState.currentTurn = noResponsePlan.nextTurn;
-        emitMatchState(io, room);
-        return;
-      }
-
-      if (noResponsePlan.type === 'pending-defense-release') {
-        room.matchState.pendingDefense = null;
-        room.matchState.currentTurn = noResponsePlan.nextTurn;
-        room.matchState.hasActedThisTurn = noResponsePlan.hasActedThisTurn;
-        emitMatchState(io, room);
-        return;
-      }
-    }
-
-    const flowPlan = endTurnAction.resolution;
-
-    if (flowPlan.keepsTurn) {
-      room.matchState.bonusTurnFor = null;
-      consumeSanctionTurn(room.matchState, flowPlan.opponentActor);
-    }
-
-    if (flowPlan.shouldApplyRedCardProgress) {
-      applyRedCardTurnProgress(room.matchState, flowPlan.actor);
-    }
-
-    room.matchState.currentTurn = flowPlan.nextActor;
-    room.matchState.hasActedThisTurn = false;
     emitMatchState(io, room);
   });
 
@@ -1244,12 +1332,14 @@ io.on('connection', (socket) => {
     socket.leave(room.code);
 
     if (room.players.length === 0) {
+      clearRoomTurnTimer(room);
       rooms.delete(room.code);
       return;
     }
 
     room.status = 'waiting';
     room.matchState = null;
+    clearRoomTurnTimer(room);
     io.to(room.code).emit('room:updated', {
       room: getPublicRoom(room)
     });
@@ -1271,6 +1361,7 @@ io.on('connection', (socket) => {
     const playerName = player?.name || 'Un jugador';
     room.matchState = null;
     room.status = room.players.length === 2 ? 'ready' : 'waiting';
+    clearRoomTurnTimer(room);
 
     io.to(room.code).emit('match:terminated', {
       message: `${playerName} termino la partida.`
@@ -1322,11 +1413,13 @@ io.on('connection', (socket) => {
           currentRoom.hostId = currentRoom.players[0]?.id ?? null;
         }
         if (currentRoom.players.length === 0) {
+          clearRoomTurnTimer(currentRoom);
           rooms.delete(currentRoom.code);
           return;
         }
         currentRoom.status = 'waiting';
         currentRoom.matchState = null;
+        clearRoomTurnTimer(currentRoom);
         serverDebugLog('disconnect grace expired; room reset', {
           roomCode: currentRoom.code,
           clientId

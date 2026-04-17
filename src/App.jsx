@@ -71,6 +71,7 @@ const CHILENA_CARD_ID = 'ch';
 const GOALKEEPER_SAVE_CARD_ID = 'paq';
 const ONLINE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const ONLINE_CLIENT_ID_STORAGE_KEY = 'gol-online-client-id';
+const TURN_COUNTDOWN_SECONDS = 10;
 const CARD_IMAGE_ALIASES = {
   'barrida': ['barrida'],
   'saque banda': ['saque de banda', 'saque banda'],
@@ -555,6 +556,8 @@ export default function App() {
   const [onlineCoinFlipReveal, setOnlineCoinFlipReveal] = useState(null);
   const [isDribbleVideoPlaying, setIsDribbleVideoPlaying] = useState(false);
   const [activeActionVideo, setActiveActionVideo] = useState(oleVideo);
+  const [onlineTurnDeadlineAt, setOnlineTurnDeadlineAt] = useState(null);
+  const [turnCountdown, setTurnCountdown] = useState(TURN_COUNTDOWN_SECONDS);
   const onlineCoinFlipTimeoutRef = useRef(null);
   const onlineCoinFlipPreviewTimeoutRef = useRef(null);
   const lastOnlineEventRef = useRef(null);
@@ -584,6 +587,13 @@ export default function App() {
   const { currentPassTotal, getPassTrackerTotal, hasReactionWindow, canUseDiscard } = engineContext;
   const lastActiveCard = tablePlay[tablePlay.length - 1];
   const currentTutorial = TUTORIAL_SEQUENCES[tutorialPage] ?? TUTORIAL_SEQUENCES[0];
+  const isTurnCountdownActive =
+    onlineEnabled &&
+    gameState === 'playing' &&
+    currentTurn === 'player' &&
+    !matchWinner &&
+    typeof onlineTurnDeadlineAt === 'number' &&
+    onlineTurnDeadlineAt > Date.now();
 
   const addLog = (message) => {
     setGameLog((previousLog) => [message, ...previousLog].slice(0, 5));
@@ -787,6 +797,23 @@ export default function App() {
 
     return () => window.clearTimeout(timeoutId);
   }, [fieldEventAnimation]);
+
+  useEffect(() => {
+    if (!isTurnCountdownActive) {
+      setTurnCountdown(TURN_COUNTDOWN_SECONDS);
+      return undefined;
+    }
+
+    const deadline = onlineTurnDeadlineAt;
+    setTurnCountdown(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
+
+    const intervalId = window.setInterval(() => {
+      const nextSeconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      setTurnCountdown(nextSeconds);
+    }, 200);
+
+    return () => window.clearInterval(intervalId);
+  }, [isTurnCountdownActive, onlineTurnDeadlineAt]);
 
   useEffect(() => {
     if (!isDribbleVideoPlaying) {
@@ -1636,6 +1663,9 @@ export default function App() {
     setMatchWinner(localMatchState.matchWinner ?? null);
     setHasActedThisTurn(localMatchState.hasActedThisTurn ?? false);
     setCounterAttackReady(localMatchState.counterAttackReady ?? false);
+    setOnlineTurnDeadlineAt(
+      localMatchState.turnDeadlineAt ? new Date(localMatchState.turnDeadlineAt).getTime() : null
+    );
     setPlayerDisplayName((localMatchState.playerName || 'Jugador').toUpperCase());
     setOpponentDisplayName((localMatchState.opponentName || 'Rival').toUpperCase());
     const localPlayerLabel = (localMatchState.playerName || 'Jugador').toUpperCase();
@@ -1704,6 +1734,10 @@ export default function App() {
 
       if (event.type === 'save_success') {
         queueActionVideo(saveVideo);
+      }
+
+      if (event.type === 'turn_timeout') {
+        setSystemNotice(`${event.actor === 'player' ? localPlayerLabel : localOpponentLabel} perdio el turno por tiempo.`);
       }
     }
   };
@@ -1871,6 +1905,7 @@ export default function App() {
     setOpponentDisplayName('RIVAL');
     setFieldEventAnimation(null);
     setOnlineCoinFlipReveal(null);
+    setOnlineTurnDeadlineAt(null);
     setSystemNotice('');
     setGameLog(['Posesion persistente activada']);
     clearDribbleAnimation();
@@ -3120,6 +3155,11 @@ export default function App() {
             <div className="turn-pill">
               Turno actual: {currentTurnLabel}
             </div>
+            {onlineEnabled && gameState === 'playing' ? (
+              <div className={`countdown-pill ${isTurnCountdownActive && turnCountdown <= 3 ? 'countdown-pill-critical' : ''}`}>
+                Tiempo: {isTurnCountdownActive ? `${turnCountdown}s` : 'En espera'}
+              </div>
+            ) : null}
             <div className="section-kicker">
               {discardMode ? 'Selecciona cartas para descarte' : 'Tu mano'}
             </div>
