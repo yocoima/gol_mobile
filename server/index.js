@@ -354,6 +354,8 @@ const applyGoal = (matchState, scorer, reason) => {
   matchState.opponentScore = goalOutcome.nextOpponentScore;
   matchState.lastEvent = { id: createEventId(), type: 'goal', scorer, reason };
   matchState.hasActedThisTurn = false;
+  matchState.lastTimeoutActor = null;
+  matchState.consecutiveTimeoutCount = 0;
   applyRedCardTurnProgress(matchState, scorer);
   clearTransientState(matchState);
 
@@ -370,7 +372,7 @@ const applyGoal = (matchState, scorer, reason) => {
   return { logMessage: goalOutcome.logMessage };
 };
 
-const clearRoomTurnTimer = (room) => {
+const stopRoomTurnTimer = (room) => {
   if (room?.turnTimer?.timeoutId) {
     clearTimeout(room.turnTimer.timeoutId);
   }
@@ -378,6 +380,10 @@ const clearRoomTurnTimer = (room) => {
   if (room) {
     room.turnTimer = null;
   }
+};
+
+const clearRoomTurnTimer = (room) => {
+  stopRoomTurnTimer(room);
 
   if (room?.matchState) {
     room.matchState.turnDeadlineAt = null;
@@ -443,6 +449,8 @@ const resolveServerEndTurn = (room) => {
 
   room.matchState.currentTurn = flowPlan.nextActor;
   room.matchState.hasActedThisTurn = false;
+  room.matchState.lastTimeoutActor = null;
+  room.matchState.consecutiveTimeoutCount = 0;
   return { ok: true };
 };
 
@@ -453,14 +461,22 @@ const syncRoomTurnTimer = (ioServer, room) => {
   }
 
   const actor = room.matchState.currentTurn;
-  if (room.turnTimer?.actor === actor && room.turnTimer?.deadlineAt === room.matchState.turnDeadlineAt) {
+  const now = Date.now();
+  const currentDeadlineMs = room.matchState.turnDeadlineAt
+    ? new Date(room.matchState.turnDeadlineAt).getTime()
+    : NaN;
+  const hasReusableDeadline = Number.isFinite(currentDeadlineMs) && currentDeadlineMs > now;
+  const deadlineAt = hasReusableDeadline
+    ? room.matchState.turnDeadlineAt
+    : new Date(now + onlineTurnTimeoutMs).toISOString();
+
+  if (room.turnTimer?.actor === actor && room.turnTimer?.deadlineAt === deadlineAt) {
     return;
   }
 
-  clearRoomTurnTimer(room);
-
-  const deadlineAt = new Date(Date.now() + onlineTurnTimeoutMs).toISOString();
+  stopRoomTurnTimer(room);
   room.matchState.turnDeadlineAt = deadlineAt;
+  const delayMs = Math.max(0, new Date(deadlineAt).getTime() - now);
   room.turnTimer = {
     actor,
     deadlineAt,
@@ -484,6 +500,35 @@ const syncRoomTurnTimer = (ioServer, room) => {
         type: 'turn_timeout',
         actor
       };
+
+      const previousTimeoutActor = latestRoom.matchState.lastTimeoutActor ?? null;
+      const nextTimeoutCount = previousTimeoutActor === actor
+        ? (latestRoom.matchState.consecutiveTimeoutCount ?? 0) + 1
+        : 1;
+      latestRoom.matchState.lastTimeoutActor = actor;
+      latestRoom.matchState.consecutiveTimeoutCount = nextTimeoutCount;
+
+      if (nextTimeoutCount >= 2) {
+        latestRoom.matchState.gameState = 'finished';
+        latestRoom.matchState.matchWinner = getOpponent(actor);
+        latestRoom.matchState.currentTurn = null;
+        latestRoom.matchState.possession = null;
+        latestRoom.matchState.pendingShot = null;
+        latestRoom.matchState.pendingDefense = null;
+        latestRoom.matchState.pendingBlindDiscard = null;
+        latestRoom.matchState.pendingCombo = null;
+        latestRoom.matchState.turnDeadlineAt = null;
+        latestRoom.matchState.lastEvent = {
+          id: createEventId(),
+          type: 'turn_timeout_loss',
+          actor,
+          winner: getOpponent(actor)
+        };
+        clearRoomTurnTimer(latestRoom);
+        emitMatchState(ioServer, latestRoom);
+        return;
+      }
+
       clearRoomTurnTimer(latestRoom);
       const outcome = resolveServerEndTurn(latestRoom);
       if (!outcome.ok) {
@@ -495,7 +540,7 @@ const syncRoomTurnTimer = (ioServer, room) => {
         return;
       }
       emitMatchState(ioServer, latestRoom);
-    }, onlineTurnTimeoutMs)
+    }, delayMs)
   };
 };
 
@@ -1029,7 +1074,6 @@ io.on('connection', (socket) => {
       return;
     }
 
-    clearRoomTurnTimer(room);
     const outcome = resolveServerEndTurn(room);
     if (!outcome.ok) {
       socket.emit('match:error', { message: outcome.message });
@@ -1059,9 +1103,6 @@ io.on('connection', (socket) => {
       socket.emit('match:error', { message: 'Aun no es tu turno para responder.' });
       return;
     }
-
-    clearRoomTurnTimer(room);
-
     if (room.matchState.pendingBlindDiscard) {
       if (!Number.isInteger(index)) {
         socket.emit('match:error', { message: 'Debes elegir una posicion valida para descartar.' });
@@ -1267,9 +1308,6 @@ io.on('connection', (socket) => {
       socket.emit('match:error', { message: 'No es tu turno para descartar.' });
       return;
     }
-
-    clearRoomTurnTimer(room);
-
     if (room.matchState.pendingShot || room.matchState.pendingDefense || room.matchState.pendingBlindDiscard || room.matchState.pendingCombo) {
       socket.emit('match:error', { message: 'No puedes descartar mientras hay una respuesta pendiente.' });
       return;

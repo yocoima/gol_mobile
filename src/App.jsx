@@ -565,6 +565,7 @@ export default function App() {
   const onlineRoomCodeRef = useRef('');
   const dribbleVideoRef = useRef(null);
   const pendingDribbleActionRef = useRef(null);
+  const countdownAlertDeadlineRef = useRef(null);
 
   const isPlayerTurn = currentTurn === 'player';
   const isOpponentTurn = currentTurn === 'opponent';
@@ -801,15 +802,24 @@ export default function App() {
   useEffect(() => {
     if (!isTurnCountdownActive) {
       setTurnCountdown(TURN_COUNTDOWN_SECONDS);
+      countdownAlertDeadlineRef.current = null;
       return undefined;
     }
 
     const deadline = onlineTurnDeadlineAt;
     setTurnCountdown(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
+    if (countdownAlertDeadlineRef.current !== deadline) {
+      countdownAlertDeadlineRef.current = deadline;
+    }
 
     const intervalId = window.setInterval(() => {
       const nextSeconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
       setTurnCountdown(nextSeconds);
+
+      if (nextSeconds === 5 && countdownAlertDeadlineRef.current === deadline) {
+        countdownAlertDeadlineRef.current = `played-${deadline}`;
+        audioManagerRef.current?.playSfx('countdown');
+      }
     }, 200);
 
     return () => window.clearInterval(intervalId);
@@ -1738,6 +1748,10 @@ export default function App() {
 
       if (event.type === 'turn_timeout') {
         setSystemNotice(`${event.actor === 'player' ? localPlayerLabel : localOpponentLabel} perdio el turno por tiempo.`);
+      }
+
+      if (event.type === 'turn_timeout_loss') {
+        setSystemNotice(`${event.actor === 'player' ? localPlayerLabel : localOpponentLabel} perdio por agotar el tiempo dos veces seguidas.`);
       }
     }
   };
