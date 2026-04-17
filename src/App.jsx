@@ -44,6 +44,7 @@ import {
   getRedCardProgressPlan,
   getShotResolutionPlan
 } from '../shared/game/rules.js';
+import { AppButton, ModalCard, ScorePanel } from './components/MatchUi.jsx';
 
 const CARD_IMAGE_MODULES = import.meta.glob('../imagenes/*.{png,jpg,jpeg,webp}', {
   eager: true,
@@ -310,9 +311,22 @@ const CardItem = ({
   hideContent = false
 }) => {
   const cardImage = card?.imageUrl;
+  const cardLabel = hideContent ? 'Carta oculta' : card?.name;
+  const cardTypeLabel =
+    hideContent
+      ? 'Oculta'
+      : card?.type === 'pass'
+        ? 'Pase'
+        : card?.type === 'defense'
+          ? 'Defensa'
+          : card?.type === 'shoot'
+            ? 'Remate'
+            : card?.type === 'special'
+              ? 'Especial'
+              : 'Juego';
 
   return (
-  <div className="relative group flex w-[86px] flex-col items-center max-sm:w-[67px]">
+  <div className="hand-card-shell group">
     {canSelectDiscard && isDiscardMode && !disabled && (
       <button
         onClick={onSelect}
@@ -327,13 +341,13 @@ const CardItem = ({
     <button
       onClick={isDiscardMode ? onSelect : onClick}
       disabled={disabled}
-      className={`
-        ${hideContent || cardImage ? 'bg-slate-900' : card?.color || 'bg-slate-800'} h-[118px] w-[86px] overflow-hidden rounded-[18px] border border-white/10 p-0 shadow-[0_14px_30px_rgba(0,0,0,0.35)] transition-all duration-200 max-sm:h-[84px] max-sm:w-[67px] max-sm:rounded-[14px]
-        flex flex-col justify-between
-        ${!disabled ? 'hover:-translate-y-4 hover:shadow-emerald-400/30' : 'grayscale opacity-40 border-white/5'}
-        ${isSelected ? 'scale-90 brightness-50 ring-2 ring-orange-300' : ''}
-      `}
+      className={`hand-card-button ${
+        hideContent || cardImage ? 'bg-slate-900' : card?.color || 'bg-slate-800'
+      } ${hideContent ? 'hand-card-hidden' : ''} ${
+        !disabled ? 'hand-card-enabled' : 'hand-card-disabled'
+      } ${isSelected ? 'hand-card-selected' : ''}`}
     >
+      {!hideContent && <div className="hand-card-badge">{cardTypeLabel}</div>}
       {cardImage && !hideContent && (
         <>
           <img
@@ -342,15 +356,18 @@ const CardItem = ({
             className="absolute inset-0 h-full w-full rounded-[18px] object-cover object-center"
           />
           <div className="absolute inset-0 rounded-[18px] bg-gradient-to-b from-black/18 via-transparent to-black/28" />
-          <div className="absolute inset-[3px] rounded-[15px] border border-white/12" />
         </>
       )}
+      <div className="hand-card-frame" />
+      {hideContent ? (
+        <div className="absolute inset-0 flex items-center justify-center px-3 text-center text-[10px] font-black uppercase tracking-[0.2em] text-white/75 max-sm:text-[7px]">
+          Carta
+        </div>
+      ) : null}
     </button>
 
-    <div className="mt-2 flex min-h-[18px] w-full items-center justify-center rounded-md bg-transparent px-1 py-0 text-center max-sm:mt-1 max-sm:min-h-[12px]">
-      <div className="text-[7px] font-black uppercase leading-tight text-white/95 max-sm:text-[6px]">
-        {hideContent ? 'Carta oculta' : card?.name}
-      </div>
+    <div className="hand-card-name">
+      {cardLabel}
     </div>
   </div>
   );
@@ -2829,171 +2846,42 @@ export default function App() {
   ]);
 
   return (
-      <div className="flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-slate-950 text-white">
-        <style>{`
-          html, body, #root {
-            height: 100%;
-            overflow: hidden;
-          }
-
-          @keyframes fieldBallBounce {
-            0%, 100% { transform: translate(-50%, 0); }
-            50% { transform: translate(-50%, -12px); }
-          }
-
-          @keyframes goalPulse {
-            0% { opacity: 0; transform: scale(0.82); }
-            20% { opacity: 1; transform: scale(1.06); }
-            60% { opacity: 1; transform: scale(1); }
-            100% { opacity: 0; transform: scale(1.14); }
-          }
-
-          @keyframes goalBallBurst {
-            0%, 100% { transform: scale(1) rotate(0deg); }
-            50% { transform: scale(1.22) rotate(10deg); }
-          }
-
-          @keyframes discardCardSlideIn {
-            0% { transform: translateY(18px) scale(0.92); opacity: 0; }
-            100% { transform: translateY(0) scale(1); opacity: 1; }
-          }
-        `}</style>
-        <div className="z-20 border-b-2 border-cyan-500/35 bg-[linear-gradient(90deg,#0a1b45_0%,#111e40_44%,#2c173a_100%)] p-2 shadow-2xl max-sm:p-0.5">
+      <div className="app-shell flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-slate-950 text-white">
+        <div className="hud-bar z-20 border-b-2 border-cyan-500/35 p-2 shadow-2xl max-sm:p-0.5">
         <div className="mx-auto flex max-w-4xl items-center justify-between px-4 max-sm:px-0.5">
-          <div className={`flex items-center gap-4 rounded-2xl p-3 transition-all max-sm:gap-1 max-sm:rounded-xl max-sm:p-1 ${
-            possession === 'player'
-              ? 'bg-blue-600/30 ring-2 ring-blue-500'
-              : sanctions.player
-                ? 'bg-blue-600/12 ring-1 ring-blue-300/60'
-                : 'grayscale opacity-30'
-          }`}>
-            {possession === 'player' && <SoccerBallIcon size={20} className="animate-bounce" />}
-            <div className="text-center">
-              <span className="block text-[10px] font-black text-blue-400 max-sm:text-[8px]">{playerDisplayName}</span>
-              <span className="text-3xl font-black max-sm:text-xl">{playerScore}</span>
-              <div className="mt-1 flex justify-center gap-1.5 max-sm:hidden">
-                {[1, 2, 3, 4].map((point) => (
-                  <div
-                    key={`player-pass-${point}`}
-                    className={`h-2 w-4 rounded-full transition-all duration-500 ${
-                      getPassTrackerTotal('player') >= point ? 'bg-yellow-400 shadow-[0_0_10px_#facc15]' : 'bg-slate-800'
-                    }`}
-                  />
-                ))}
-              </div>
-              <span className="mt-1 block text-[10px] font-black uppercase tracking-widest text-yellow-500 max-sm:mt-0.5 max-sm:text-[7px]">
-                Puntos jugada: {getPassTrackerTotal('player')} / 4
-              </span>
-              {playerRedCardStatus ? (
-                <div className="mt-1 inline-flex max-w-[180px] rounded-full border border-red-200/75 bg-red-500/90 px-2.5 py-1 text-center text-[9px] font-black uppercase tracking-[0.14em] text-white shadow-[0_8px_18px_rgba(127,29,29,0.35)] max-sm:max-w-[108px] max-sm:px-1.5 max-sm:py-0.5 max-sm:text-[6px]">
-                  {playerRedCardStatus}
-                </div>
-              ) : null}
-              {sanctions.player && (
-                <div
-                  className={`mt-2 hidden max-w-[220px] items-start gap-2 rounded-xl border px-3 py-2 text-left shadow-lg sm:flex ${
-                    sanctions.player.type === 'red'
-                      ? 'border-red-200/80 bg-red-500 text-white'
-                      : 'border-yellow-100/90 bg-yellow-300 text-slate-950'
-                  }`}
-                >
-                  <div
-                    className={`mt-0.5 h-8 w-6 rounded-sm border shadow-md ${
-                      sanctions.player.type === 'red'
-                        ? 'border-red-100/80 bg-red-700'
-                        : 'border-yellow-950/20 bg-yellow-100'
-                    }`}
-                  />
-                  <div className="min-w-0">
-                    <span className="block text-[9px] font-black uppercase tracking-[0.2em]">
-                      {sanctions.player.title}
-                    </span>
-                    <span className="block text-[10px] font-black leading-tight">
-                      {sanctions.player.detail}
-                    </span>
-                    {sanctions.player.turnsRemaining ? (
-                      <span className="mt-1 inline-flex rounded-full bg-black/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.18em]">
-                        Turnos restantes: {sanctions.player.turnsRemaining}
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+          <ScorePanel
+            name={playerDisplayName}
+            score={playerScore}
+            passTotal={getPassTrackerTotal('player')}
+            accent="cyan"
+            isActive={possession === 'player'}
+            sanction={sanctions.player}
+            redCardStatus={playerRedCardStatus}
+            ball={possession === 'player' ? <SoccerBallIcon size={20} className="animate-bounce" /> : null}
+          />
 
           <div className="flex flex-1 justify-center max-sm:px-0.5">
             {(gameState === 'playing' || gameState === 'dealing' || gameState === 'coin-flip') ? (
-              <button
+              <AppButton
                 onClick={finishMatchAndReturnToMenu}
-                className="rounded-full border border-red-200/40 bg-red-500/20 px-5 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-red-100 shadow-xl transition-all hover:bg-red-500/30 max-sm:px-2.5 max-sm:py-1 max-sm:text-[8px] max-sm:tracking-[0.1em]"
+                variant="danger"
+                className="px-5 py-2 shadow-xl max-sm:px-2.5 max-sm:py-1 max-sm:text-[8px] max-sm:tracking-[0.1em]"
               >
                 Terminar partida
-              </button>
+              </AppButton>
             ) : null}
           </div>
 
-          <div className={`flex items-center gap-4 rounded-2xl p-3 transition-all max-sm:gap-1 max-sm:rounded-xl max-sm:p-1 ${
-            possession === 'opponent'
-              ? 'bg-red-600/30 ring-2 ring-red-500'
-              : sanctions.opponent
-                ? 'bg-red-600/12 ring-1 ring-red-300/60'
-                : 'grayscale opacity-30'
-          }`}>
-            {possession === 'opponent' && <SoccerBallIcon size={20} className="animate-bounce" />}
-            <div className="text-center">
-              <span className="block text-[10px] font-black text-red-400 max-sm:text-[8px]">{opponentDisplayName}</span>
-              <span className="text-3xl font-black max-sm:text-xl">{opponentScore}</span>
-              <div className="mt-1 flex justify-center gap-1.5 max-sm:hidden">
-                {[1, 2, 3, 4].map((point) => (
-                  <div
-                    key={`opponent-pass-${point}`}
-                    className={`h-2 w-4 rounded-full transition-all duration-500 ${
-                      getPassTrackerTotal('opponent') >= point ? 'bg-yellow-400 shadow-[0_0_10px_#facc15]' : 'bg-slate-800'
-                    }`}
-                  />
-                ))}
-              </div>
-              <span className="mt-1 block text-[10px] font-black uppercase tracking-widest text-yellow-500 max-sm:mt-0.5 max-sm:text-[7px]">
-                Puntos jugada: {getPassTrackerTotal('opponent')} / 4
-              </span>
-              {opponentRedCardStatus ? (
-                <div className="mt-1 inline-flex max-w-[180px] rounded-full border border-red-200/75 bg-red-500/90 px-2.5 py-1 text-center text-[9px] font-black uppercase tracking-[0.14em] text-white shadow-[0_8px_18px_rgba(127,29,29,0.35)] max-sm:max-w-[108px] max-sm:px-1.5 max-sm:py-0.5 max-sm:text-[6px]">
-                  {opponentRedCardStatus}
-                </div>
-              ) : null}
-              {sanctions.opponent && (
-                <div
-                  className={`mt-2 hidden max-w-[220px] items-start gap-2 rounded-xl border px-3 py-2 text-left shadow-lg sm:flex ${
-                    sanctions.opponent.type === 'red'
-                      ? 'border-red-200/80 bg-red-500 text-white'
-                      : 'border-yellow-100/90 bg-yellow-300 text-slate-950'
-                  }`}
-                >
-                  <div
-                    className={`mt-0.5 h-8 w-6 rounded-sm border shadow-md ${
-                      sanctions.opponent.type === 'red'
-                        ? 'border-red-100/80 bg-red-700'
-                        : 'border-yellow-950/20 bg-yellow-100'
-                    }`}
-                  />
-                  <div className="min-w-0">
-                    <span className="block text-[9px] font-black uppercase tracking-[0.2em]">
-                      {sanctions.opponent.title}
-                    </span>
-                    <span className="block text-[10px] font-black leading-tight">
-                      {sanctions.opponent.detail}
-                    </span>
-                    {sanctions.opponent.turnsRemaining ? (
-                      <span className="mt-1 inline-flex rounded-full bg-black/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.18em]">
-                        Turnos restantes: {sanctions.opponent.turnsRemaining}
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+          <ScorePanel
+            name={opponentDisplayName}
+            score={opponentScore}
+            passTotal={getPassTrackerTotal('opponent')}
+            accent="rose"
+            isActive={possession === 'opponent'}
+            sanction={sanctions.opponent}
+            redCardStatus={opponentRedCardStatus}
+            ball={possession === 'opponent' ? <SoccerBallIcon size={20} className="animate-bounce" /> : null}
+          />
         </div>
       </div>
 
@@ -3080,7 +2968,7 @@ export default function App() {
         {gameState === 'playing' && !onlineCoinFlipReveal && !isDribbleVideoPlaying ? (
           <div className="pointer-events-none absolute left-1/2 top-[16%] z-10 flex w-full max-w-[300px] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2 px-2 max-sm:top-[18%] max-sm:max-w-[240px]">
             {laneNotices.opponent ? (
-              <div className="rounded-full border border-emerald-300/35 bg-black/55 px-4 py-2 text-center text-[11px] font-black uppercase tracking-[0.16em] text-emerald-200 shadow-[0_12px_28px_rgba(0,0,0,0.32)] backdrop-blur-sm max-sm:px-3 max-sm:text-[9px]">
+              <div className="notice-pill notice-pill-emerald">
                 {laneNotices.opponent}
               </div>
             ) : null}
@@ -3090,7 +2978,7 @@ export default function App() {
         {gameState === 'playing' && !onlineCoinFlipReveal && !isDribbleVideoPlaying ? (
           <div className="pointer-events-none absolute left-1/2 bottom-[36%] z-10 flex w-full max-w-[300px] -translate-x-1/2 translate-y-1/2 flex-col items-center gap-2 px-2 max-sm:bottom-[38%] max-sm:max-w-[240px]">
             {laneNotices.player ? (
-              <div className="rounded-full border border-cyan-300/35 bg-black/55 px-4 py-2 text-center text-[11px] font-black uppercase tracking-[0.16em] text-cyan-200 shadow-[0_12px_28px_rgba(0,0,0,0.32)] backdrop-blur-sm max-sm:px-3 max-sm:text-[9px]">
+              <div className="notice-pill notice-pill-cyan">
                 {laneNotices.player}
               </div>
             ) : null}
@@ -3101,9 +2989,17 @@ export default function App() {
           className="z-10 flex w-full max-w-4xl items-center justify-center gap-4 px-4 max-sm:gap-2 max-sm:px-1"
           style={{ transform: 'translateY(8%)' }}
         >
-          <div className="flex min-h-[150px] flex-1 items-end justify-center overflow-visible py-6 max-sm:min-h-[118px] max-sm:py-3">
+          <div className="match-table-panel flex min-h-[150px] flex-1 items-end justify-center overflow-visible py-6 max-sm:min-h-[118px] max-sm:py-3">
             {tablePlay.length === 0 ? (
-              null
+              <div className="table-empty-state w-full">
+                <div className="table-empty-ball">
+                  <SoccerBallIcon size={24} className="text-white/72" />
+                </div>
+                <div className="section-kicker">Cancha central</div>
+                <div className="text-sm font-bold text-white/56">
+                  Aun no hay cartas en juego
+                </div>
+              </div>
             ) : (
               tablePlay.map((card, index) => {
                 const isRivalCard = card.tableActor === 'opponent';
@@ -3121,7 +3017,9 @@ export default function App() {
                 return (
                   <div
                     key={`${card.visualId || card.id}-${index}`}
-                    className={`${card.color || 'bg-slate-800'} relative flex h-[101px] min-w-[74px] flex-col justify-between overflow-hidden rounded-lg border-2 border-white/40 p-2 shadow-lg max-sm:h-[84px] max-sm:min-w-[59px] max-sm:p-1`}
+                    className={`${card.color || 'bg-slate-800'} table-card relative flex h-[101px] min-w-[74px] flex-col justify-between p-2 max-sm:h-[84px] max-sm:min-w-[59px] max-sm:p-1 ${
+                      isRivalCard ? 'table-card-opponent' : 'table-card-player'
+                    } ${lastActiveCard?.visualId === card.visualId ? 'table-card-featured' : ''}`}
                     style={{
                       marginLeft: overlapOffset,
                       marginBottom: verticalLift,
@@ -3138,12 +3036,15 @@ export default function App() {
                         <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/32" />
                       </>
                     ) : null}
-                    <p className="relative z-10 text-[7px] font-black uppercase leading-none max-sm:text-[6px]">{card.name}</p>
+                    <p className="relative z-10 text-[7px] font-black uppercase leading-none text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.65)] max-sm:text-[6px]">{card.name}</p>
                     {card.value > 0 ? (
-                      <p className="relative z-10 text-center text-xl font-black max-sm:text-base">+{card.value}</p>
+                      <p className="relative z-10 text-center text-xl font-black text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.5)] max-sm:text-base">+{card.value}</p>
                     ) : (
                       <div className="relative z-10 h-7 max-sm:h-6" />
                     )}
+                    <div className="relative z-10 mt-1 text-center text-[6px] font-black uppercase tracking-[0.18em] text-white/80 max-sm:text-[5px]">
+                      {isRivalCard ? opponentDisplayName : playerDisplayName}
+                    </div>
                   </div>
                 );
               })
@@ -3152,7 +3053,7 @@ export default function App() {
         </div>
 
             {statusBannerMessage && (
-              <div className="mt-2 hidden rounded-full border border-yellow-300/40 bg-yellow-500/15 px-5 py-2 text-center text-[10px] font-black uppercase tracking-[0.22em] text-yellow-200 shadow-[0_0_20px_rgba(250,204,21,0.18)] sm:block">
+              <div className="status-banner mt-2 hidden sm:block">
                 {statusBannerMessage}
               </div>
             )}
@@ -3160,7 +3061,7 @@ export default function App() {
             {comboWindow && (
               <div className="pointer-events-none fixed inset-x-0 top-24 z-[68] flex justify-center px-4 max-sm:top-20">
                 <div
-                  className={`relative w-full max-w-lg rounded-[1.6rem] border bg-black/38 px-6 py-5 text-center shadow-[0_0_45px_rgba(255,255,255,0.1)] backdrop-blur-[5px] ${
+                  className={`combo-panel relative w-full max-w-lg px-6 py-5 text-center ${
                     comboWindow.accent === 'lime'
                       ? 'border-lime-300/50 text-lime-100'
                       : comboWindow.accent === 'sky'
@@ -3213,40 +3114,35 @@ export default function App() {
               </div>
             )}
 
-          <div className="relative z-30 w-full max-w-2xl pb-6 max-sm:max-w-full max-sm:pb-4">
-          <div className="mb-3 text-center text-[11px] font-black uppercase tracking-[0.3em] text-white/70 max-sm:mb-2 max-sm:text-[9px] max-sm:tracking-[0.18em]">
-            Turno actual: {currentTurnLabel}
+          <div className="relative z-30 w-full max-w-[860px] pb-6 max-sm:max-w-full max-sm:pb-4">
+          <div className="hand-dock">
+          <div className="mb-3 flex flex-col items-center gap-3">
+            <div className="turn-pill">
+              Turno actual: {currentTurnLabel}
+            </div>
+            <div className="section-kicker">
+              {discardMode ? 'Selecciona cartas para descarte' : 'Tu mano'}
+            </div>
           </div>
-          <div className="mb-3 flex flex-wrap items-center justify-center gap-3 max-sm:mb-2 max-sm:gap-2">
+          <div className="action-strip max-sm:mb-2 max-sm:gap-2">
               {canUseDiscard && isPlayerTurn && (
-              <button
+              <AppButton
                 onClick={handleDiscardButtonClick}
                 disabled={isDribbleVideoPlaying}
-                className={`flex items-center gap-2 rounded-full px-6 py-2.5 text-[10px] font-black transition-all ${
-                  isDribbleVideoPlaying
-                    ? 'cursor-not-allowed bg-slate-700 text-white/50'
-                    : discardMode
-                    ? selectedForDiscard.length > 0
-                      ? 'scale-105 bg-orange-600 shadow-lg'
-                      : 'bg-slate-700'
-                    : 'bg-orange-700 shadow-lg hover:bg-orange-600'
-                }`}
+                variant={discardMode && selectedForDiscard.length > 0 ? 'danger' : discardMode ? 'ghost' : 'secondary'}
+                className={`flex items-center gap-2 px-6 py-2.5 text-[10px] ${discardMode && selectedForDiscard.length > 0 ? 'scale-105' : ''}`}
               >
                 <RefreshCcw size={14} /> {discardMode ? (selectedForDiscard.length > 0 ? `CONFIRMAR DESCARTE (${selectedForDiscard.length})` : 'CANCELAR DESCARTE') : 'DESCARTAR'}
-              </button>
+              </AppButton>
             )}
 
-              <button
+              <AppButton
                 onClick={handleEndTurnButtonClick}
                 disabled={Boolean(!isPlayerTurn || pendingBlindDiscard || isDribbleVideoPlaying)}
-                className={`flex items-center gap-2 rounded-full px-8 py-2.5 text-[10px] font-black shadow-xl ${
-                  !isPlayerTurn || pendingBlindDiscard || isDribbleVideoPlaying
-                    ? 'cursor-not-allowed bg-slate-700 text-white/50'
-                    : 'bg-emerald-500 hover:bg-emerald-400'
-                }`}
+                className="flex items-center gap-2 px-8 py-2.5 text-[10px]"
               >
                 <ArrowRightCircle size={14} /> FINALIZAR TURNO
-              </button>
+              </AppButton>
           </div>
 
           <div className="mb-2 grid w-full grid-cols-5 justify-items-center gap-1 sm:mb-3 sm:flex sm:flex-wrap sm:justify-center sm:gap-1.5" style={{ marginBottom: '2%' }}>
@@ -3264,18 +3160,18 @@ export default function App() {
               />
             ))}
           </div>
+          </div>
 
           {gameState === 'menu' && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-6">
-              <div className="w-full max-w-2xl rounded-[2rem] border border-emerald-400/20 bg-slate-950/90 px-8 py-10 text-center shadow-[0_20px_70px_rgba(0,0,0,0.6)]">
-                <div className="mb-3 text-[11px] font-black uppercase tracking-[0.45em] text-emerald-400/70">
-                  Menu principal
-                </div>
-                <h1 className="mb-4 text-4xl font-black text-white">Gol App</h1>
-                <p className="mx-auto mb-8 max-w-xl text-sm font-semibold text-white/65">
-                  Elige si quieres entrar directo al partido o ver un tutorial rapido con las reglas base y las combinaciones especiales.
-                </p>
-                <div className="mx-auto mb-6 max-w-lg rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-left">
+              <ModalCard
+                eyebrow="Menu principal"
+                title="Gol App"
+                description="Elige si quieres entrar directo al partido o ver un tutorial rapido con las reglas base y las combinaciones especiales."
+                tone="emerald"
+                className="w-full max-w-2xl px-8 py-10 text-center"
+              >
+                <div className="glass-panel online-panel mx-auto mb-6 max-w-lg rounded-2xl p-4 text-left">
                   <div className="mb-3 text-[11px] font-black uppercase tracking-[0.28em] text-cyan-300">
                     Modo online
                   </div>
@@ -3283,65 +3179,68 @@ export default function App() {
                     value={onlinePlayerName}
                     onChange={(event) => setOnlinePlayerName(event.target.value)}
                     placeholder="Ingresa tu nombre"
-                    className="mb-3 w-full rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-sm text-white outline-none"
+                    className="input-shell mb-3 px-4 py-3 text-sm"
                   />
                   <div className="grid gap-3 md:grid-cols-2">
-                    <button
+                    <AppButton
                       onClick={() => {
                         setOnlineError('');
                         createOnlineRoom();
                       }}
-                      className="rounded-xl bg-cyan-500 px-4 py-3 text-sm font-black text-slate-950 transition-all hover:bg-cyan-400"
+                      variant="accent"
+                      className="rounded-xl px-4 py-3 text-sm"
                     >
                       CREAR SALA
-                    </button>
+                    </AppButton>
                     <div className="flex gap-2">
                       <input
                         value={onlineJoinCode}
                         onChange={(event) => setOnlineJoinCode(event.target.value.toUpperCase())}
                         placeholder="Codigo"
-                        className="min-w-0 flex-1 rounded-xl border border-white/10 bg-slate-900 px-4 py-3 text-sm text-white outline-none"
+                        className="input-shell min-w-0 flex-1 px-4 py-3 text-sm"
                       />
-                      <button
+                      <AppButton
                         onClick={() => {
                           setOnlineError('');
                           joinOnlineRoom();
                         }}
-                        className="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-black text-slate-950 transition-all hover:bg-emerald-400"
+                        className="rounded-xl px-4 py-3 text-sm"
                       >
                         UNIRSE
-                      </button>
+                      </AppButton>
                     </div>
                   </div>
                   {onlineRoomCode ? (
-                    <div className="mt-3 space-y-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div className="text-xs font-black uppercase tracking-[0.2em] text-white/70">
-                          Sala: {onlineRoomCode}
+                    <div className="online-grid mt-3">
+                      <div className="room-code-bar">
+                        <div>
+                          <div className="room-code-label">Codigo de sala</div>
+                          <div className="room-code-value">{onlineRoomCode}</div>
                         </div>
-                        <button
+                        <AppButton
                           onClick={copyOnlineRoomCode}
-                          className="rounded-lg border border-cyan-300/25 bg-cyan-400/10 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-cyan-200 transition-all hover:bg-cyan-400/20"
+                          variant="ghost"
+                          className="rounded-lg px-3 py-1.5 text-[11px] text-cyan-200"
                         >
                           COPIAR CODIGO
-                        </button>
+                        </AppButton>
                       </div>
-                      <div className="rounded-lg border border-white/8 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-white/60">
+                      <div className={`room-status ${onlineRoom?.playerCount === 2 ? 'room-status-ready' : 'room-status-waiting'}`}>
                         {onlineRoom?.playerCount === 2
                           ? 'Sala completa. Lista para iniciar la partida online.'
                           : 'Esperando a que se una otro jugador.'}
                       </div>
                       {onlineRoom?.players?.length ? (
-                        <div className="space-y-2">
-                          {onlineRoom.players.map((player) => (
+                        <div className="player-list">
+                          {onlineRoom.players.map((player, index) => (
                             <div
                               key={player.id}
-                              className="flex items-center gap-3 rounded-xl border border-white/10 bg-slate-900/80 px-3 py-2"
+                              className="player-presence-card"
                             >
-                              <div className="relative flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-slate-800 text-white/70">
-                                <span className="text-sm font-black">1</span>
-                                <span className={`absolute -right-0.5 -bottom-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border border-slate-950 text-[9px] font-black ${player.connected ? 'bg-emerald-500 text-slate-950' : 'bg-slate-600 text-white/80'}`}>
-                                  {player.connected ? '✓' : '•'}
+                              <div className="player-avatar">
+                                <span>{index + 1}</span>
+                                <span className={`player-status-dot ${player.connected ? 'player-status-online' : 'player-status-offline'}`}>
+                                  {player.connected ? 'OK' : '...'}
                                 </span>
                               </div>
                               <div className="min-w-0">
@@ -3358,24 +3257,25 @@ export default function App() {
                       ) : null}
                       <div className="flex flex-wrap gap-2">
                         {onlineRoom?.playerCount === 2 && onlineRole === 'opponent' ? (
-                          <button
+                          <AppButton
                             onClick={() => setShowOnlineCoinChoice(true)}
-                            className="rounded-xl bg-emerald-500 px-4 py-3 text-sm font-black text-slate-950 transition-all hover:bg-emerald-400"
+                            className="primary-cta-glow rounded-xl px-4 py-3 text-sm"
                           >
                             INICIAR PARTIDA ONLINE
-                          </button>
+                          </AppButton>
                         ) : null}
                         {onlineRoom?.playerCount === 2 && onlineRole === 'player' ? (
                           <div className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-white/70">
                             Esperando al invitado para iniciar el sorteo
                           </div>
                         ) : null}
-                        <button
+                        <AppButton
                           onClick={leaveOnlineRoom}
-                          className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black text-white transition-all hover:bg-white/10"
+                          variant="secondary"
+                          className="rounded-xl px-4 py-3 text-sm"
                         >
                           SALIR DE LA SALA
-                        </button>
+                        </AppButton>
                       </div>
                     </div>
                   ) : null}
@@ -3383,34 +3283,38 @@ export default function App() {
                     <div className="mt-2 text-sm font-semibold text-red-300">{onlineError}</div>
                   ) : null}
                 </div>
-                  <div className="flex flex-wrap items-center justify-center gap-4">
-                    {!onlineRoomCode ? (
-                      <button
-                        onClick={() => startFromMenu(true)}
-                        className="flex items-center gap-3 rounded-2xl bg-cyan-400 px-8 py-4 text-sm font-black text-slate-950 transition-all hover:bg-cyan-300"
-                      >
-                        <Bot size={18} /> JUGAR CONTRA IA
-                      </button>
-                    ) : null}
-                    <button
-                      onClick={() => setGameState('tutorial')}
-                      className="flex items-center gap-3 rounded-2xl border border-white/15 bg-white/5 px-8 py-4 text-sm font-black text-white transition-all hover:bg-white/10"
+                <div className="flex flex-wrap items-center justify-center gap-4">
+                  {!onlineRoomCode ? (
+                    <AppButton
+                      onClick={() => startFromMenu(true)}
+                      variant="accent"
+                      className="flex items-center gap-3 rounded-2xl px-8 py-4 text-sm"
                     >
+                      <Bot size={18} /> JUGAR CONTRA IA
+                    </AppButton>
+                  ) : null}
+                  <AppButton
+                    onClick={() => setGameState('tutorial')}
+                    variant="secondary"
+                    className="flex items-center gap-3 rounded-2xl px-8 py-4 text-sm"
+                  >
                     <BookOpen size={18} /> TUTORIAL
-                  </button>
+                  </AppButton>
                 </div>
-              </div>
+              </ModalCard>
             </div>
           )}
 
           {gameState === 'tutorial' && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-6">
-              <div className="w-full max-w-3xl rounded-[2rem] border border-cyan-400/20 bg-slate-950/95 px-8 py-8 text-left shadow-[0_20px_70px_rgba(0,0,0,0.6)]">
-                <div className="mb-3 text-[11px] font-black uppercase tracking-[0.45em] text-cyan-400/70">
-                  Tutorial rapido
-                </div>
-                <h2 className="mb-6 text-3xl font-black text-white">Como se juega</h2>
-                <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-5 shadow-[0_14px_35px_rgba(0,0,0,0.22)]">
+              <ModalCard
+                eyebrow="Tutorial rapido"
+                title="Como se juega"
+                tone="cyan"
+                className="w-full max-w-3xl px-8 py-8 text-left"
+                align="left"
+              >
+                <div className="glass-panel rounded-[1.5rem] p-5">
                   <div className="flex items-center justify-between gap-4">
                     <div className="text-[11px] font-black uppercase tracking-[0.28em] text-cyan-300">
                       {currentTutorial.title}
@@ -3498,47 +3402,51 @@ export default function App() {
                     </div>
                   )}
                   <div className="mt-6 flex items-center justify-between gap-3">
-                    <button
+                    <AppButton
                       onClick={() => setTutorialPage((previous) => Math.max(0, previous - 1))}
                       disabled={tutorialPage === 0}
-                      className="rounded-2xl border border-white/15 bg-white/5 px-5 py-3 text-sm font-black text-white transition-all hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                      variant="secondary"
+                      className="rounded-2xl px-5 py-3 text-sm"
                     >
                       ANTERIOR
-                    </button>
-                    <button
+                    </AppButton>
+                    <AppButton
                       onClick={() => setTutorialPage((previous) => Math.min(TUTORIAL_SEQUENCES.length - 1, previous + 1))}
                       disabled={tutorialPage === TUTORIAL_SEQUENCES.length - 1}
-                      className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-5 py-3 text-sm font-black text-cyan-100 transition-all hover:bg-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                      variant="accent"
+                      className="rounded-2xl px-5 py-3 text-sm"
                     >
                       SIGUIENTE
-                    </button>
+                    </AppButton>
                   </div>
                 </div>
                 <div className="mt-8 flex flex-wrap items-center justify-end gap-4">
-                  <button
+                  <AppButton
                     onClick={() => setGameState('menu')}
-                    className="rounded-2xl border border-white/15 bg-white/5 px-6 py-3 text-sm font-black text-white transition-all hover:bg-white/10"
+                    variant="secondary"
+                    className="rounded-2xl px-6 py-3 text-sm"
                   >
                     VOLVER
-                  </button>
-                  <button
+                  </AppButton>
+                  <AppButton
                     onClick={startFromMenu}
-                    className="rounded-2xl bg-emerald-500 px-6 py-3 text-sm font-black text-slate-950 transition-all hover:bg-emerald-400"
+                    className="rounded-2xl px-6 py-3 text-sm"
                   >
                     IR A JUGAR
-                  </button>
+                  </AppButton>
                 </div>
-              </div>
+              </ModalCard>
             </div>
           )}
 
           {gameState === 'coin-flip' && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-6">
-              <div className="w-full max-w-lg rounded-[2rem] border border-yellow-400/20 bg-slate-950/90 px-7 py-8 text-center shadow-[0_20px_70px_rgba(0,0,0,0.6)]">
-                <div className="mb-3 text-[11px] font-black uppercase tracking-[0.45em] text-yellow-500/70">
-                  Inicio del partido
-                </div>
-                <h2 className="mb-4 text-3xl font-black">Sorteo de saque</h2>
+              <ModalCard
+                eyebrow="Inicio del partido"
+                title="Sorteo de saque"
+                tone="gold"
+                className="w-full max-w-lg px-7 py-8 text-center"
+              >
 
                 <div className="relative mx-auto mb-7 flex w-full max-w-[320px] items-center justify-center">
                   <video
@@ -3555,7 +3463,7 @@ export default function App() {
                     className="h-auto w-[min(92vw,760px)] rounded-[1.75rem] shadow-[0_22px_45px_rgba(0,0,0,0.4)]"
                   />
                   {coinFlipState.result ? (
-                    <div className="pointer-events-none absolute right-3 top-3 rounded-full border border-yellow-300/30 bg-black/60 px-4 py-2 text-[11px] font-black uppercase tracking-[0.28em] text-yellow-200 backdrop-blur-sm">
+                    <div className="overlay-chip pointer-events-none absolute right-3 top-3 border-yellow-300/30 text-yellow-200">
                       {coinFlipState.result}
                     </div>
                   ) : null}
@@ -3583,28 +3491,35 @@ export default function App() {
                 </div>
 
                 <div className="flex justify-center gap-4">
-                  <button
+                  <AppButton
                     onClick={() => handleCoinFlip('Cara')}
                     disabled={coinFlipState.isFlipping}
-                    className="rounded-2xl bg-white px-10 py-4 font-black text-black transition-all hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
+                    variant="secondary"
+                    className="rounded-2xl px-10 py-4 text-black !bg-white"
                   >
                     CARA
-                  </button>
-                  <button
+                  </AppButton>
+                  <AppButton
                     onClick={() => handleCoinFlip('Sello')}
                     disabled={coinFlipState.isFlipping}
-                    className="rounded-2xl bg-white px-10 py-4 font-black text-black transition-all hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
+                    variant="secondary"
+                    className="rounded-2xl px-10 py-4 text-black !bg-white"
                   >
                     SELLO
-                  </button>
+                  </AppButton>
                 </div>
-              </div>
+              </ModalCard>
             </div>
           )}
 
             {gameState === 'dealing' && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-                <div className="rounded-[2rem] border border-emerald-400/20 bg-slate-950/90 px-10 py-8 text-center shadow-[0_20px_70px_rgba(0,0,0,0.6)]">
+                <ModalCard
+                  eyebrow="Preparacion"
+                  title="Listos para arrancar"
+                  tone="emerald"
+                  className="px-10 py-8 text-center"
+                >
                   {coinFlipState.result && (
                     <div className="mb-5">
                       <div className="text-[11px] font-black uppercase tracking-[0.35em] text-yellow-400/80">
@@ -3618,13 +3533,13 @@ export default function App() {
                       </div>
                     </div>
                   )}
-                  <button
+                  <AppButton
                     onClick={handleDeal}
-                    className="animate-pulse rounded-2xl bg-emerald-500 px-12 py-6 text-xl font-black"
+                    className="animate-pulse rounded-2xl px-12 py-6 text-xl"
                   >
                     {onlineEnabled ? 'INICIAR PARTIDA ONLINE' : 'EMPEZAR PARTIDO'}
-                  </button>
-                </div>
+                  </AppButton>
+                </ModalCard>
               </div>
             )}
 
@@ -3668,7 +3583,7 @@ export default function App() {
             {fieldEventAnimation && (
               <div className="pointer-events-none fixed inset-x-0 top-24 z-[69] flex justify-center px-4 max-sm:top-20">
                 <div
-                  className={`max-w-xl rounded-[1.4rem] border px-6 py-4 text-center shadow-[0_18px_40px_rgba(0,0,0,0.4)] ${
+                  className={`overlay-banner max-w-xl px-6 py-4 text-center ${
                     fieldEventAnimation.actor === 'player'
                       ? 'border-blue-300/50 bg-blue-500/20 text-blue-100'
                       : 'border-red-300/50 bg-red-500/20 text-red-100'
@@ -3700,7 +3615,7 @@ export default function App() {
                   </div>
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center px-6">
-                    <div className="rounded-[1.6rem] border border-yellow-300/40 bg-slate-950/90 px-8 py-6 text-center shadow-[0_24px_60px_rgba(0,0,0,0.55)]">
+                    <div className="overlay-banner rounded-[1.6rem] border-yellow-300/40 px-8 py-6 text-center">
                       <div className="text-[11px] font-black uppercase tracking-[0.28em] text-yellow-300">
                         Sorteo Online
                       </div>
@@ -3715,7 +3630,7 @@ export default function App() {
                 )}
                 {onlineCoinFlipReveal.showResult ? (
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="rounded-[1.6rem] border border-yellow-300/40 bg-slate-950/90 px-8 py-6 text-center shadow-[0_24px_60px_rgba(0,0,0,0.55)]">
+                    <div className="overlay-banner rounded-[1.6rem] border-yellow-300/40 px-8 py-6 text-center">
                       <div className="text-sm font-black uppercase tracking-[0.28em] text-yellow-300">
                         Salio {onlineCoinFlipReveal.result}
                       </div>
@@ -3754,54 +3669,60 @@ export default function App() {
 
             {showOnlineCoinChoice && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6">
-                <div className="w-full max-w-md rounded-[1.8rem] border border-yellow-300/40 bg-slate-950/95 p-6 text-center shadow-[0_24px_60px_rgba(0,0,0,0.55)]">
-                  <div className="mb-2 text-[11px] font-black uppercase tracking-[0.28em] text-yellow-300">
-                    Inicio online
-                  </div>
-                  <div className="mb-5 text-xl font-black text-white">
-                    Elige Cara o Sello para el sorteo
-                  </div>
+                <ModalCard
+                  eyebrow="Inicio online"
+                  title="Elige Cara o Sello"
+                  tone="gold"
+                  className="w-full max-w-md p-6 text-center"
+                >
                   <div className="flex justify-center gap-3">
-                    <button
+                    <AppButton
                       onClick={() => startOnlineMatchWithChoice('Cara')}
-                      className="rounded-xl bg-white px-5 py-3 text-sm font-black text-slate-950 transition-all hover:bg-yellow-100"
+                      variant="secondary"
+                      className="rounded-xl px-5 py-3 text-sm text-slate-950 !bg-white"
                     >
                       CARA
-                    </button>
-                    <button
+                    </AppButton>
+                    <AppButton
                       onClick={() => startOnlineMatchWithChoice('Sello')}
-                      className="rounded-xl bg-white px-5 py-3 text-sm font-black text-slate-950 transition-all hover:bg-yellow-100"
+                      variant="secondary"
+                      className="rounded-xl px-5 py-3 text-sm text-slate-950 !bg-white"
                     >
                       SELLO
-                    </button>
-                    <button
+                    </AppButton>
+                    <AppButton
                       onClick={() => setShowOnlineCoinChoice(false)}
-                      className="rounded-xl border border-white/20 bg-transparent px-5 py-3 text-sm font-black text-white/80 transition-all hover:bg-white/10"
+                      variant="secondary"
+                      className="rounded-xl px-5 py-3 text-sm"
                     >
                       CANCELAR
-                    </button>
+                    </AppButton>
                   </div>
-                </div>
+                </ModalCard>
               </div>
             )}
 
             {gameState === 'finished' && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/88 p-6">
-                <div className="w-full max-w-md rounded-[2rem] border border-white/10 bg-slate-900/95 p-8 text-center shadow-2xl">
-                  <div className="mb-4 text-sm font-black uppercase tracking-[0.35em] text-emerald-300">Fin del Partido</div>
+                <ModalCard
+                  eyebrow="Fin del Partido"
+                  title={matchWinner === 'player' ? 'Gana Jugador' : 'Gana Rival'}
+                  tone="emerald"
+                  className="w-full max-w-md p-8 text-center"
+                >
                   <div className="mb-3 text-3xl font-black text-white">
-                    {matchWinner === 'player' ? 'Gana Jugador' : 'Gana Rival'}
+                    {playerScore} - {opponentScore}
                   </div>
                   <div className="mb-8 text-lg font-bold text-white/70">
-                    Marcador final {playerScore} - {opponentScore}
+                    Marcador final
                   </div>
-                  <button
+                  <AppButton
                     onClick={resetMatch}
-                    className="rounded-2xl bg-emerald-500 px-8 py-4 text-sm font-black uppercase tracking-[0.2em] text-white transition-all hover:bg-emerald-400"
+                    className="rounded-2xl px-8 py-4 text-sm"
                   >
                     Jugar de Nuevo
-                  </button>
-                </div>
+                  </AppButton>
+                </ModalCard>
               </div>
             )}
           </div>
