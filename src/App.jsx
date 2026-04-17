@@ -73,6 +73,8 @@ const ONLINE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const ONLINE_CLIENT_ID_STORAGE_KEY = 'gol-online-client-id';
 const TURN_COUNTDOWN_SECONDS = 30;
 const HAND_DRAG_START_DISTANCE = 22;
+const DROP_SNAP_DURATION_MS = 180;
+const DROP_RETURN_DURATION_MS = 220;
 const CARD_IMAGE_ALIASES = {
   'barrida': ['barrida'],
   'saque banda': ['saque de banda', 'saque banda'],
@@ -565,6 +567,8 @@ export default function App() {
   const [activeActionVideo, setActiveActionVideo] = useState(oleVideo);
   const [activeHandCardIndex, setActiveHandCardIndex] = useState(null);
   const [dragCardState, setDragCardState] = useState(null);
+  const [releasedGhostState, setReleasedGhostState] = useState(null);
+  const [dropImpactActive, setDropImpactActive] = useState(false);
   const [onlineTurnDeadlineAt, setOnlineTurnDeadlineAt] = useState(null);
   const [turnCountdown, setTurnCountdown] = useState(TURN_COUNTDOWN_SECONDS);
   const onlineCoinFlipTimeoutRef = useRef(null);
@@ -580,6 +584,8 @@ export default function App() {
   const handDragRef = useRef(null);
   const matchTablePanelRef = useRef(null);
   const playCardRef = useRef(null);
+  const releasedGhostTimeoutRef = useRef(null);
+  const dropImpactTimeoutRef = useRef(null);
 
   const isPlayerTurn = currentTurn === 'player';
   const isOpponentTurn = currentTurn === 'opponent';
@@ -620,6 +626,84 @@ export default function App() {
 
   const addLog = (message) => {
     setGameLog((previousLog) => [message, ...previousLog].slice(0, 5));
+  };
+
+  const clearReleasedGhostTimers = () => {
+    if (releasedGhostTimeoutRef.current) {
+      window.clearTimeout(releasedGhostTimeoutRef.current);
+      releasedGhostTimeoutRef.current = null;
+    }
+    if (dropImpactTimeoutRef.current) {
+      window.clearTimeout(dropImpactTimeoutRef.current);
+      dropImpactTimeoutRef.current = null;
+    }
+  };
+
+  const getHandCardCenter = (index) => {
+    const cardNode = document.querySelector(`[data-hand-card-index="${index}"]`);
+    const rect = cardNode?.getBoundingClientRect?.();
+    if (!rect) {
+      return null;
+    }
+
+    return {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2
+    };
+  };
+
+  const getTableDropCenter = () => {
+    const rect = matchTablePanelRef.current?.getBoundingClientRect?.();
+    if (!rect) {
+      return null;
+    }
+
+    return {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height * 0.58
+    };
+  };
+
+  const animateReleasedGhost = ({
+    card,
+    index,
+    startX,
+    startY,
+    startAngle = -4,
+    targetX,
+    targetY,
+    mode,
+    onComplete
+  }) => {
+    clearReleasedGhostTimers();
+    const durationMs = mode === 'snap' ? DROP_SNAP_DURATION_MS : DROP_RETURN_DURATION_MS;
+    const releaseState = {
+      card,
+      index,
+      mode,
+      currentX: startX,
+      currentY: startY,
+      angle: startAngle,
+      scale: mode === 'snap' ? 1.02 : 1,
+      opacity: 1,
+      targetX,
+      targetY,
+      targetAngle: mode === 'snap' ? 0 : -10,
+      targetScale: mode === 'snap' ? 0.9 : 0.92,
+      targetOpacity: mode === 'snap' ? 0.92 : 0.2,
+      isAnimating: false
+    };
+
+    setReleasedGhostState(releaseState);
+    window.requestAnimationFrame(() => {
+      setReleasedGhostState((previous) => (previous ? { ...previous, isAnimating: true } : previous));
+    });
+
+    releasedGhostTimeoutRef.current = window.setTimeout(() => {
+      setReleasedGhostState(null);
+      releasedGhostTimeoutRef.current = null;
+      onComplete?.();
+    }, durationMs);
   };
 
   const queueActionVideo = (videoSrc, pendingAction = null) => {
@@ -857,8 +941,11 @@ export default function App() {
 
     setActiveHandCardIndex(null);
     setDragCardState(null);
+    setReleasedGhostState(null);
+    setDropImpactActive(false);
     handDragRef.current = null;
     suppressHandClickRef.current = false;
+    clearReleasedGhostTimers();
     return undefined;
   }, [canUseTouchHandInteraction]);
 
@@ -898,6 +985,7 @@ export default function App() {
         ...dragSession,
         currentX: event.clientX,
         currentY: event.clientY,
+        angle: Math.max(-14, Math.min(14, deltaX * 0.12)),
         isDragging: true,
         isOverBoard
       };
@@ -906,6 +994,7 @@ export default function App() {
         index: dragSession.index,
         currentX: event.clientX,
         currentY: event.clientY,
+        angle: Math.max(-14, Math.min(14, deltaX * 0.12)),
         isOverBoard
       });
 
@@ -926,8 +1015,46 @@ export default function App() {
 
       if (shouldPlay) {
         suppressHandClickRef.current = true;
-        playCardRef.current?.(dragSession.card, dragSession.index, true);
+        const tableCenter = getTableDropCenter();
+        if (tableCenter) {
+          animateReleasedGhost({
+            card: dragSession.card,
+            index: dragSession.index,
+            startX: dragSession.currentX,
+            startY: dragSession.currentY,
+            startAngle: dragSession.angle ?? -4,
+            targetX: tableCenter.x,
+            targetY: tableCenter.y,
+            mode: 'snap',
+            onComplete: () => {
+              setDropImpactActive(true);
+              dropImpactTimeoutRef.current = window.setTimeout(() => {
+                setDropImpactActive(false);
+                dropImpactTimeoutRef.current = null;
+              }, 240);
+              playCardRef.current?.(dragSession.card, dragSession.index, true);
+            }
+          });
+        } else {
+          playCardRef.current?.(dragSession.card, dragSession.index, true);
+        }
         return;
+      }
+
+      if (dragSession.isDragging) {
+        const handCenter = getHandCardCenter(dragSession.index);
+        if (handCenter) {
+          animateReleasedGhost({
+            card: dragSession.card,
+            index: dragSession.index,
+            startX: dragSession.currentX,
+            startY: dragSession.currentY,
+            startAngle: dragSession.angle ?? -4,
+            targetX: handCenter.x,
+            targetY: handCenter.y,
+            mode: 'return'
+          });
+        }
       }
 
       window.setTimeout(() => {
@@ -943,6 +1070,7 @@ export default function App() {
 
       handDragRef.current = null;
       setDragCardState(null);
+      setReleasedGhostState(null);
       window.setTimeout(() => {
         suppressHandClickRef.current = false;
       }, 0);
@@ -958,6 +1086,10 @@ export default function App() {
       window.removeEventListener('pointercancel', handlePointerCancel);
     };
   }, [canUseTouchHandInteraction]);
+
+  useEffect(() => () => {
+    clearReleasedGhostTimers();
+  }, []);
 
   useEffect(() => {
     if (!isDribbleVideoPlaying) {
@@ -3235,6 +3367,8 @@ export default function App() {
             ref={matchTablePanelRef}
             className={`match-table-panel flex min-h-[150px] flex-1 items-end justify-center overflow-visible py-6 max-sm:min-h-[118px] max-sm:py-3 ${
               dragCardState?.isOverBoard ? 'match-table-panel-drop-active' : ''
+            } ${
+              dropImpactActive ? 'match-table-panel-drop-impact' : ''
             }`}
           >
             {tablePlay.length === 0 ? (
@@ -3438,18 +3572,34 @@ export default function App() {
           </div>
           </div>
 
-          {dragCardState ? (
+          {dragCardState || releasedGhostState ? (
             <div
-              className={`drag-card-ghost ${dragCardState.isOverBoard ? 'drag-card-ghost-ready' : ''}`}
+              className={`drag-card-ghost ${
+                dragCardState?.isOverBoard || releasedGhostState?.mode === 'snap' ? 'drag-card-ghost-ready' : ''
+              } ${
+                releasedGhostState?.mode === 'snap' ? 'drag-card-ghost-snap' : releasedGhostState?.mode === 'return' ? 'drag-card-ghost-return' : ''
+              }`}
               style={{
-                left: dragCardState.currentX,
-                top: dragCardState.currentY,
-                backgroundImage: dragCardState.card?.imageUrl ? `url(${dragCardState.card.imageUrl})` : 'none'
+                left: releasedGhostState ? (releasedGhostState.isAnimating ? releasedGhostState.targetX : releasedGhostState.currentX) : dragCardState.currentX,
+                top: releasedGhostState ? (releasedGhostState.isAnimating ? releasedGhostState.targetY : releasedGhostState.currentY) : dragCardState.currentY,
+                opacity: releasedGhostState ? (releasedGhostState.isAnimating ? releasedGhostState.targetOpacity : releasedGhostState.opacity) : 1,
+                transform: releasedGhostState
+                  ? `translate(-50%, -50%) rotate(${releasedGhostState.isAnimating ? releasedGhostState.targetAngle : releasedGhostState.angle}deg) scale(${releasedGhostState.isAnimating ? releasedGhostState.targetScale : releasedGhostState.scale})`
+                  : `translate(-50%, -50%) rotate(${dragCardState.angle ?? -4}deg) scale(${dragCardState.isOverBoard ? 1.04 : 1})`,
+                backgroundImage: (releasedGhostState?.card ?? dragCardState?.card)?.imageUrl
+                  ? `url(${(releasedGhostState?.card ?? dragCardState?.card).imageUrl})`
+                  : 'none',
+                transition: releasedGhostState
+                  ? `left ${releasedGhostState.mode === 'snap' ? DROP_SNAP_DURATION_MS : DROP_RETURN_DURATION_MS}ms cubic-bezier(0.22, 1, 0.36, 1),
+                     top ${releasedGhostState.mode === 'snap' ? DROP_SNAP_DURATION_MS : DROP_RETURN_DURATION_MS}ms cubic-bezier(0.22, 1, 0.36, 1),
+                     transform ${releasedGhostState.mode === 'snap' ? DROP_SNAP_DURATION_MS : DROP_RETURN_DURATION_MS}ms cubic-bezier(0.22, 1, 0.36, 1),
+                     opacity ${releasedGhostState.mode === 'snap' ? DROP_SNAP_DURATION_MS : DROP_RETURN_DURATION_MS}ms ease`
+                  : 'none'
               }}
             >
-              {!dragCardState.card?.imageUrl ? (
+              {!(releasedGhostState?.card ?? dragCardState?.card)?.imageUrl ? (
                 <div className="drag-card-ghost-fallback">
-                  {dragCardState.card?.name}
+                  {(releasedGhostState?.card ?? dragCardState?.card)?.name}
                 </div>
               ) : null}
             </div>

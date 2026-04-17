@@ -588,6 +588,10 @@ input {
     inset 0 0 38px rgba(34, 211, 238, 0.08);
 }
 
+.match-table-panel-drop-impact {
+  animation: boardDropImpact 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 .drag-card-ghost {
   position: fixed;
   z-index: 80;
@@ -606,6 +610,7 @@ input {
     0 0 0 1px rgba(125, 211, 252, 0.28);
   pointer-events: none;
   overflow: hidden;
+  will-change: left, top, transform, opacity;
 }
 
 .drag-card-ghost::after {
@@ -623,6 +628,14 @@ input {
     0 0 34px rgba(74, 222, 128, 0.28);
 }
 
+.drag-card-ghost-snap {
+  filter: saturate(1.14) brightness(1.04);
+}
+
+.drag-card-ghost-return {
+  filter: saturate(0.92) brightness(0.96);
+}
+
 .drag-card-ghost-fallback {
   position: absolute;
   inset: 0;
@@ -637,6 +650,30 @@ input {
   text-transform: uppercase;
   letter-spacing: 0.16em;
   color: rgba(255, 255, 255, 0.88);
+}
+
+@keyframes boardDropImpact {
+  0% {
+    transform: scale(1);
+    box-shadow:
+      0 0 0 1px rgba(103, 232, 249, 0.26),
+      0 0 36px rgba(34, 211, 238, 0.2),
+      inset 0 0 38px rgba(34, 211, 238, 0.08);
+  }
+  45% {
+    transform: scale(0.985);
+    box-shadow:
+      0 0 0 1px rgba(125, 211, 252, 0.34),
+      0 0 58px rgba(34, 211, 238, 0.3),
+      inset 0 0 64px rgba(34, 211, 238, 0.16);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow:
+      0 0 0 1px rgba(103, 232, 249, 0.26),
+      0 0 36px rgba(34, 211, 238, 0.2),
+      inset 0 0 38px rgba(34, 211, 238, 0.08);
+  }
 }
 
 .overlay-chip {
