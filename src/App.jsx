@@ -71,7 +71,7 @@ const CHILENA_CARD_ID = 'ch';
 const GOALKEEPER_SAVE_CARD_ID = 'paq';
 const ONLINE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const ONLINE_CLIENT_ID_STORAGE_KEY = 'gol-online-client-id';
-const TURN_COUNTDOWN_SECONDS = 10;
+const TURN_COUNTDOWN_SECONDS = 30;
 const CARD_IMAGE_ALIASES = {
   'barrida': ['barrida'],
   'saque banda': ['saque de banda', 'saque banda'],
@@ -3156,7 +3156,7 @@ export default function App() {
               Turno actual: {currentTurnLabel}
             </div>
             {onlineEnabled && gameState === 'playing' ? (
-              <div className={`countdown-pill ${isTurnCountdownActive && turnCountdown <= 3 ? 'countdown-pill-critical' : ''}`}>
+              <div className={`countdown-pill ${isTurnCountdownActive && turnCountdown <= 5 ? 'countdown-pill-critical' : ''}`}>
                 Tiempo: {isTurnCountdownActive ? `${turnCountdown}s` : 'En espera'}
               </div>
             ) : null}

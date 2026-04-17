@@ -20,7 +20,7 @@ const httpServer = createServer(app);
 
 const port = Number(process.env.PORT || 3001);
 const disconnectGraceMs = Number(process.env.DISCONNECT_GRACE_MS || 30000);
-const onlineTurnTimeoutMs = Number(process.env.ONLINE_TURN_TIMEOUT_MS || 10000);
+const onlineTurnTimeoutMs = Number(process.env.ONLINE_TURN_TIMEOUT_MS || 30000);
 const allowedOrigins = (process.env.CLIENT_ORIGIN || 'http://localhost:5173')
   .split(',')
   .map((origin) => origin.trim().replace(/\/$/, ''))
@@ -1029,6 +1029,7 @@ io.on('connection', (socket) => {
       return;
     }
 
+    clearRoomTurnTimer(room);
     const outcome = resolveServerEndTurn(room);
     if (!outcome.ok) {
       socket.emit('match:error', { message: outcome.message });
@@ -1058,6 +1059,8 @@ io.on('connection', (socket) => {
       socket.emit('match:error', { message: 'Aun no es tu turno para responder.' });
       return;
     }
+
+    clearRoomTurnTimer(room);
 
     if (room.matchState.pendingBlindDiscard) {
       if (!Number.isInteger(index)) {
@@ -1264,6 +1267,8 @@ io.on('connection', (socket) => {
       socket.emit('match:error', { message: 'No es tu turno para descartar.' });
       return;
     }
+
+    clearRoomTurnTimer(room);
 
     if (room.matchState.pendingShot || room.matchState.pendingDefense || room.matchState.pendingBlindDiscard || room.matchState.pendingCombo) {
       socket.emit('match:error', { message: 'No puedes descartar mientras hay una respuesta pendiente.' });
