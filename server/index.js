@@ -354,8 +354,6 @@ const applyGoal = (matchState, scorer, reason) => {
   matchState.opponentScore = goalOutcome.nextOpponentScore;
   matchState.lastEvent = { id: createEventId(), type: 'goal', scorer, reason };
   matchState.hasActedThisTurn = false;
-  matchState.lastTimeoutActor = null;
-  matchState.consecutiveTimeoutCount = 0;
   applyRedCardTurnProgress(matchState, scorer);
   clearTransientState(matchState);
 
@@ -449,8 +447,6 @@ const resolveServerEndTurn = (room) => {
 
   room.matchState.currentTurn = flowPlan.nextActor;
   room.matchState.hasActedThisTurn = false;
-  room.matchState.lastTimeoutActor = null;
-  room.matchState.consecutiveTimeoutCount = 0;
   return { ok: true };
 };
 
@@ -465,7 +461,10 @@ const syncRoomTurnTimer = (ioServer, room) => {
   const currentDeadlineMs = room.matchState.turnDeadlineAt
     ? new Date(room.matchState.turnDeadlineAt).getTime()
     : NaN;
-  const hasReusableDeadline = Number.isFinite(currentDeadlineMs) && currentDeadlineMs > now;
+  const hasReusableDeadline =
+    room.turnTimer?.actor === actor &&
+    Number.isFinite(currentDeadlineMs) &&
+    currentDeadlineMs > now;
   const deadlineAt = hasReusableDeadline
     ? room.matchState.turnDeadlineAt
     : new Date(now + onlineTurnTimeoutMs).toISOString();

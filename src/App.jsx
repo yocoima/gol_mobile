@@ -565,7 +565,7 @@ export default function App() {
   const onlineRoomCodeRef = useRef('');
   const dribbleVideoRef = useRef(null);
   const pendingDribbleActionRef = useRef(null);
-  const countdownAlertDeadlineRef = useRef(null);
+  const countdownAlertSecondRef = useRef(null);
 
   const isPlayerTurn = currentTurn === 'player';
   const isOpponentTurn = currentTurn === 'opponent';
@@ -802,22 +802,25 @@ export default function App() {
   useEffect(() => {
     if (!isTurnCountdownActive) {
       setTurnCountdown(TURN_COUNTDOWN_SECONDS);
-      countdownAlertDeadlineRef.current = null;
+      countdownAlertSecondRef.current = null;
       return undefined;
     }
 
     const deadline = onlineTurnDeadlineAt;
-    setTurnCountdown(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)));
-    if (countdownAlertDeadlineRef.current !== deadline) {
-      countdownAlertDeadlineRef.current = deadline;
-    }
+    const initialSeconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+    setTurnCountdown(initialSeconds);
+    countdownAlertSecondRef.current = initialSeconds;
 
     const intervalId = window.setInterval(() => {
       const nextSeconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
       setTurnCountdown(nextSeconds);
 
-      if (nextSeconds === 5 && countdownAlertDeadlineRef.current === deadline) {
-        countdownAlertDeadlineRef.current = `played-${deadline}`;
+      if (
+        nextSeconds <= 4 &&
+        nextSeconds >= 0 &&
+        countdownAlertSecondRef.current !== nextSeconds
+      ) {
+        countdownAlertSecondRef.current = nextSeconds;
         audioManagerRef.current?.playSfx('countdown');
       }
     }, 200);
