@@ -72,6 +72,7 @@ const GOALKEEPER_SAVE_CARD_ID = 'paq';
 const ONLINE_API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 const ONLINE_CLIENT_ID_STORAGE_KEY = 'gol-online-client-id';
 const TURN_COUNTDOWN_SECONDS = 30;
+const HAND_DRAG_START_DISTANCE = 22;
 const CARD_IMAGE_ALIASES = {
   'barrida': ['barrida'],
   'saque banda': ['saque de banda', 'saque banda'],
@@ -305,11 +306,15 @@ const CardItem = ({
   card,
   onClick,
   onSelect,
+  onPointerDown,
+  onPointerEnter,
   disabled,
   isSelected,
   canSelectDiscard,
   isDiscardMode,
-  hideContent = false
+  hideContent = false,
+  interactionState = 'idle',
+  dataIndex = null
 }) => {
   const cardImage = card?.imageUrl;
   const cardLabel = hideContent ? 'Carta oculta' : card?.name;
@@ -327,7 +332,7 @@ const CardItem = ({
               : 'Juego';
 
   return (
-  <div className="hand-card-shell group">
+  <div className={`hand-card-shell group hand-card-shell-${interactionState}`} data-hand-card-index={dataIndex}>
     {canSelectDiscard && isDiscardMode && !disabled && (
       <button
         onClick={onSelect}
@@ -341,12 +346,14 @@ const CardItem = ({
 
     <button
       onClick={isDiscardMode ? onSelect : onClick}
+      onPointerDown={onPointerDown}
+      onPointerEnter={onPointerEnter}
       disabled={disabled}
       className={`hand-card-button ${
         hideContent || cardImage ? 'bg-slate-900' : card?.color || 'bg-slate-800'
       } ${hideContent ? 'hand-card-hidden' : ''} ${
         !disabled ? 'hand-card-enabled' : 'hand-card-disabled'
-      } ${isSelected ? 'hand-card-selected' : ''}`}
+      } ${isSelected ? 'hand-card-selected' : ''} hand-card-button-${interactionState}`}
     >
       {!hideContent && <div className="hand-card-badge">{cardTypeLabel}</div>}
       {cardImage && !hideContent && (
@@ -556,6 +563,8 @@ export default function App() {
   const [onlineCoinFlipReveal, setOnlineCoinFlipReveal] = useState(null);
   const [isDribbleVideoPlaying, setIsDribbleVideoPlaying] = useState(false);
   const [activeActionVideo, setActiveActionVideo] = useState(oleVideo);
+  const [activeHandCardIndex, setActiveHandCardIndex] = useState(null);
+  const [dragCardState, setDragCardState] = useState(null);
   const [onlineTurnDeadlineAt, setOnlineTurnDeadlineAt] = useState(null);
   const [turnCountdown, setTurnCountdown] = useState(TURN_COUNTDOWN_SECONDS);
   const onlineCoinFlipTimeoutRef = useRef(null);
@@ -566,6 +575,11 @@ export default function App() {
   const dribbleVideoRef = useRef(null);
   const pendingDribbleActionRef = useRef(null);
   const countdownAlertSecondRef = useRef(null);
+  const lastHandPointerTypeRef = useRef('mouse');
+  const suppressHandClickRef = useRef(false);
+  const handDragRef = useRef(null);
+  const matchTablePanelRef = useRef(null);
+  const playCardRef = useRef(null);
 
   const isPlayerTurn = currentTurn === 'player';
   const isOpponentTurn = currentTurn === 'opponent';
@@ -595,6 +609,14 @@ export default function App() {
     !matchWinner &&
     typeof onlineTurnDeadlineAt === 'number' &&
     onlineTurnDeadlineAt > Date.now();
+  const isPlayerHandInteractionBlocked =
+    !isPlayerTurn ||
+    isDribbleVideoPlaying ||
+    (pendingBlindDiscard?.actor === 'player' && blindDiscardTargetActor === 'opponent');
+  const canUseTouchHandInteraction =
+    !discardMode &&
+    blindDiscardTargetActor !== 'player' &&
+    !isPlayerHandInteractionBlocked;
 
   const addLog = (message) => {
     setGameLog((previousLog) => [message, ...previousLog].slice(0, 5));
@@ -827,6 +849,115 @@ export default function App() {
 
     return () => window.clearInterval(intervalId);
   }, [isTurnCountdownActive, onlineTurnDeadlineAt]);
+
+  useEffect(() => {
+    if (canUseTouchHandInteraction) {
+      return undefined;
+    }
+
+    setActiveHandCardIndex(null);
+    setDragCardState(null);
+    handDragRef.current = null;
+    suppressHandClickRef.current = false;
+    return undefined;
+  }, [canUseTouchHandInteraction]);
+
+  useEffect(() => {
+    const handlePointerMove = (event) => {
+      const dragSession = handDragRef.current;
+      if (!dragSession || event.pointerId !== dragSession.pointerId) {
+        return;
+      }
+
+      const deltaX = event.clientX - dragSession.startX;
+      const deltaY = event.clientY - dragSession.startY;
+      const traveledEnough = Math.hypot(deltaX, deltaY) >= HAND_DRAG_START_DISTANCE;
+      const shouldStartDrag = canUseTouchHandInteraction && deltaY <= -HAND_DRAG_START_DISTANCE && traveledEnough;
+      const cardElement = document.elementFromPoint(event.clientX, event.clientY)?.closest?.('[data-hand-card-index]');
+      if (cardElement) {
+        const nextIndex = Number(cardElement.getAttribute('data-hand-card-index'));
+        if (Number.isInteger(nextIndex)) {
+          setActiveHandCardIndex(nextIndex);
+        }
+      }
+
+      if (!dragSession.isDragging && !shouldStartDrag) {
+        return;
+      }
+
+      const tableBounds = matchTablePanelRef.current?.getBoundingClientRect?.();
+      const isOverBoard = Boolean(
+        tableBounds &&
+        event.clientX >= tableBounds.left &&
+        event.clientX <= tableBounds.right &&
+        event.clientY >= tableBounds.top &&
+        event.clientY <= tableBounds.bottom
+      );
+
+      handDragRef.current = {
+        ...dragSession,
+        currentX: event.clientX,
+        currentY: event.clientY,
+        isDragging: true,
+        isOverBoard
+      };
+      setDragCardState({
+        card: dragSession.card,
+        index: dragSession.index,
+        currentX: event.clientX,
+        currentY: event.clientY,
+        isOverBoard
+      });
+
+      if (event.cancelable) {
+        event.preventDefault();
+      }
+    };
+
+    const handlePointerUp = (event) => {
+      const dragSession = handDragRef.current;
+      if (!dragSession || event.pointerId !== dragSession.pointerId) {
+        return;
+      }
+
+      const shouldPlay = Boolean(dragSession.isDragging && dragSession.isOverBoard);
+      handDragRef.current = null;
+      setDragCardState(null);
+
+      if (shouldPlay) {
+        suppressHandClickRef.current = true;
+        playCardRef.current?.(dragSession.card, dragSession.index, true);
+        return;
+      }
+
+      window.setTimeout(() => {
+        suppressHandClickRef.current = false;
+      }, 0);
+    };
+
+    const handlePointerCancel = (event) => {
+      const dragSession = handDragRef.current;
+      if (!dragSession || event.pointerId !== dragSession.pointerId) {
+        return;
+      }
+
+      handDragRef.current = null;
+      setDragCardState(null);
+      window.setTimeout(() => {
+        suppressHandClickRef.current = false;
+      }, 0);
+    };
+
+    window.addEventListener('pointermove', handlePointerMove, { passive: false });
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerCancel);
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerCancel);
+    };
+  }, [canUseTouchHandInteraction]);
 
   useEffect(() => {
     if (!isDribbleVideoPlaying) {
@@ -2550,6 +2681,64 @@ export default function App() {
     setSelectedForDiscard((previous) => [...previous, index]);
   };
 
+  const handlePlayerCardPointerDown = (event, card, index) => {
+    lastHandPointerTypeRef.current = event.pointerType || 'mouse';
+    setActiveHandCardIndex(index);
+
+    if (!canUseTouchHandInteraction) {
+      return;
+    }
+
+    handDragRef.current = {
+      pointerId: event.pointerId,
+      card,
+      index,
+      startX: event.clientX,
+      startY: event.clientY,
+      currentX: event.clientX,
+      currentY: event.clientY,
+      isDragging: false,
+      isOverBoard: false
+    };
+  };
+
+  const handlePlayerCardPointerEnter = (index) => {
+    if (handDragRef.current?.isDragging) {
+      return;
+    }
+
+    setActiveHandCardIndex(index);
+  };
+
+  const handlePlayerHandLeave = () => {
+    if (handDragRef.current?.isDragging) {
+      return;
+    }
+
+    setActiveHandCardIndex(null);
+  };
+
+  const handlePlayerCardClick = (event, card, index) => {
+    if (suppressHandClickRef.current) {
+      suppressHandClickRef.current = false;
+      event?.preventDefault?.();
+      return;
+    }
+
+    setActiveHandCardIndex(index);
+
+    if (discardMode) {
+      toggleDiscardSelection(event, index);
+      return;
+    }
+
+    if (lastHandPointerTypeRef.current === 'touch' || lastHandPointerTypeRef.current === 'pen') {
+      return;
+    }
+
+    playCard(card, index, true);
+  };
+
   const executePlayCard = (card, index, isFromPlayer, options = {}) => {
     if (onlineEnabled && socketRef.current) {
       socketRef.current.emit('match:play_card', { index });
@@ -2824,6 +3013,7 @@ export default function App() {
 
     executePlayCard(liveCard, index, isFromPlayer);
   };
+  playCardRef.current = playCard;
 
   useEffect(() => {
     if (onlineEnabled || !aiMode || gameState !== 'playing' || isDribbleVideoPlaying) {
@@ -3041,7 +3231,12 @@ export default function App() {
           className="z-10 flex w-full max-w-4xl items-center justify-center gap-4 px-4 max-sm:gap-2 max-sm:px-1"
           style={{ transform: 'translateY(8%)' }}
         >
-          <div className="match-table-panel flex min-h-[150px] flex-1 items-end justify-center overflow-visible py-6 max-sm:min-h-[118px] max-sm:py-3">
+          <div
+            ref={matchTablePanelRef}
+            className={`match-table-panel flex min-h-[150px] flex-1 items-end justify-center overflow-visible py-6 max-sm:min-h-[118px] max-sm:py-3 ${
+              dragCardState?.isOverBoard ? 'match-table-panel-drop-active' : ''
+            }`}
+          >
             {tablePlay.length === 0 ? (
               <div className="table-empty-state w-full">
                 <div className="table-empty-ball">
@@ -3202,22 +3397,63 @@ export default function App() {
               </AppButton>
           </div>
 
-          <div className="mb-2 grid w-full grid-cols-5 justify-items-center gap-1 sm:mb-3 sm:flex sm:flex-wrap sm:justify-center sm:gap-1.5" style={{ marginBottom: '2%' }}>
-            {playerHand.map((card, index) => (
+          <div
+            className={`player-hand-grid mb-2 grid w-full grid-cols-5 justify-items-center gap-1 sm:mb-3 sm:flex sm:flex-wrap sm:justify-center sm:gap-1.5 ${
+              dragCardState ? 'player-hand-grid-dragging' : ''
+            }`}
+            style={{ marginBottom: '2%' }}
+            onPointerLeave={handlePlayerHandLeave}
+          >
+            {playerHand.map((card, index) => {
+              const cardDistance = activeHandCardIndex == null ? null : Math.abs(activeHandCardIndex - index);
+              const interactionState =
+                dragCardState?.index === index
+                  ? 'dragging'
+                  : cardDistance === 0
+                    ? 'active'
+                    : cardDistance === 1
+                      ? 'near'
+                      : cardDistance === 2
+                        ? 'near-soft'
+                        : 'idle';
+
+              return (
               <CardItem
                 key={`${card.id}-${index}`}
                 card={card}
                 isSelected={selectedForDiscard.includes(index)}
                 onSelect={(event) => toggleDiscardSelection(event, index)}
-                onClick={() => playCard(card, index, true)}
+                onClick={(event) => handlePlayerCardClick(event, card, index)}
+                onPointerDown={(event) => handlePlayerCardPointerDown(event, card, index)}
+                onPointerEnter={() => handlePlayerCardPointerEnter(index)}
                 disabled={!isPlayerTurn || isDribbleVideoPlaying || (pendingBlindDiscard?.actor === 'player' && blindDiscardTargetActor === 'opponent')}
-                  canSelectDiscard={canUseDiscard}
+                canSelectDiscard={canUseDiscard}
                 isDiscardMode={discardMode}
                 hideContent={blindDiscardTargetActor === 'player'}
+                interactionState={interactionState}
+                dataIndex={index}
               />
-            ))}
+              );
+            })}
           </div>
           </div>
+
+          {dragCardState ? (
+            <div
+              className={`drag-card-ghost ${dragCardState.isOverBoard ? 'drag-card-ghost-ready' : ''}`}
+              style={{
+                left: dragCardState.currentX,
+                top: dragCardState.currentY,
+                backgroundImage: dragCardState.card?.imageUrl ? `url(${dragCardState.card.imageUrl})` : 'none'
+              }}
+            >
+              {!dragCardState.card?.imageUrl ? (
+                <div className="drag-card-ghost-fallback">
+                  {dragCardState.card?.name}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           {gameState === 'menu' && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-6">
