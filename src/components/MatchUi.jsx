@@ -1,3 +1,5 @@
+import React from 'react';
+
 const joinClasses = (...values) => values.filter(Boolean).join(' ');
 
 export function AppButton({
