@@ -1,5 +1,3 @@
-import { PRE_SHOT_DEFENSE_CARD_IDS } from './core.js';
-
 export const getPendingComboValidationMessage = ({ pendingCombo, actor, card }) => {
   if (pendingCombo?.type === 'sb_followup') {
     if (actor !== pendingCombo.actor) {
@@ -52,33 +50,6 @@ export const getPendingComboValidationMessage = ({ pendingCombo, actor, card }) 
   return null;
 };
 
-export const getPreShotDefenseValidationMessage = ({
-  actor,
-  pendingDefense,
-  card,
-  actorHasPassCard,
-  actorHasTirarGol,
-  actorHasPaseAereo
-}) => {
-  if (pendingDefense?.defenseCardId !== 'pre_shot') {
-    return null;
-  }
-
-  if (actor !== pendingDefense.defender || !PRE_SHOT_DEFENSE_CARD_IDS.includes(card.id)) {
-    return 'Antes del tiro, el defensor solo puede responder con una contracarta valida.';
-  }
-
-  if (card.id === 'cont' && (!actorHasPassCard || !actorHasTirarGol)) {
-    return 'Contraataque solo puede usarse si tienes en mano un pase y una carta de Tirar a Gol.';
-  }
-
-  if (card.id === 'sc' && (!actorHasPaseAereo || !actorHasTirarGol)) {
-    return 'Saque de corner solo puede activarse si tienes Pase Aereo y Tirar a Gol en mano.';
-  }
-
-  return null;
-};
-
 export const getStealPlayValidationMessage = ({
   actorHasPaseCorto,
   actorHasPassCard,
@@ -113,7 +84,7 @@ export const getStealPlayValidationMessage = ({
   return null;
 };
 
-export const getPassPlayPlan = ({ pendingCombo, currentPassTotal, cardValue, counterAttackReady, defenderCanUsePreShotDefense }) => {
+export const getPassPlayPlan = ({ pendingCombo, currentPassTotal, cardValue, counterAttackReady }) => {
   const nextPassTotal = currentPassTotal + cardValue;
 
   if (nextPassTotal > 4) {
@@ -143,17 +114,11 @@ export const getPassPlayPlan = ({ pendingCombo, currentPassTotal, cardValue, cou
 
   const preShotWindow =
     nextPassTotal === 4 && !counterAttackReady
-      ? defenderCanUsePreShotDefense
-        ? {
-            open: true,
-            needsDefenseWindow: true,
-            logMessage: 'Jugada de 4 pases completada. El rival puede usar una contracarta antes del tiro.'
-          }
-        : {
-            open: true,
-            needsDefenseWindow: false,
-            logMessage: 'Jugada de 4 pases completada. No hay contracarta disponible; puedes tirar a gol.'
-          }
+      ? {
+          open: true,
+          needsDefenseWindow: false,
+          logMessage: 'Jugada de 4 pases completada. Puedes tirar a gol.'
+        }
       : null;
 
   return {

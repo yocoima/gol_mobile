@@ -54,7 +54,7 @@ describe('game logic', () => {
     expect(result.logMessage).toContain('Chilena');
   });
 
-  it('opens the pre-shot defense window when the fourth pass is completed', () => {
+  it('enables the shot when the fourth pass is completed', () => {
     const result = applyPlayCardAction({
       state: createState({
         playerHand: [getCard('pc')],
@@ -70,8 +70,8 @@ describe('game logic', () => {
     expect(result.type).toBe('pass-play');
     expect(result.plan.preShotWindow).toEqual({
       open: true,
-      needsDefenseWindow: true,
-      logMessage: 'Jugada de 4 pases completada. El rival puede usar una contracarta antes del tiro.'
+      needsDefenseWindow: false,
+      logMessage: 'Jugada de 4 pases completada. Puedes tirar a gol.'
     });
   });
 

@@ -2,7 +2,7 @@ import cors from 'cors';
 import express from 'express';
 import { createServer } from 'node:http';
 import { Server } from 'socket.io';
-import { BASE_DECK_DEFINITION, createInitialMatchState, PRE_SHOT_DEFENSE_CARD_IDS } from '../shared/game/core.js';
+import { BASE_DECK_DEFINITION, createInitialMatchState } from '../shared/game/core.js';
 import { applyEndTurnAction, applyPlayCardAction } from '../shared/game/engine.js';
 import {
   getBlindDiscardPlan,
@@ -20,6 +20,7 @@ const httpServer = createServer(app);
 
 const port = Number(process.env.PORT || 3001);
 const disconnectGraceMs = Number(process.env.DISCONNECT_GRACE_MS || 30000);
+const onlineTurnTimeoutMs = Number(process.env.ONLINE_TURN_TIMEOUT_MS || 30000);
 const allowedOrigins = (process.env.CLIENT_ORIGIN || 'http://localhost:5173')
   .split(',')
   .map((origin) => origin.trim().replace(/\/$/, ''))
@@ -123,6 +124,7 @@ const createMatchStateForRoom = (startingPlayer) => {
     currentTurn: preset.currentTurn ?? baseState.currentTurn,
     possession: preset.possession ?? baseState.possession,
     activePlay: preset.activePlay ?? baseState.activePlay,
+    tablePlay: preset.tablePlay ?? preset.activePlay ?? baseState.activePlay,
     pendingShot: preset.pendingShot ?? baseState.pendingShot,
     pendingDefense: preset.pendingDefense ?? baseState.pendingDefense,
     pendingCombo: preset.pendingCombo ?? baseState.pendingCombo,
@@ -219,6 +221,32 @@ const refillActorHandToLimit = (matchState, actor, targetLimit) => {
 
 const getHandKey = (actor) => (actor === 'player' ? 'playerHand' : 'opponentHand');
 const createEventId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+const appendCardToTable = (matchState, card, actor = null) => {
+  if (!card) {
+    return;
+  }
+
+  matchState.tablePlay = [
+    ...(matchState.tablePlay || []),
+    { ...card, tableActor: actor ?? card.tableActor ?? null }
+  ];
+};
+const trimTablePlayOnPossessionChange = (matchState, previousPossession, nextPossession) => {
+  if (!previousPossession || !nextPossession || previousPossession === nextPossession) {
+    return;
+  }
+
+  matchState.tablePlay = (matchState.tablePlay || []).slice(-2);
+};
+const shouldResetTableForNewSequence = (matchState, actor, playType) =>
+  ['pass-play', 'special-corner', 'special-chilena', 'shoot-card', 'penalty-card'].includes(playType) &&
+  matchState.possession === actor &&
+  !matchState.pendingShot &&
+  !matchState.pendingDefense &&
+  !matchState.pendingBlindDiscard &&
+  !matchState.pendingCombo &&
+  !matchState.hasActedThisTurn &&
+  (matchState.tablePlay || []).length > 0;
 const getExpectedActor = (matchState) => {
   if (matchState.pendingBlindDiscard?.actor) {
     return matchState.pendingBlindDiscard.actor;
@@ -228,12 +256,8 @@ const getExpectedActor = (matchState) => {
     return matchState.pendingDefense.defender;
   }
 
-  if (matchState.pendingDefense?.defenseCardId && matchState.pendingDefense.defenseCardId !== 'pre_shot') {
+  if (matchState.pendingDefense?.defenseCardId) {
     return matchState.pendingDefense.possessor;
-  }
-
-  if (matchState.pendingDefense?.defenseCardId === 'pre_shot') {
-    return matchState.pendingDefense.defender;
   }
 
   if (matchState.pendingShot?.phase === 'penalty_response' || matchState.pendingShot?.phase === 'save') {
@@ -260,8 +284,13 @@ const applyStatePatch = (matchState, statePatch) => {
     return;
   }
 
+  const previousPossession = matchState.possession;
   for (const [key, value] of Object.entries(statePatch)) {
     matchState[key] = value;
+  }
+
+  if (Object.prototype.hasOwnProperty.call(statePatch, 'possession')) {
+    trimTablePlayOnPossessionChange(matchState, previousPossession, statePatch.possession);
   }
 };
 
@@ -339,6 +368,179 @@ const applyGoal = (matchState, scorer, reason) => {
   matchState.possession = goalOutcome.nextActor;
   matchState.currentTurn = goalOutcome.nextActor;
   return { logMessage: goalOutcome.logMessage };
+};
+
+const stopRoomTurnTimer = (room) => {
+  if (room?.turnTimer?.timeoutId) {
+    clearTimeout(room.turnTimer.timeoutId);
+  }
+
+  if (room) {
+    room.turnTimer = null;
+  }
+};
+
+const clearRoomTurnTimer = (room) => {
+  stopRoomTurnTimer(room);
+
+  if (room?.matchState) {
+    room.matchState.turnDeadlineAt = null;
+  }
+};
+
+const shouldRunOnlineTurnTimer = (matchState) =>
+  Boolean(
+    matchState &&
+    matchState.gameState === 'playing' &&
+    matchState.currentTurn &&
+    !matchState.pendingShot &&
+    !matchState.pendingDefense &&
+    !matchState.pendingBlindDiscard &&
+    !matchState.pendingCombo
+  );
+
+const resolveServerEndTurn = (room) => {
+  const endTurnAction = applyEndTurnAction(room.matchState);
+
+  if (!endTurnAction.ok) {
+    return { ok: false, message: endTurnAction.logMessage };
+  }
+
+  if (endTurnAction.type === 'no-response') {
+    const noResponsePlan = endTurnAction.resolution;
+
+    if (noResponsePlan.type === 'goal') {
+      applyGoal(room.matchState, noResponsePlan.scorer, noResponsePlan.reason);
+      return { ok: true };
+    }
+
+    if (noResponsePlan.type === 'turn-change') {
+      if (noResponsePlan.clearTransientState) {
+        clearTransientState(room.matchState);
+      }
+
+      const previousPossession = room.matchState.possession;
+      room.matchState.possession = noResponsePlan.nextPossession;
+      trimTablePlayOnPossessionChange(room.matchState, previousPossession, noResponsePlan.nextPossession);
+      room.matchState.currentTurn = noResponsePlan.nextTurn;
+      return { ok: true };
+    }
+
+    if (noResponsePlan.type === 'pending-defense-release') {
+      room.matchState.pendingDefense = null;
+      room.matchState.currentTurn = noResponsePlan.nextTurn;
+      room.matchState.hasActedThisTurn = noResponsePlan.hasActedThisTurn;
+      return { ok: true };
+    }
+  }
+
+  const flowPlan = endTurnAction.resolution;
+
+  if (flowPlan.keepsTurn) {
+    room.matchState.bonusTurnFor = null;
+    consumeSanctionTurn(room.matchState, flowPlan.opponentActor);
+  }
+
+  if (flowPlan.shouldApplyRedCardProgress) {
+    applyRedCardTurnProgress(room.matchState, flowPlan.actor);
+  }
+
+  room.matchState.currentTurn = flowPlan.nextActor;
+  room.matchState.hasActedThisTurn = false;
+  return { ok: true };
+};
+
+const syncRoomTurnTimer = (ioServer, room) => {
+  if (!room?.matchState || !shouldRunOnlineTurnTimer(room.matchState)) {
+    clearRoomTurnTimer(room);
+    return;
+  }
+
+  const actor = room.matchState.currentTurn;
+  const now = Date.now();
+  const currentDeadlineMs = room.matchState.turnDeadlineAt
+    ? new Date(room.matchState.turnDeadlineAt).getTime()
+    : NaN;
+  const hasReusableDeadline =
+    room.turnTimer?.actor === actor &&
+    Number.isFinite(currentDeadlineMs) &&
+    currentDeadlineMs > now;
+  const deadlineAt = hasReusableDeadline
+    ? room.matchState.turnDeadlineAt
+    : new Date(now + onlineTurnTimeoutMs).toISOString();
+
+  if (room.turnTimer?.actor === actor && room.turnTimer?.deadlineAt === deadlineAt) {
+    return;
+  }
+
+  stopRoomTurnTimer(room);
+  room.matchState.turnDeadlineAt = deadlineAt;
+  const delayMs = Math.max(0, new Date(deadlineAt).getTime() - now);
+  room.turnTimer = {
+    actor,
+    deadlineAt,
+    timeoutId: setTimeout(() => {
+      const latestRoom = rooms.get(room.code);
+      if (!latestRoom?.matchState) {
+        return;
+      }
+
+      if (!shouldRunOnlineTurnTimer(latestRoom.matchState)) {
+        clearRoomTurnTimer(latestRoom);
+        return;
+      }
+
+      if (latestRoom.matchState.currentTurn !== actor || latestRoom.matchState.turnDeadlineAt !== deadlineAt) {
+        return;
+      }
+
+      latestRoom.matchState.lastEvent = {
+        id: createEventId(),
+        type: 'turn_timeout',
+        actor
+      };
+
+      const previousTimeoutActor = latestRoom.matchState.lastTimeoutActor ?? null;
+      const nextTimeoutCount = previousTimeoutActor === actor
+        ? (latestRoom.matchState.consecutiveTimeoutCount ?? 0) + 1
+        : 1;
+      latestRoom.matchState.lastTimeoutActor = actor;
+      latestRoom.matchState.consecutiveTimeoutCount = nextTimeoutCount;
+
+      if (nextTimeoutCount >= 2) {
+        latestRoom.matchState.gameState = 'finished';
+        latestRoom.matchState.matchWinner = getOpponent(actor);
+        latestRoom.matchState.currentTurn = null;
+        latestRoom.matchState.possession = null;
+        latestRoom.matchState.pendingShot = null;
+        latestRoom.matchState.pendingDefense = null;
+        latestRoom.matchState.pendingBlindDiscard = null;
+        latestRoom.matchState.pendingCombo = null;
+        latestRoom.matchState.turnDeadlineAt = null;
+        latestRoom.matchState.lastEvent = {
+          id: createEventId(),
+          type: 'turn_timeout_loss',
+          actor,
+          winner: getOpponent(actor)
+        };
+        clearRoomTurnTimer(latestRoom);
+        emitMatchState(ioServer, latestRoom);
+        return;
+      }
+
+      clearRoomTurnTimer(latestRoom);
+      const outcome = resolveServerEndTurn(latestRoom);
+      if (!outcome.ok) {
+        serverDebugLog('online turn timeout could not resolve end turn', {
+          roomCode: latestRoom.code,
+          actor,
+          message: outcome.message
+        });
+        return;
+      }
+      emitMatchState(ioServer, latestRoom);
+    }, delayMs)
+  };
 };
 
 const openBlindDiscard = (matchState, actor, targetActor, reason, returnTurnTo) => {
@@ -424,6 +626,8 @@ const startShotResolution = (matchState, attacker, shotType) => {
 const startDefenseResolution = (matchState, defender, defenseCard) => {
   const possessor = getOpponent(defender);
   const possessorHand = matchState[getHandKey(possessor)];
+  const previousPossession = matchState.possession;
+  appendCardToTable(matchState, defenseCard, defender);
   const defensePlan = getDefenseResolutionPlan({
     defender,
     defenseCardId: defenseCard.id,
@@ -441,6 +645,7 @@ const startDefenseResolution = (matchState, defender, defenseCard) => {
 
   clearTransientState(matchState);
   matchState.possession = defensePlan.nextPossession;
+  trimTablePlayOnPossessionChange(matchState, previousPossession, defensePlan.nextPossession);
   matchState.currentTurn = defensePlan.nextTurn;
   matchState.hasActedThisTurn = true;
   if (defenseCard.id === 'ba' && defensePlan.nextPossession === defender) {
@@ -456,29 +661,12 @@ const startDefenseResolution = (matchState, defender, defenseCard) => {
   }
 };
 
-const canUsePreShotDefense = (matchState, actor) =>
-  PRE_SHOT_DEFENSE_CARD_IDS.some((cardId) => {
-    const hand = matchState[getHandKey(actor)];
-
-    if (cardId === 'sb') {
-      return hand.some((card) => card.id === 'sb') && hand.some((card) => card.id === 'pc');
-    }
-
-    if (cardId === 'sc') {
-      return hand.some((card) => card.id === 'sc') && hand.some((card) => card.id === 'pa') && hand.some((card) => card.id === 'tg');
-    }
-
-    if (cardId === 'cont') {
-      return hand.some((card) => card.id === 'cont') && hand.some((card) => card.type === 'pass') && hand.some((card) => card.id === 'tg');
-    }
-
-    return hand.some((card) => card.id === cardId);
-  });
-
 const emitMatchState = (ioServer, room) => {
   if (!room.matchState) {
     return;
   }
+
+  syncRoomTurnTimer(ioServer, room);
 
   for (const player of room.players) {
     const role = getPlayerRole(room, player.id);
@@ -506,6 +694,7 @@ const sanitizeMatchStateForPlayer = (matchState, role) => {
     playerRole: role,
     playerName,
     opponentName,
+    tablePlay: matchState.tablePlay || [],
     yourHand: ownHand,
     opponentHandCount: rivalHand.length,
     playerHand: undefined,
@@ -547,6 +736,20 @@ const findDisconnectedPlayerByClientId = (clientId) => {
     const player = room.players.find((entry) => entry.clientId === clientId);
     if (player) {
       return { room, player };
+    }
+  }
+
+  return null;
+};
+
+const findRoomByClientId = (clientId) => {
+  if (!clientId) {
+    return null;
+  }
+
+  for (const room of rooms.values()) {
+    if (room.players.some((player) => player.clientId === clientId)) {
+      return room;
     }
   }
 
@@ -598,6 +801,60 @@ const removeClientFromAllRooms = (clientId) => {
   }
 };
 
+const syncSocketToExistingRoom = (socket, clientId, requestedCode = null) => {
+  const room = requestedCode ? rooms.get(requestedCode) ?? null : findRoomByClientId(clientId);
+
+  if (!room) {
+    socket.emit('session:missing', {
+      code: requestedCode ?? null,
+      message: 'La sala ya no esta disponible. Debes crear o unirte a una nueva.'
+    });
+    return false;
+  }
+
+  const player = room.players.find((entry) => entry.clientId === clientId || entry.id === socket.id);
+  if (!player) {
+    socket.emit('session:missing', {
+      code: requestedCode ?? room.code,
+      message: 'La sala ya no esta disponible. Debes crear o unirte a una nueva.'
+    });
+    return false;
+  }
+
+  clearDisconnectTimer(room.code, clientId);
+  const previousSocketId = player.id;
+  player.id = socket.id;
+  player.connected = true;
+  if (room.hostId === previousSocketId) {
+    room.hostId = socket.id;
+  }
+  room.status = room.matchState
+    ? 'in_match'
+    : room.players.length === 2
+      ? 'ready'
+      : 'waiting';
+
+  socket.join(room.code);
+  socket.emit('room:created', {
+    room: getPublicRoom(room),
+    youAreHost: room.hostId === socket.id
+  });
+
+  const role = getPlayerRole(room, socket.id);
+  if (room.matchState && role) {
+    io.to(socket.id).emit('match:updated', {
+      room: getPublicRoom(room),
+      matchState: sanitizeMatchStateForPlayer(room.matchState, role)
+    });
+  }
+
+  io.to(room.code).emit('room:updated', {
+    room: getPublicRoom(room)
+  });
+
+  return true;
+};
+
 app.use(
   cors(corsOptions)
 );
@@ -632,46 +889,27 @@ io.on('connection', (socket) => {
 
   const recoveredSession = findDisconnectedPlayerByClientId(clientId);
   if (recoveredSession && !recoveredSession.player.connected) {
-    const previousSocketId = recoveredSession.player.id;
-    clearDisconnectTimer(recoveredSession.room.code, clientId);
-    recoveredSession.player.id = socket.id;
-    recoveredSession.player.connected = true;
-    if (recoveredSession.room.hostId === previousSocketId) {
-      recoveredSession.room.hostId = socket.id;
-    }
-    recoveredSession.room.status = recoveredSession.room.matchState
-      ? 'in_match'
-      : recoveredSession.room.players.length === 2
-        ? 'ready'
-        : 'waiting';
-    socket.join(recoveredSession.room.code);
+    syncSocketToExistingRoom(socket, clientId, recoveredSession.room.code);
     serverDebugLog('player reattached to room', {
       roomCode: recoveredSession.room.code,
       socketId: socket.id,
       clientId
-    });
-
-    socket.emit('room:created', {
-      room: getPublicRoom(recoveredSession.room),
-      youAreHost: recoveredSession.room.hostId === socket.id
-    });
-
-    if (recoveredSession.room.matchState) {
-      const role = getPlayerRole(recoveredSession.room, socket.id);
-      io.to(socket.id).emit('match:updated', {
-        room: getPublicRoom(recoveredSession.room),
-        matchState: sanitizeMatchStateForPlayer(recoveredSession.room.matchState, role)
-      });
-    }
-
-    io.to(recoveredSession.room.code).emit('room:updated', {
-      room: getPublicRoom(recoveredSession.room)
     });
   }
 
   socket.emit('server:ready', {
     socketId: socket.id,
     message: 'Conexion establecida con el backend del juego.'
+  });
+
+  socket.on('room:sync_request', ({ code } = {}) => {
+    const normalizedCode = typeof code === 'string' ? code.trim().toUpperCase() : null;
+    serverDebugLog('room:sync_request received', {
+      roomCode: normalizedCode,
+      socketId: socket.id,
+      clientId
+    });
+    syncSocketToExistingRoom(socket, clientId, normalizedCode);
   });
 
   socket.on('room:create', ({ playerName } = {}) => {
@@ -689,6 +927,7 @@ io.on('connection', (socket) => {
       status: 'waiting',
       hostId: socket.id,
       matchState: null,
+      turnTimer: null,
       players: [
         {
           id: socket.id,
@@ -798,6 +1037,7 @@ io.on('connection', (socket) => {
       winner: starter
     };
     room.status = 'in_match';
+    syncRoomTurnTimer(io, room);
 
     for (const player of room.players) {
       const role = getPlayerRole(room, player.id);
@@ -833,55 +1073,11 @@ io.on('connection', (socket) => {
       return;
     }
 
-    const endTurnAction = applyEndTurnAction(room.matchState);
-
-    if (!endTurnAction.ok) {
-      socket.emit('match:error', { message: endTurnAction.logMessage });
+    const outcome = resolveServerEndTurn(room);
+    if (!outcome.ok) {
+      socket.emit('match:error', { message: outcome.message });
       return;
     }
-
-    if (endTurnAction.type === 'no-response') {
-      const noResponsePlan = endTurnAction.resolution;
-
-      if (noResponsePlan.type === 'goal') {
-        applyGoal(room.matchState, noResponsePlan.scorer, noResponsePlan.reason);
-        emitMatchState(io, room);
-        return;
-      }
-
-      if (noResponsePlan.type === 'turn-change') {
-        if (noResponsePlan.clearTransientState) {
-          clearTransientState(room.matchState);
-        }
-
-        room.matchState.possession = noResponsePlan.nextPossession;
-        room.matchState.currentTurn = noResponsePlan.nextTurn;
-        emitMatchState(io, room);
-        return;
-      }
-
-      if (noResponsePlan.type === 'pending-defense-release') {
-        room.matchState.pendingDefense = null;
-        room.matchState.currentTurn = noResponsePlan.nextTurn;
-        room.matchState.hasActedThisTurn = noResponsePlan.hasActedThisTurn;
-        emitMatchState(io, room);
-        return;
-      }
-    }
-
-    const flowPlan = endTurnAction.resolution;
-
-    if (flowPlan.keepsTurn) {
-      room.matchState.bonusTurnFor = null;
-      consumeSanctionTurn(room.matchState, flowPlan.opponentActor);
-    }
-
-    if (flowPlan.shouldApplyRedCardProgress) {
-      applyRedCardTurnProgress(room.matchState, flowPlan.actor);
-    }
-
-    room.matchState.currentTurn = flowPlan.nextActor;
-    room.matchState.hasActedThisTurn = false;
     emitMatchState(io, room);
   });
 
@@ -906,7 +1102,6 @@ io.on('connection', (socket) => {
       socket.emit('match:error', { message: 'Aun no es tu turno para responder.' });
       return;
     }
-
     if (room.matchState.pendingBlindDiscard) {
       if (!Number.isInteger(index)) {
         socket.emit('match:error', { message: 'Debes elegir una posicion valida para descartar.' });
@@ -934,8 +1129,7 @@ io.on('connection', (socket) => {
       state: {
         ...room.matchState,
         currentTurn: expectedActor,
-        cardIndex: index,
-        defenderCanUsePreShotDefense: canUsePreShotDefense(room.matchState, getOpponent(actor))
+        cardIndex: index
       },
       actor,
       card,
@@ -947,12 +1141,21 @@ io.on('connection', (socket) => {
       return;
     }
 
+    if (shouldResetTableForNewSequence(room.matchState, actor, playCardAction.type)) {
+      room.matchState.tablePlay = [];
+    }
+
     consumeCard(room.matchState, actor, index, card);
 
     if (playCardAction.type === 'red-card-var-response') {
+      appendCardToTable(room.matchState, card, actor);
       room.matchState.sanctions[actor] = null;
       if (playCardAction.plan.clearTransientState) {
-        clearTransientState(room.matchState);
+        room.matchState.pendingShot = null;
+        room.matchState.pendingDefense = null;
+        room.matchState.pendingCombo = null;
+        room.matchState.bonusTurnFor = null;
+        room.matchState.counterAttackReady = false;
       }
       applyStatePatch(room.matchState, playCardAction.statePatch);
       emitMatchState(io, room);
@@ -960,6 +1163,7 @@ io.on('connection', (socket) => {
     }
 
     if (playCardAction.type === 'defense-response') {
+      appendCardToTable(room.matchState, card, actor);
       const pendingDefenseBeforePatch = room.matchState.pendingDefense;
       applyStatePatch(room.matchState, playCardAction.statePatch);
 
@@ -971,7 +1175,9 @@ io.on('connection', (socket) => {
         });
 
         room.matchState.bonusTurnFor = penaltyResponsePlan.bonusTurnFor;
+        const previousPossession = room.matchState.possession;
         room.matchState.possession = penaltyResponsePlan.nextPossession;
+        trimTablePlayOnPossessionChange(room.matchState, previousPossession, penaltyResponsePlan.nextPossession);
         room.matchState.currentTurn = penaltyResponsePlan.nextTurn;
         room.matchState.sanctions[penaltyResponsePlan.sanctionActor] = penaltyResponsePlan.sanction;
 
@@ -991,7 +1197,7 @@ io.on('connection', (socket) => {
       return;
     }
 
-    if (playCardAction.type === 'pre-shot-defense' || playCardAction.type === 'steal-defense') {
+    if (playCardAction.type === 'steal-defense') {
       applyStatePatch(room.matchState, playCardAction.statePatch);
       startDefenseResolution(room.matchState, actor, card);
       emitMatchState(io, room);
@@ -999,8 +1205,13 @@ io.on('connection', (socket) => {
     }
 
     if (playCardAction.type === 'penalty-response' || playCardAction.type === 'save-response') {
+      appendCardToTable(room.matchState, card, actor);
       if (playCardAction.plan.type === 'turn-change' && playCardAction.plan.clearTransientState) {
-        clearTransientState(room.matchState);
+        room.matchState.pendingShot = null;
+        room.matchState.pendingDefense = null;
+        room.matchState.pendingCombo = null;
+        room.matchState.bonusTurnFor = null;
+        room.matchState.counterAttackReady = false;
       }
       if (playCardAction.type === 'save-response' && card.id === 'paq' && playCardAction.plan.type === 'turn-change') {
         room.matchState.lastEvent = { id: createEventId(), type: 'save_success', actor };
@@ -1011,6 +1222,7 @@ io.on('connection', (socket) => {
     }
 
     if (playCardAction.type === 'offside-var-response') {
+      appendCardToTable(room.matchState, card, actor);
       if (playCardAction.plan.type === 'goal') {
         applyGoal(room.matchState, playCardAction.plan.scorer, playCardAction.plan.reason);
       } else {
@@ -1021,6 +1233,7 @@ io.on('connection', (socket) => {
     }
 
     if (playCardAction.type === 'remate-response') {
+      appendCardToTable(room.matchState, card, actor);
       applyStatePatch(room.matchState, playCardAction.statePatch);
       startShotResolution(room.matchState, actor, 'remate');
       emitMatchState(io, room);
@@ -1028,27 +1241,23 @@ io.on('connection', (socket) => {
     }
 
     if (playCardAction.type === 'pass-play') {
+      appendCardToTable(room.matchState, card, actor);
       room.matchState.activePlay = [...room.matchState.activePlay, card];
       applyStatePatch(room.matchState, playCardAction.statePatch);
-
-      if (playCardAction.plan.preShotWindow?.open && playCardAction.plan.preShotWindow.needsDefenseWindow) {
-        const defender = getOpponent(actor);
-        room.matchState.pendingDefense = { defender, possessor: actor, defenseCardId: 'pre_shot' };
-        room.matchState.currentTurn = defender;
-        room.matchState.hasActedThisTurn = false;
-      }
 
       emitMatchState(io, room);
       return;
     }
 
     if (playCardAction.type === 'special-corner' || playCardAction.type === 'special-chilena') {
+      appendCardToTable(room.matchState, card, actor);
       applyStatePatch(room.matchState, playCardAction.statePatch);
       emitMatchState(io, room);
       return;
     }
 
     if (playCardAction.type === 'shoot-card') {
+      appendCardToTable(room.matchState, card, actor);
       applyStatePatch(room.matchState, playCardAction.statePatch);
       if (room.matchState.pendingCombo?.type === 'chilena_followup') {
         room.matchState.pendingCombo = null;
@@ -1069,6 +1278,7 @@ io.on('connection', (socket) => {
     }
 
     if (playCardAction.type === 'penalty-card') {
+      appendCardToTable(room.matchState, card, actor);
       applyStatePatch(room.matchState, playCardAction.statePatch);
       startShotResolution(room.matchState, actor, 'penalty');
       emitMatchState(io, room);
@@ -1097,7 +1307,6 @@ io.on('connection', (socket) => {
       socket.emit('match:error', { message: 'No es tu turno para descartar.' });
       return;
     }
-
     if (room.matchState.pendingShot || room.matchState.pendingDefense || room.matchState.pendingBlindDiscard || room.matchState.pendingCombo) {
       socket.emit('match:error', { message: 'No puedes descartar mientras hay una respuesta pendiente.' });
       return;
@@ -1165,12 +1374,14 @@ io.on('connection', (socket) => {
     socket.leave(room.code);
 
     if (room.players.length === 0) {
+      clearRoomTurnTimer(room);
       rooms.delete(room.code);
       return;
     }
 
     room.status = 'waiting';
     room.matchState = null;
+    clearRoomTurnTimer(room);
     io.to(room.code).emit('room:updated', {
       room: getPublicRoom(room)
     });
@@ -1192,6 +1403,7 @@ io.on('connection', (socket) => {
     const playerName = player?.name || 'Un jugador';
     room.matchState = null;
     room.status = room.players.length === 2 ? 'ready' : 'waiting';
+    clearRoomTurnTimer(room);
 
     io.to(room.code).emit('match:terminated', {
       message: `${playerName} termino la partida.`
@@ -1228,24 +1440,40 @@ io.on('connection', (socket) => {
       const timeout = setTimeout(() => {
         disconnectTimers.delete(timerKey);
         const currentRoom = rooms.get(room.code);
-        if (!currentRoom) {
-          return;
-        }
+      if (!currentRoom) {
+        return;
+      }
 
         const disconnectedPlayer = currentRoom.players.find((player) => player.clientId === clientId);
-        if (!disconnectedPlayer || disconnectedPlayer.connected) {
+      if (!disconnectedPlayer || disconnectedPlayer.connected) {
           return;
         }
 
+        const hadActiveMatch = Boolean(currentRoom.matchState);
+        currentRoom.players = currentRoom.players.filter((player) => player.clientId !== clientId);
+        if (currentRoom.hostId && !currentRoom.players.some((player) => player.id === currentRoom.hostId)) {
+          currentRoom.hostId = currentRoom.players[0]?.id ?? null;
+        }
+        if (currentRoom.players.length === 0) {
+          clearRoomTurnTimer(currentRoom);
+          rooms.delete(currentRoom.code);
+          return;
+        }
         currentRoom.status = 'waiting';
         currentRoom.matchState = null;
+        clearRoomTurnTimer(currentRoom);
         serverDebugLog('disconnect grace expired; room reset', {
           roomCode: currentRoom.code,
           clientId
+      });
+      if (hadActiveMatch) {
+        io.to(currentRoom.code).emit('match:terminated', {
+          message: 'La partida termino por desconexion prolongada de un jugador.'
         });
-        io.to(currentRoom.code).emit('room:updated', {
-          room: getPublicRoom(currentRoom)
-        });
+      }
+      io.to(currentRoom.code).emit('room:updated', {
+        room: getPublicRoom(currentRoom)
+      });
       }, disconnectGraceMs);
       disconnectTimers.set(timerKey, timeout);
     } else {

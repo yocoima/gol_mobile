@@ -243,6 +243,9 @@ export class AudioManager {
       case 'whistle':
         this.playWhistle();
         break;
+      case 'countdown':
+        this.playCountdownAlert();
+        break;
       default:
         break;
     }
@@ -323,5 +326,10 @@ export class AudioManager {
   playWhistle() {
     this.playTone({ frequency: 1800, duration: 0.12, type: 'square', gain: 0.15 });
     this.playTone({ frequency: 1600, duration: 0.1, type: 'square', gain: 0.12 });
+  }
+
+  playCountdownAlert() {
+    this.playTone({ frequency: 920, duration: 0.08, type: 'square', gain: 0.12 });
+    this.playTone({ frequency: 760, duration: 0.12, type: 'square', gain: 0.1 });
   }
 }

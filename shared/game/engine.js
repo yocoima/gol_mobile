@@ -10,7 +10,6 @@ import {
 import {
   getPassPlayPlan,
   getPendingComboValidationMessage,
-  getPreShotDefenseValidationMessage,
   getShotCardValidationMessage,
   getSpecialCardValidationMessage,
   getStealPlayValidationMessage
@@ -181,7 +180,7 @@ export const applyPlayCardAction = ({ state, actor, card, selectedForDiscardCoun
       : { ok: false, type: 'blocked', logMessage: 'Solo puedes responder con VAR para anular la Roja.' };
   }
 
-  if (state.pendingDefense && state.pendingDefense.defenseCardId !== 'pre_shot') {
+  if (state.pendingDefense) {
     const plan = getDefenseResponsePlan({
       actor,
       pendingDefense: state.pendingDefense,
@@ -231,21 +230,6 @@ export const applyPlayCardAction = ({ state, actor, card, selectedForDiscardCoun
 
   if (pendingComboValidationMessage) {
     return { ok: false, type: 'blocked', logMessage: pendingComboValidationMessage };
-  }
-
-  if (state.pendingDefense?.defenseCardId === 'pre_shot') {
-    const preShotDefenseValidationMessage = getPreShotDefenseValidationMessage({
-      actor,
-      pendingDefense: state.pendingDefense,
-      card: liveCard,
-      actorHasPassCard: getHand(actor).some((handCard) => handCard.type === 'pass'),
-      actorHasTirarGol: hasCardInHand(actor, 'tg'),
-      actorHasPaseAereo: hasCardInHand(actor, 'pa')
-    });
-
-    return preShotDefenseValidationMessage
-      ? { ok: false, type: 'blocked', logMessage: preShotDefenseValidationMessage }
-      : { ok: true, type: 'pre-shot-defense', card: liveCard };
   }
 
   if (state.pendingShot?.phase === 'penalty_response') {
@@ -384,8 +368,7 @@ export const applyPlayCardAction = ({ state, actor, card, selectedForDiscardCoun
       pendingCombo: state.pendingCombo,
       currentPassTotal,
       cardValue: liveCard.value,
-      counterAttackReady: state.counterAttackReady,
-      defenderCanUsePreShotDefense: state.defenderCanUsePreShotDefense
+      counterAttackReady: state.counterAttackReady
     });
 
     return plan.allowed
