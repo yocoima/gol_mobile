@@ -614,6 +614,7 @@ export default function App() {
   const onlineCoinFlipTimeoutRef = useRef(null);
   const onlineCoinFlipPreviewTimeoutRef = useRef(null);
   const lastOnlineEventRef = useRef(null);
+  const lastOnlineTurnRef = useRef(null);
   const previousPossessionRef = useRef(null);
   const onlineRoomCodeRef = useRef('');
   const dribbleVideoRef = useRef(null);
@@ -2120,6 +2121,14 @@ export default function App() {
       }
     }
 
+    // Detectar cambio de turno para transición visual
+    const newTurn = localMatchState.currentTurn ?? null;
+    if (lastOnlineTurnRef.current !== null && lastOnlineTurnRef.current !== newTurn && newTurn) {
+      const bannerName = newTurn === 'player' ? localPlayerLabel : localOpponentLabel;
+      triggerTurnTransition(bannerName);
+    }
+    lastOnlineTurnRef.current = newTurn;
+
     if (localMatchState.lastEvent?.id && localMatchState.lastEvent.id !== lastOnlineEventRef.current) {
       lastOnlineEventRef.current = localMatchState.lastEvent.id;
       const event = localMatchState.lastEvent;
@@ -2130,6 +2139,15 @@ export default function App() {
           scorer: event.scorer,
           text: `GOOL ${event.scorer === 'player' ? localPlayerLabel : localOpponentLabel}`
         });
+        triggerGoalConfetti();
+        triggerFieldFlash('field-flash-goal', 650);
+        setStadiumLightsActive(true);
+        setTimeout(() => setStadiumLightsActive(false), 2200);
+        setLastScorerForAnim(event.scorer);
+        setTimeout(() => setLastScorerForAnim(null), 600);
+        vibrate([120, 60, 120, 60, 200]);
+        addFeedEvent('⚽', `Gol de ${event.scorer === 'player' ? localPlayerLabel : localOpponentLabel}`);
+        audioManagerRef.current?.setTensionLevel(0);
       }
 
       if (event.type === 'coin_flip') {
@@ -2147,14 +2165,41 @@ export default function App() {
           actor: event.actor,
           text: `${event.actor === 'player' ? localPlayerLabel : localOpponentLabel} recupera con Barrida`
         });
+        triggerFieldFlash('field-flash-tackle', 420);
+        triggerFieldShake();
+        vibrate([60, 40, 80]);
+        addFeedEvent('🦵', `Barrida - ${event.actor === 'player' ? localPlayerLabel : localOpponentLabel}`);
       }
 
       if (event.type === 'save_success') {
         queueActionVideo(saveVideo);
+        triggerFieldFlash('field-flash-save', 550);
+        setSaveRipplesActive(true);
+        setTimeout(() => setSaveRipplesActive(false), 900);
+        vibrate([80, 40, 80]);
+        addFeedEvent('🧤', `Parada del arquero`);
+      }
+
+      if (event.type === 'foul') {
+        triggerFieldFlash('field-flash-foul', 400);
+        triggerFieldShake();
+        vibrate([100, 50, 100]);
+        addFeedEvent('🟨', `Falta - ${event.actor === 'player' ? localPlayerLabel : localOpponentLabel}`);
+      }
+
+      if (event.type === 'var') {
+        triggerFieldFlash('field-flash-var', 520);
+        addFeedEvent('📺', 'VAR - Revisión');
+      }
+
+      if (event.type === 'shot') {
+        audioManagerRef.current?.setTensionLevel(1);
+        addFeedEvent('🎯', `Disparo - ${event.actor === 'player' ? localPlayerLabel : localOpponentLabel}`);
       }
 
       if (event.type === 'turn_timeout') {
         setSystemNotice(`${event.actor === 'player' ? localPlayerLabel : localOpponentLabel} perdio el turno por tiempo.`);
+        addFeedEvent('⏱️', 'Tiempo agotado');
       }
 
       if (event.type === 'turn_timeout_loss') {
