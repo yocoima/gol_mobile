@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import confetti from 'canvas-confetti';
 import {
   ArrowRightCircle,
   Bot,
@@ -44,7 +45,7 @@ import {
   getRedCardProgressPlan,
   getShotResolutionPlan
 } from '../shared/game/rules.js';
-import { AppButton, ModalCard, ScorePanel } from './components/MatchUi.jsx';
+import { AppButton, CountdownRing, ModalCard, ScorePanel, getCardGlowClass } from './components/MatchUi.jsx';
 
 const CARD_IMAGE_MODULES = import.meta.glob('../imagenes/*.{png,jpg,jpeg,webp}', {
   eager: true,
@@ -310,6 +311,8 @@ const CardItem = ({
   onSelect,
   onPointerDown,
   onPointerEnter,
+  onLongPressStart,
+  onLongPressEnd,
   disabled,
   isSelected,
   canSelectDiscard,
@@ -327,14 +330,32 @@ const CardItem = ({
         ? 'Pase'
         : card?.type === 'defense'
           ? 'Defensa'
-          : card?.type === 'shoot'
+          : card?.type === 'shoot' || card?.type === 'shoot_special'
             ? 'Remate'
-            : card?.type === 'special'
-              ? 'Especial'
-              : 'Juego';
+            : card?.type === 'save'
+              ? 'Parada'
+              : card?.type === 'counter'
+                ? 'Contrataque'
+                : card?.type === 'card'
+                  ? 'Tarjeta'
+                  : card?.type === 'var'
+                    ? 'VAR'
+                    : 'Juego';
+
+  const glowClass = !hideContent && !disabled ? getCardGlowClass(card?.type) : '';
+  const playabilityClass = !hideContent && !isDiscardMode
+    ? disabled ? 'hand-card-not-playable' : 'hand-card-playable'
+    : '';
 
   return (
-  <div className={`hand-card-shell group hand-card-shell-${interactionState}`} data-hand-card-index={dataIndex}>
+  <div
+    className={`hand-card-shell group hand-card-shell-${interactionState}`}
+    data-hand-card-index={dataIndex}
+    onTouchStart={onLongPressStart ? (e) => onLongPressStart(card, e, disabled) : undefined}
+    onTouchEnd={onLongPressEnd}
+    onTouchCancel={onLongPressEnd}
+    onMouseLeave={onLongPressEnd}
+  >
     {canSelectDiscard && isDiscardMode && !disabled && (
       <button
         onClick={onSelect}
@@ -355,9 +376,13 @@ const CardItem = ({
         hideContent || cardImage ? 'bg-slate-900' : card?.color || 'bg-slate-800'
       } ${hideContent ? 'hand-card-hidden' : ''} ${
         !disabled ? 'hand-card-enabled' : 'hand-card-disabled'
-      } ${isSelected ? 'hand-card-selected' : ''} hand-card-button-${interactionState}`}
+      } ${isSelected ? 'hand-card-selected' : ''} hand-card-button-${interactionState} ${glowClass} ${playabilityClass}`}
     >
       {!hideContent && <div className="hand-card-badge">{cardTypeLabel}</div>}
+      {/* Badge de valor de pase */}
+      {!hideContent && card?.value > 0 && (
+        <div className="card-value-badge">+{card.value}</div>
+      )}
       {cardImage && !hideContent && (
         <>
           <img
@@ -571,6 +596,21 @@ export default function App() {
   const [dropImpactActive, setDropImpactActive] = useState(false);
   const [onlineTurnDeadlineAt, setOnlineTurnDeadlineAt] = useState(null);
   const [turnCountdown, setTurnCountdown] = useState(TURN_COUNTDOWN_SECONDS);
+
+  // ---- NUEVAS MEJORAS UI ----
+  const [fieldFlashClass, setFieldFlashClass] = useState('');
+  const [fieldShakeActive, setFieldShakeActive] = useState(false);
+  const [turnSweepActive, setTurnSweepActive] = useState(false);
+  const [turnChangeBanner, setTurnChangeBanner] = useState('');
+  const [eventFeedItems, setEventFeedItems] = useState([]);
+  const [cardTooltip, setCardTooltip] = useState(null); // {card, x, y, blocked}
+  const [lastScorerForAnim, setLastScorerForAnim] = useState(null);
+  const [stadiumLightsActive, setStadiumLightsActive] = useState(false);
+  const [saveRipplesActive, setSaveRipplesActive] = useState(false);
+  const [fieldPossessionClass, setFieldPossessionClass] = useState('');
+  const longPressTimerRef = useRef(null);
+  const fieldFlashTimerRef = useRef(null);
+  const feedIdRef = useRef(0);
   const onlineCoinFlipTimeoutRef = useRef(null);
   const onlineCoinFlipPreviewTimeoutRef = useRef(null);
   const lastOnlineEventRef = useRef(null);
@@ -627,6 +667,89 @@ export default function App() {
   const addLog = (message) => {
     setGameLog((previousLog) => [message, ...previousLog].slice(0, 5));
   };
+
+  // ---- HAPTIC FEEDBACK ----
+  const vibrate = useCallback((pattern) => {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      try { navigator.vibrate(pattern); } catch { /* not supported */ }
+    }
+  }, []);
+
+  // ---- CONFETTI DE GOL ----
+  const triggerGoalConfetti = useCallback((scorer) => {
+    const colors = scorer === 'player'
+      ? ['#22d3ee', '#ffffff', '#fbbf24']
+      : ['#fb7185', '#ffffff', '#fbbf24'];
+    confetti({
+      particleCount: 140,
+      spread: 88,
+      origin: { x: 0.5, y: 0.35 },
+      colors,
+      scalar: 1.3,
+      gravity: 0.9,
+      ticks: 220,
+    });
+    confetti({
+      particleCount: 60,
+      angle: 60,
+      spread: 55,
+      origin: { x: 0, y: 0.5 },
+      colors,
+      scalar: 1.1,
+    });
+    confetti({
+      particleCount: 60,
+      angle: 120,
+      spread: 55,
+      origin: { x: 1, y: 0.5 },
+      colors,
+      scalar: 1.1,
+    });
+  }, []);
+
+  // ---- FLASH DE CANCHA ----
+  const triggerFieldFlash = useCallback((flashClass, durationMs = 600) => {
+    if (fieldFlashTimerRef.current) clearTimeout(fieldFlashTimerRef.current);
+    setFieldFlashClass(flashClass);
+    fieldFlashTimerRef.current = setTimeout(() => setFieldFlashClass(''), durationMs);
+  }, []);
+
+  const triggerFieldShake = useCallback(() => {
+    setFieldShakeActive(true);
+    setTimeout(() => setFieldShakeActive(false), 250);
+  }, []);
+
+  // ---- TRANSICIÓN DE TURNO ----
+  const triggerTurnTransition = useCallback((nextPlayerName) => {
+    setTurnSweepActive(true);
+    setTurnChangeBanner(`Turno: ${nextPlayerName}`);
+    setTimeout(() => setTurnSweepActive(false), 400);
+    setTimeout(() => setTurnChangeBanner(''), 1900);
+  }, []);
+
+  // ---- FEED DE EVENTOS ----
+  const addFeedEvent = useCallback((icon, text) => {
+    const id = ++feedIdRef.current;
+    setEventFeedItems((prev) => [...prev, { id, icon, text }].slice(-4));
+    setTimeout(() => {
+      setEventFeedItems((prev) => prev.filter((item) => item.id !== id));
+    }, 2900);
+  }, []);
+
+  // ---- TOOLTIP DE CARTA (long-press) ----
+  const handleCardLongPressStart = useCallback((card, event, isBlocked) => {
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    const { clientX: x, clientY: y } = event.touches?.[0] ?? event;
+    longPressTimerRef.current = setTimeout(() => {
+      setCardTooltip({ card, x, y, blocked: isBlocked });
+      vibrate(30);
+    }, 480);
+  }, [vibrate]);
+
+  const handleCardLongPressEnd = useCallback(() => {
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+    setCardTooltip(null);
+  }, []);
 
   const clearReleasedGhostTimers = () => {
     if (releasedGhostTimeoutRef.current) {
@@ -904,6 +1027,15 @@ export default function App() {
 
     return () => window.clearTimeout(timeoutId);
   }, [fieldEventAnimation]);
+
+  // Música adaptativa: sube tensión cuando algún jugador está en match point (4 goles)
+  useEffect(() => {
+    if (!gameState === 'playing') return;
+    const isMatchPoint = playerScore >= 4 || opponentScore >= 4;
+    if (isMatchPoint) {
+      audioManagerRef.current?.setTensionLevel(2);
+    }
+  }, [playerScore, opponentScore, gameState]);
 
   useEffect(() => {
     if (!isTurnCountdownActive) {
@@ -1812,6 +1944,15 @@ export default function App() {
       setTablePlay((previousPlay) => (previousPlay.length <= 2 ? previousPlay : previousPlay.slice(-2)));
     }
 
+    // Fondo dinámico por posesión
+    if (possession === 'player') {
+      setFieldPossessionClass('field-possession-player');
+    } else if (possession === 'opponent') {
+      setFieldPossessionClass('field-possession-opponent');
+    } else {
+      setFieldPossessionClass('');
+    }
+
     previousPossessionRef.current = possession;
   }, [possession]);
 
@@ -2477,6 +2618,18 @@ export default function App() {
     audioManagerRef.current?.playSfx('goal');
     setLaneNotice(scorer, goalOutcome.laneNotice);
 
+    // Mejoras visuales de gol
+    triggerGoalConfetti(scorer);
+    vibrate([100, 50, 100, 50, 200]);
+    triggerFieldFlash('field-flash-goal', 650);
+    setStadiumLightsActive(true);
+    setTimeout(() => setStadiumLightsActive(false), 900);
+    setLastScorerForAnim(scorer);
+    setTimeout(() => setLastScorerForAnim(null), 600);
+    const scorerLabel = scorer === 'player' ? playerDisplayName : opponentDisplayName;
+    addFeedEvent('⚽', `${scorerLabel} anota`);
+    audioManagerRef.current?.setTensionLevel(0);
+
     applyRedCardTurnProgress(scorer);
     clearTransientState();
     setHasActedThisTurn(false);
@@ -2487,6 +2640,9 @@ export default function App() {
       setPossession(null);
       setCurrentTurn(null);
       addLog(goalOutcome.logMessage);
+      setTimeout(() => audioManagerRef.current?.playSfx('match_end'), 600);
+      setTimeout(() => audioManagerRef.current?.playSfx('whistle_long'), 200);
+      vibrate([100, 50, 100, 50, 200, 100, 300]);
       return;
     }
 
@@ -2504,6 +2660,8 @@ export default function App() {
       defenderHasArquero: hasCardInHand(defender, 'paq'),
       defenderHasOffside: hasCardInHand(defender, 'off')
     });
+    audioManagerRef.current?.setTensionLevel(1);
+    addFeedEvent('🎯', 'Disparo al arco');
 
     setActivePlay([]);
     setCounterAttackReady(false);
@@ -2556,6 +2714,25 @@ export default function App() {
 
     if (!onlineEnabled && defenseCard.id === GOALKEEPER_SAVE_CARD_ID) {
       queueActionVideo(saveVideo);
+      triggerFieldFlash('field-flash-save', 550);
+      setSaveRipplesActive(true);
+      setTimeout(() => setSaveRipplesActive(false), 700);
+      vibrate(80);
+      addFeedEvent('🧤', 'Parada del arquero');
+    }
+
+    if (defenseCard.id === 'ba') {
+      triggerFieldFlash('field-flash-tackle', 420);
+      triggerFieldShake();
+      vibrate([50, 30, 50]);
+      addFeedEvent('🦵', 'Barrida exitosa');
+    }
+
+    if (defenseCard.id === 'fa') {
+      triggerFieldFlash('field-flash-foul', 400);
+      triggerFieldShake();
+      vibrate(80);
+      addFeedEvent('🟨', 'Falta agresiva');
     }
 
     addLog(defensePlan.logMessage);
@@ -2761,6 +2938,11 @@ export default function App() {
     setSelectedForDiscard([]);
     setDiscardMode(false);
     addLog(endTurnFlowPlan.logMessage);
+
+    // Transición de turno visual
+    const nextLabel = endTurnFlowPlan.nextActor === 'player' ? playerDisplayName : opponentDisplayName;
+    triggerTurnTransition(nextLabel);
+    audioManagerRef.current?.setTensionLevel(0);
   };
 
   const handleDiscard = () => {
@@ -2972,10 +3154,19 @@ export default function App() {
       setSanctionFor(penaltyResponsePlan.sanctionActor, penaltyResponsePlan.sanction);
 
       if (penaltyResponsePlan.type === 'yellow') {
+        triggerFieldFlash('field-flash-foul', 400);
+        vibrate(80);
+        audioManagerRef.current?.playSfx('yellow_card');
+        addFeedEvent('🟨', 'Tarjeta amarilla');
         addLog(penaltyResponsePlan.logMessage);
         return;
       }
 
+      triggerFieldFlash('field-flash-foul', 500);
+      triggerFieldShake();
+      vibrate([80, 40, 80]);
+      audioManagerRef.current?.playSfx('red_card');
+      addFeedEvent('🟥', 'Tarjeta roja');
       openBlindDiscard(
         actor,
         pendingDefense.defender,
@@ -3026,6 +3217,11 @@ export default function App() {
         applyEngineStatePatch(playCardAction.statePatch);
         if (card.id === GOALKEEPER_SAVE_CARD_ID) {
           queueActionVideo(saveVideo);
+          triggerFieldFlash('field-flash-save', 550);
+          setSaveRipplesActive(true);
+          setTimeout(() => setSaveRipplesActive(false), 700);
+          vibrate(80);
+          addFeedEvent('🧤', 'Parada del arquero');
         }
         addLog(saveResponsePlan.logMessage);
         return;
@@ -3040,6 +3236,10 @@ export default function App() {
       const offsideVarPlan = playCardAction.plan;
       consumeCard(actor, index, card);
       appendCardToTable(card, actor);
+      triggerFieldFlash('field-flash-var', 520);
+      vibrate([40, 30, 40]);
+      addFeedEvent('📺', 'Revisión VAR');
+      audioManagerRef.current?.playSfx('var');
 
       if (offsideVarPlan.type === 'goal') {
         scoreGoal(offsideVarPlan.scorer, offsideVarPlan.reason);
@@ -3231,6 +3431,7 @@ export default function App() {
             isActive={possession === 'player'}
             sanction={sanctions.player}
             redCardStatus={playerRedCardStatus}
+            scoreAnimating={lastScorerForAnim === 'player'}
             ball={possession === 'player' ? <SoccerBallIcon size={20} className="animate-bounce" /> : null}
           />
 
@@ -3255,12 +3456,57 @@ export default function App() {
             sanction={sanctions.opponent}
             redCardStatus={opponentRedCardStatus}
             ball={possession === 'opponent' ? <SoccerBallIcon size={20} className="animate-bounce" /> : null}
+            scoreAnimating={lastScorerForAnim === 'opponent'}
           />
         </div>
       </div>
 
-        <div className="relative flex flex-1 flex-col items-center justify-between overflow-hidden border-x-[16px] border-emerald-900 p-3 shadow-inner max-sm:border-x-4 max-sm:p-1.5">
+        <div className={`relative flex flex-1 flex-col items-center justify-between overflow-hidden border-x-[16px] border-emerald-900 p-3 shadow-inner max-sm:border-x-4 max-sm:p-1.5 ${fieldShakeActive ? 'field-shake' : ''}`}>
           <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(8,28,14,0.62),rgba(8,28,14,0.2)_38%,rgba(8,28,14,0.66)),repeating-linear-gradient(0deg,rgba(58,143,58,0.34)_0px,rgba(58,143,58,0.34)_48px,rgba(31,102,38,0.36)_48px,rgba(31,102,38,0.36)_96px),radial-gradient(circle_at_center,rgba(118,193,104,0.24),rgba(25,88,35,0.72)_68%)]" />
+
+          {/* Fondo dinámico por posesión */}
+          <div className={`pointer-events-none absolute inset-0 transition-all duration-700 ${fieldPossessionClass}`} />
+
+          {/* Flash de cancha por evento */}
+          {fieldFlashClass ? (
+            <div key={fieldFlashClass + Date.now()} className={`pointer-events-none absolute inset-0 z-[15] ${fieldFlashClass}`} />
+          ) : null}
+
+          {/* Focos de estadio en gol */}
+          <div className={`stadium-lights ${stadiumLightsActive ? 'stadium-lights-active' : ''}`}>
+            <div className="stadium-light stadium-light-tl" />
+            <div className="stadium-light stadium-light-tr" />
+            <div className="stadium-light stadium-light-bl" />
+            <div className="stadium-light stadium-light-br" />
+          </div>
+
+          {/* Riples de parada del arquero */}
+          {saveRipplesActive ? (
+            <div className="pointer-events-none absolute inset-0 z-[16] flex items-center justify-center">
+              <div className="save-ripple" />
+              <div className="save-ripple save-ripple-2" />
+            </div>
+          ) : null}
+
+          {/* Línea de medio campo con glow */}
+          <div className="field-midline-glow" />
+
+          {/* Barrido de transición de turno */}
+          {turnSweepActive ? <div className="turn-transition-sweep" /> : null}
+          {turnChangeBanner ? <div className="turn-change-banner">{turnChangeBanner}</div> : null}
+
+          {/* Feed lateral de eventos */}
+          {eventFeedItems.length > 0 ? (
+            <div className="event-feed pr-1">
+              {eventFeedItems.map((item) => (
+                <div key={item.id} className="event-feed-item">
+                  <span className="event-feed-icon">{item.icon}</span>
+                  <span>{item.text}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
           <div className="pointer-events-none absolute inset-0 opacity-[0.22]">
             <div className="absolute left-3 right-3 top-3 bottom-3 rounded-2xl border border-white/12 max-sm:left-2 max-sm:right-2 max-sm:top-2 max-sm:bottom-2" />
             <div className="absolute left-0 right-0 top-1/2 h-px -translate-y-1/2 bg-white/32" />
@@ -3366,7 +3612,11 @@ export default function App() {
           <div
             ref={matchTablePanelRef}
             className={`match-table-panel flex min-h-[150px] flex-1 items-end justify-center overflow-visible py-6 max-sm:min-h-[118px] max-sm:py-3 ${
-              dragCardState?.isOverBoard ? 'match-table-panel-drop-active' : ''
+              dragCardState?.isOverBoard
+                ? isPlayerTurn
+                  ? 'match-table-panel-drop-valid'
+                  : 'match-table-panel-drop-invalid'
+                : 'match-table-panel-drop-active'
             } ${
               dropImpactActive ? 'match-table-panel-drop-impact' : ''
             }`}
@@ -3398,9 +3648,9 @@ export default function App() {
                 return (
                   <div
                     key={`${card.visualId || card.id}-${index}`}
-                    className={`${card.color || 'bg-slate-800'} table-card relative flex h-[101px] min-w-[74px] flex-col justify-between p-2 max-sm:h-[84px] max-sm:min-w-[59px] max-sm:p-1 ${
+                    className={`${card.color || 'bg-slate-800'} table-card table-card-enter relative flex h-[101px] min-w-[74px] flex-col justify-between p-2 max-sm:h-[84px] max-sm:min-w-[59px] max-sm:p-1 ${
                       isRivalCard ? 'table-card-opponent' : 'table-card-player'
-                    } ${lastActiveCard?.visualId === card.visualId ? 'table-card-featured' : ''}`}
+                    } ${lastActiveCard?.visualId === card.visualId ? 'table-card-featured' : ''} ${getCardGlowClass(card.type)}`}
                     style={{
                       marginLeft: overlapOffset,
                       marginBottom: verticalLift,
@@ -3503,7 +3753,12 @@ export default function App() {
             </div>
             {onlineEnabled && gameState === 'playing' ? (
               <div className={`countdown-pill ${isTurnCountdownActive && turnCountdown <= 5 ? 'countdown-pill-critical' : ''}`}>
-                Tiempo: {isTurnCountdownActive ? `${turnCountdown}s` : 'En espera'}
+                <span className="countdown-circle-wrap">
+                  {isTurnCountdownActive && (
+                    <CountdownRing seconds={turnCountdown} maxSeconds={TURN_COUNTDOWN_SECONDS} size={26} />
+                  )}
+                  <span>Tiempo: {isTurnCountdownActive ? `${turnCountdown}s` : 'En espera'}</span>
+                </span>
               </div>
             ) : null}
             <div className="section-kicker">
@@ -3560,6 +3815,8 @@ export default function App() {
                 onClick={(event) => handlePlayerCardClick(event, card, index)}
                 onPointerDown={(event) => handlePlayerCardPointerDown(event, card, index)}
                 onPointerEnter={() => handlePlayerCardPointerEnter(index)}
+                onLongPressStart={handleCardLongPressStart}
+                onLongPressEnd={handleCardLongPressEnd}
                 disabled={!isPlayerTurn || isDribbleVideoPlaying || (pendingBlindDiscard?.actor === 'player' && blindDiscardTargetActor === 'opponent')}
                 canSelectDiscard={canUseDiscard}
                 isDiscardMode={discardMode}
@@ -4037,6 +4294,35 @@ export default function App() {
                     {fieldEventAnimation.text}
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Tooltip de carta con long-press */}
+            {cardTooltip && (
+              <div
+                className="card-tooltip"
+                style={{
+                  left: Math.min(cardTooltip.x + 10, window.innerWidth - 250),
+                  top: Math.max(8, cardTooltip.y - 120),
+                }}
+              >
+                <div className="card-tooltip-name">{cardTooltip.card?.name}</div>
+                <div className="card-tooltip-type">
+                  {cardTooltip.card?.type === 'pass' ? '⚡ Pase'
+                    : cardTooltip.card?.type === 'shoot' || cardTooltip.card?.type === 'shoot_special' ? '🎯 Disparo'
+                    : cardTooltip.card?.type === 'defense' ? '🛡️ Defensa'
+                    : cardTooltip.card?.type === 'save' ? '🧤 Parada'
+                    : cardTooltip.card?.type === 'counter' ? '⚡ Contrataque'
+                    : cardTooltip.card?.type === 'card' ? '🟨 Tarjeta'
+                    : cardTooltip.card?.type === 'var' ? '📺 VAR'
+                    : '🃏 Carta'}
+                </div>
+                {cardTooltip.card?.detail ? (
+                  <div className="card-tooltip-detail">{cardTooltip.card.detail}</div>
+                ) : null}
+                {cardTooltip.blocked ? (
+                  <span className="card-tooltip-blocked">No disponible ahora</span>
+                ) : null}
               </div>
             )}
 

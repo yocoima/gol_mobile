@@ -15,6 +15,14 @@
   --rose: #fb7185;
   --shadow-soft: 0 18px 48px rgba(0, 0, 0, 0.34);
   --shadow-strong: 0 28px 90px rgba(0, 0, 0, 0.46);
+
+  /* Card type glow colors */
+  --glow-pass: #22c55e;
+  --glow-shoot: #ef4444;
+  --glow-defense: #6366f1;
+  --glow-special: #f59e0b;
+  --glow-save: #0ea5e9;
+  --glow-counter: #a855f7;
 }
 
 * {
@@ -1003,4 +1011,662 @@ input {
   .combo-panel {
     border-radius: 1.25rem;
   }
+}
+
+/* ===================================================
+   MEJORAS VISUALES — RAMA claude_mejoras
+   =================================================== */
+
+/* ---- GLOW POR TIPO DE CARTA ---- */
+.card-glow-pass {
+  box-shadow:
+    0 4px 6px rgba(0,0,0,0.4),
+    0 0 0 1px rgba(255,255,255,0.12),
+    0 0 14px rgba(34, 197, 94, 0.45),
+    inset 0 1px 0 rgba(255,255,255,0.18);
+}
+.card-glow-shoot {
+  box-shadow:
+    0 4px 6px rgba(0,0,0,0.4),
+    0 0 0 1px rgba(255,255,255,0.12),
+    0 0 22px rgba(239, 68, 68, 0.55),
+    inset 0 1px 0 rgba(255,255,255,0.18);
+}
+.card-glow-defense {
+  box-shadow:
+    0 4px 6px rgba(0,0,0,0.4),
+    0 0 0 1px rgba(255,255,255,0.12),
+    0 0 14px rgba(99, 102, 241, 0.45),
+    inset 0 1px 0 rgba(255,255,255,0.18);
+}
+.card-glow-special {
+  box-shadow:
+    0 4px 6px rgba(0,0,0,0.4),
+    0 0 0 1px rgba(255,255,255,0.12),
+    0 0 20px rgba(245, 158, 11, 0.55),
+    inset 0 1px 0 rgba(255,255,255,0.18);
+}
+.card-glow-save {
+  box-shadow:
+    0 4px 6px rgba(0,0,0,0.4),
+    0 0 0 1px rgba(255,255,255,0.12),
+    0 0 16px rgba(14, 165, 233, 0.5),
+    inset 0 1px 0 rgba(255,255,255,0.18);
+}
+.card-glow-counter {
+  box-shadow:
+    0 4px 6px rgba(0,0,0,0.4),
+    0 0 0 1px rgba(255,255,255,0.12),
+    0 0 14px rgba(168, 85, 247, 0.45),
+    inset 0 1px 0 rgba(255,255,255,0.18);
+}
+
+/* ---- SHINE SWEEP EN HOVER ---- */
+.hand-card-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background: linear-gradient(
+    108deg,
+    transparent 38%,
+    rgba(255, 255, 255, 0.18) 50%,
+    transparent 62%
+  );
+  transform: translateX(-110%);
+  transition: transform 0s;
+  pointer-events: none;
+  border-radius: inherit;
+}
+.hand-card-enabled:hover .hand-card-button::before,
+.hand-card-button-active::before {
+  transform: translateX(110%);
+  transition: transform 0.45s ease;
+}
+
+/* ---- CARTAS JUGABLES VS NO JUGABLES ---- */
+.hand-card-playable {
+  animation: cardPlayableGlow 2.2s ease-in-out infinite;
+}
+.hand-card-not-playable {
+  opacity: 0.38;
+  filter: grayscale(0.85);
+}
+
+@keyframes cardPlayableGlow {
+  0%, 100% {
+    filter: brightness(1) saturate(1);
+  }
+  50% {
+    filter: brightness(1.08) saturate(1.15);
+  }
+}
+
+/* ---- VALOR DE PASE BADGE ---- */
+.card-value-badge {
+  position: absolute;
+  top: 6px;
+  right: 7px;
+  z-index: 4;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fbbf24;
+  backdrop-filter: blur(4px);
+}
+@media (max-width: 640px) {
+  .card-value-badge {
+    width: 15px;
+    height: 15px;
+    font-size: 8px;
+    top: 4px;
+    right: 5px;
+  }
+}
+
+/* ---- ANIMACIÓN ENTRADA DE CARTA DESDE MAZO ---- */
+@keyframes cardDealIn {
+  0% {
+    transform: translateY(-60px) rotateX(40deg) scale(0.88);
+    opacity: 0;
+    filter: brightness(1.4);
+  }
+  60% {
+    transform: translateY(4px) rotateX(-4deg) scale(1.04);
+    opacity: 1;
+    filter: brightness(1.1);
+  }
+  100% {
+    transform: translateY(0) rotateX(0) scale(1);
+    opacity: 1;
+    filter: brightness(1);
+  }
+}
+.card-deal-in {
+  animation: cardDealIn 280ms cubic-bezier(0.34, 1.45, 0.64, 1) both;
+}
+
+/* ---- FLASH DE CANCHA POR EVENTO ---- */
+.field-flash-goal {
+  animation: fieldFlashGoal 600ms ease-out forwards;
+}
+.field-flash-foul {
+  animation: fieldFlashFoul 400ms ease-out forwards;
+}
+.field-flash-save {
+  animation: fieldFlashSave 500ms ease-out forwards;
+}
+.field-flash-tackle {
+  animation: fieldFlashTackle 400ms ease-out forwards;
+}
+.field-flash-var {
+  animation: fieldFlashVar 500ms ease-out forwards;
+}
+
+@keyframes fieldFlashGoal {
+  0%   { background-color: rgba(255, 255, 255, 0.0); }
+  15%  { background-color: rgba(255, 255, 255, 0.28); }
+  35%  { background-color: rgba(74, 222, 128, 0.22); }
+  100% { background-color: rgba(255, 255, 255, 0.0); }
+}
+@keyframes fieldFlashFoul {
+  0%   { background-color: rgba(239, 68, 68, 0.0); }
+  20%  { background-color: rgba(239, 68, 68, 0.28); }
+  100% { background-color: rgba(239, 68, 68, 0.0); }
+}
+@keyframes fieldFlashSave {
+  0%   { background-color: rgba(14, 165, 233, 0.0); }
+  25%  { background-color: rgba(14, 165, 233, 0.26); }
+  100% { background-color: rgba(14, 165, 233, 0.0); }
+}
+@keyframes fieldFlashTackle {
+  0%   { background-color: rgba(99, 102, 241, 0.0); }
+  20%  { background-color: rgba(99, 102, 241, 0.3); }
+  100% { background-color: rgba(99, 102, 241, 0.0); }
+}
+@keyframes fieldFlashVar {
+  0%   { background-color: rgba(245, 158, 11, 0.0); }
+  25%  { background-color: rgba(245, 158, 11, 0.28); }
+  100% { background-color: rgba(245, 158, 11, 0.0); }
+}
+
+/* ---- SHAKE DE CANCHA EN FALTA/BARRIDA ---- */
+.field-shake {
+  animation: fieldShake 200ms ease-in-out;
+}
+@keyframes fieldShake {
+  0%   { transform: translateX(0); }
+  20%  { transform: translateX(-4px); }
+  40%  { transform: translateX(4px); }
+  60%  { transform: translateX(-3px); }
+  80%  { transform: translateX(3px); }
+  100% { transform: translateX(0); }
+}
+
+/* ---- TRANSICIÓN DE TURNO ---- */
+.turn-transition-sweep {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(255,255,255,0) 0%,
+    rgba(255,255,255,0.12) 48%,
+    rgba(255,255,255,0.12) 52%,
+    rgba(255,255,255,0) 100%
+  );
+  animation: turnSweep 380ms ease-out forwards;
+}
+@keyframes turnSweep {
+  0%   { transform: translateY(-100%); opacity: 1; }
+  100% { transform: translateY(100%); opacity: 0; }
+}
+
+.turn-change-banner {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 45;
+  padding: 0.5rem 1.4rem;
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.82);
+  border: 1px solid rgba(255,255,255,0.18);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.24em;
+  color: white;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: turnBannerPop 1.8s ease-out forwards;
+}
+@keyframes turnBannerPop {
+  0%   { opacity: 0; transform: translate(-50%, -50%) translateY(10px) scale(0.9); }
+  15%  { opacity: 1; transform: translate(-50%, -50%) translateY(0) scale(1); }
+  70%  { opacity: 1; transform: translate(-50%, -50%) translateY(0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) translateY(-6px) scale(0.96); }
+}
+
+/* ---- FONDO DINÁMICO POR POSESIÓN ---- */
+.field-possession-player {
+  background:
+    radial-gradient(ellipse 80% 40% at 50% 85%, rgba(34, 197, 94, 0.18) 0%, transparent 70%),
+    radial-gradient(ellipse at center, rgba(22, 101, 52, 0.3), transparent 60%);
+  transition: background 800ms ease;
+}
+.field-possession-opponent {
+  background:
+    radial-gradient(ellipse 80% 40% at 50% 15%, rgba(251, 113, 133, 0.18) 0%, transparent 70%),
+    radial-gradient(ellipse at center, rgba(90, 10, 30, 0.22), transparent 60%);
+  transition: background 800ms ease;
+}
+
+/* ---- FEED LATERAL DE EVENTOS ---- */
+.event-feed {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 35;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: none;
+  max-width: 200px;
+}
+@media (max-width: 640px) {
+  .event-feed {
+    max-width: 140px;
+  }
+}
+
+.event-feed-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px 5px 8px;
+  border-radius: 999px 0 0 999px;
+  background: rgba(2, 6, 23, 0.84);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-right: none;
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(8px);
+  animation: feedItemIn 2.8s ease-out forwards;
+}
+@keyframes feedItemIn {
+  0%   { transform: translateX(100%); opacity: 0; }
+  12%  { transform: translateX(0); opacity: 1; }
+  72%  { transform: translateX(0); opacity: 1; }
+  100% { transform: translateX(100%); opacity: 0; }
+}
+
+.event-feed-icon {
+  font-size: 12px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+/* ---- GOAL SLOTS EN SCOREBOARD ---- */
+.goal-slots {
+  display: flex;
+  gap: 3px;
+  justify-content: center;
+  margin-top: 4px;
+}
+.goal-slot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.06);
+  transition: all 300ms ease;
+}
+.goal-slot-filled-cyan {
+  background: var(--cyan);
+  border-color: rgba(110, 231, 249, 0.8);
+  box-shadow: 0 0 8px rgba(110, 231, 249, 0.7);
+  animation: goalSlotPop 350ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.goal-slot-filled-rose {
+  background: var(--rose);
+  border-color: rgba(251, 113, 133, 0.8);
+  box-shadow: 0 0 8px rgba(251, 113, 133, 0.7);
+  animation: goalSlotPop 350ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes goalSlotPop {
+  0%   { transform: scale(0); opacity: 0; }
+  60%  { transform: scale(1.3); }
+  100% { transform: scale(1); opacity: 1; }
+}
+@media (max-width: 640px) {
+  .goal-slot { width: 7px; height: 7px; }
+}
+
+/* ---- PARTÍCULAS DE EVENTO ---- */
+.event-particles-wrap {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 20;
+}
+.particle {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  left: 50%;
+  top: 50%;
+  opacity: 0;
+  animation: particleBurst 700ms ease-out forwards;
+}
+@keyframes particleBurst {
+  0%   { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0); opacity: 0; }
+}
+
+/* ---- FOCOS DE ESTADIO EN GOL ---- */
+.stadium-lights {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 18;
+  opacity: 0;
+}
+.stadium-lights-active {
+  animation: stadiumLightsFlash 800ms ease-out forwards;
+}
+@keyframes stadiumLightsFlash {
+  0%   { opacity: 0; }
+  12%  { opacity: 1; }
+  60%  { opacity: 0.6; }
+  100% { opacity: 0; }
+}
+.stadium-light {
+  position: absolute;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(255,255,255,0.22) 0%, transparent 70%);
+}
+.stadium-light-tl {
+  width: 200px;
+  height: 200px;
+  top: -80px;
+  left: -60px;
+}
+.stadium-light-tr {
+  width: 200px;
+  height: 200px;
+  top: -80px;
+  right: -60px;
+}
+.stadium-light-bl {
+  width: 160px;
+  height: 160px;
+  bottom: -60px;
+  left: -40px;
+}
+.stadium-light-br {
+  width: 160px;
+  height: 160px;
+  bottom: -60px;
+  right: -40px;
+}
+
+/* ---- SPOTLIGHT SOBRE CARTA ACTIVA ---- */
+.hand-card-spotlight {
+  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.65));
+}
+.hand-area-dimmed .hand-card-shell:not(.hand-card-shell-active) .hand-card-button:not(.hand-card-button-active) {
+  filter: brightness(0.58) saturate(0.7);
+}
+
+/* ---- BALÓN ANIMADO CON ESTELA ---- */
+.field-ball-container {
+  position: absolute;
+  left: 8%;
+  z-index: 5;
+  transition: top 700ms cubic-bezier(0.34, 1.36, 0.64, 1);
+  will-change: top;
+}
+.field-ball-trail::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.18);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(1);
+  animation: ballTrail 600ms ease-out forwards;
+}
+@keyframes ballTrail {
+  0%   { transform: translate(-50%, -50%) scale(2.4); opacity: 0.5; }
+  100% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+}
+
+/* ---- ZONA DE DROP MEJORADA ---- */
+.match-table-panel-drop-valid {
+  border-color: rgba(34, 197, 94, 0.7) !important;
+  box-shadow:
+    0 0 0 2px rgba(34, 197, 94, 0.3),
+    0 0 48px rgba(34, 197, 94, 0.24),
+    inset 0 0 42px rgba(34, 197, 94, 0.1) !important;
+}
+.match-table-panel-drop-invalid {
+  border-color: rgba(239, 68, 68, 0.7) !important;
+  box-shadow:
+    0 0 0 2px rgba(239, 68, 68, 0.3),
+    0 0 32px rgba(239, 68, 68, 0.2),
+    inset 0 0 32px rgba(239, 68, 68, 0.08) !important;
+}
+
+/* ---- TOOLTIP DE CARTA ---- */
+.card-tooltip {
+  position: fixed;
+  z-index: 90;
+  min-width: 180px;
+  max-width: 240px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(4, 10, 22, 0.96);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06);
+  backdrop-filter: blur(16px);
+  pointer-events: none;
+  animation: tooltipFadeIn 180ms ease-out both;
+}
+@keyframes tooltipFadeIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.card-tooltip-name {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: white;
+  margin-bottom: 4px;
+}
+.card-tooltip-type {
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  opacity: 0.7;
+  margin-bottom: 6px;
+}
+.card-tooltip-detail {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.82);
+  line-height: 1.4;
+}
+.card-tooltip-blocked {
+  margin-top: 6px;
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: #fca5a5;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(239, 68, 68, 0.18);
+  display: inline-block;
+}
+
+/* ---- COUNTDOWN CIRCULAR SVG ---- */
+.countdown-circle-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.countdown-svg {
+  transform: rotate(-90deg);
+  flex-shrink: 0;
+}
+.countdown-ring-bg {
+  stroke: rgba(255,255,255,0.12);
+  fill: none;
+}
+.countdown-ring-fill {
+  fill: none;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.9s linear, stroke 0.3s ease;
+}
+
+/* ---- SANCIÓN PULSANTE ---- */
+.sanction-pulse-yellow {
+  animation: sanctionPulseYellow 1.6s ease-in-out infinite;
+}
+.sanction-pulse-red {
+  animation: sanctionPulseRed 1.2s ease-in-out infinite;
+}
+@keyframes sanctionPulseYellow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, 0); }
+  50%       { box-shadow: 0 0 12px 3px rgba(251, 191, 36, 0.45); }
+}
+@keyframes sanctionPulseRed {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+  50%       { box-shadow: 0 0 14px 4px rgba(239, 68, 68, 0.5); }
+}
+
+/* ---- TARJETA TABLE CON ENTRADA ANIMADA ---- */
+@keyframes tableCardIn {
+  0%   { transform: translateY(-28px) scale(0.88) rotate(-3deg); opacity: 0; }
+  60%  { transform: translateY(4px) scale(1.05) rotate(0.5deg); opacity: 1; }
+  100% { transform: translateY(0) scale(1) rotate(0); opacity: 1; }
+}
+.table-card-enter {
+  animation: tableCardIn 260ms cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+
+/* ---- PASE TRACKER PULSO AL COMPLETARSE ---- */
+.pass-tracker-complete {
+  animation: passTrackerComplete 500ms ease-out forwards;
+}
+@keyframes passTrackerComplete {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.18); box-shadow: 0 0 20px #facc15; }
+  70%  { transform: scale(0.96); }
+  100% { transform: scale(1); box-shadow: 0 0 10px #facc15; }
+}
+
+/* ---- SCORE VALUE ANIMADO AL ANOTAR ---- */
+@keyframes scoreGoalBump {
+  0%   { transform: scale(1) translateY(0); }
+  30%  { transform: scale(1.35) translateY(-4px); color: #fbbf24; }
+  70%  { transform: scale(0.95) translateY(1px); }
+  100% { transform: scale(1) translateY(0); }
+}
+.score-value-goal {
+  animation: scoreGoalBump 500ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* ---- PASS TRACKER DOT MEJORADO ---- */
+.pass-dot {
+  height: 8px;
+  width: 16px;
+  border-radius: 999px;
+  transition: all 500ms cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+.pass-dot-filled {
+  background: #facc15;
+  box-shadow: 0 0 10px #facc15, 0 0 20px rgba(250, 204, 21, 0.4);
+  transform: scaleX(1.1);
+}
+.pass-dot-empty {
+  background: #1e293b;
+}
+
+/* ---- OVERLAY GOAL MEJORADO ---- */
+.goal-overlay {
+  animation: goalOverlayIn 1.872s ease-out forwards;
+}
+@keyframes goalOverlayIn {
+  0%   { opacity: 0; transform: scale(0.82); filter: blur(4px); }
+  18%  { opacity: 1; transform: scale(1.04); filter: blur(0); }
+  60%  { opacity: 1; transform: scale(1); }
+  85%  { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.08); }
+}
+
+/* ---- RIPPLE DE PARADA ---- */
+@keyframes saveRipple {
+  0%   { transform: translate(-50%, -50%) scale(0); opacity: 0.7; }
+  100% { transform: translate(-50%, -50%) scale(3.5); opacity: 0; }
+}
+.save-ripple {
+  position: absolute;
+  width: 80px;
+  height: 80px;
+  border-radius: 999px;
+  border: 2px solid rgba(14, 165, 233, 0.7);
+  left: 50%;
+  top: 50%;
+  pointer-events: none;
+  animation: saveRipple 600ms ease-out forwards;
+}
+.save-ripple-2 {
+  animation-delay: 150ms;
+  border-color: rgba(14, 165, 233, 0.4);
+}
+
+/* ---- LÍNEA DE LUZ SEPARADORA DE TABLERO ---- */
+.field-midline-glow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255,255,255,0.35) 15%,
+    rgba(255,255,255,0.5) 50%,
+    rgba(255,255,255,0.35) 85%,
+    transparent 100%
+  );
+  transform: translateY(-50%);
+  pointer-events: none;
+  z-index: 1;
+  animation: midlineGlow 3s ease-in-out infinite;
+}
+@keyframes midlineGlow {
+  0%, 100% { opacity: 0.22; }
+  50%       { opacity: 0.45; }
 }
