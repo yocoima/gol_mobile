@@ -1670,3 +1670,135 @@ input {
   0%, 100% { opacity: 0.22; }
   50%       { opacity: 0.45; }
 }
+
+/* ================================================================
+   CARTA LEGENDARIA — Penalti Legendario (id: pel)
+   ================================================================ */
+
+/* Borde dorado animado */
+@keyframes legendaryBorderSpin {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Brillo pulsante dorado */
+@keyframes legendaryPulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0px 0px rgba(251, 191, 36, 0),
+      0 0 18px 4px rgba(251, 191, 36, 0.38),
+      inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  }
+  50% {
+    box-shadow:
+      0 0 0px 3px rgba(251, 191, 36, 0.22),
+      0 0 36px 10px rgba(251, 191, 36, 0.62),
+      inset 0 1px 0 rgba(255, 255, 255, 0.34);
+  }
+}
+
+/* Sweep dorado continuo */
+@keyframes legendaryShine {
+  0%   { transform: translateX(-120%) skewX(-12deg); }
+  100% { transform: translateX(220%) skewX(-12deg); }
+}
+
+/* Partículas flotantes */
+@keyframes legendaryParticle {
+  0%   { transform: translateY(0) scale(1); opacity: 0.9; }
+  100% { transform: translateY(-28px) scale(0); opacity: 0; }
+}
+
+.hand-card-legendary {
+  position: relative;
+  /* Borde degradado dorado — se logra con outline + before */
+  outline: 2px solid transparent;
+  background-clip: padding-box;
+  animation: legendaryPulse 2s ease-in-out infinite;
+  border-color: #f59e0b !important;
+}
+
+/* Capa de borde dorado animado */
+.hand-card-legendary::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  z-index: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    #fbbf24 0%,
+    #f59e0b 25%,
+    #fde68a 50%,
+    #f59e0b 75%,
+    #fbbf24 100%
+  );
+  background-size: 300% 300%;
+  animation: legendaryBorderSpin 3s linear infinite;
+  pointer-events: none;
+}
+
+/* Sweep dorado brillante */
+.hand-card-legendary .legendary-shine {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.hand-card-legendary .legendary-shine::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 220, 80, 0.55),
+    transparent
+  );
+  animation: legendaryShine 2.2s ease-in-out infinite;
+}
+
+/* Badge LEGENDARIO */
+.card-legendary-badge {
+  position: absolute;
+  bottom: 5px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #92400e, #fbbf24, #92400e);
+  background-size: 200% 100%;
+  animation: legendaryBorderSpin 2s linear infinite;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #1c0a00;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 1px 6px rgba(251, 191, 36, 0.7);
+}
+@media (max-width: 640px) {
+  .card-legendary-badge {
+    font-size: 6px;
+    padding: 1px 4px;
+    bottom: 3px;
+  }
+}
+
+/* Glow de carta legendaria (se añade a card-glow-shoot) */
+.card-glow-legendary {
+  box-shadow:
+    0 0 0 1.5px rgba(251, 191, 36, 0.9),
+    0 0 18px 5px rgba(251, 191, 36, 0.55),
+    0 0 40px 10px rgba(234, 88, 12, 0.28),
+    inset 0 1px 0 rgba(255,255,255,0.2);
+}

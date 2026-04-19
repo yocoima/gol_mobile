@@ -443,6 +443,17 @@ export const applyPlayCardAction = ({ state, actor, card, selectedForDiscardCoun
     };
   }
 
+  if (liveCard.id === 'pel') {
+    return {
+      ok: true,
+      type: 'penalty-legendary-card',
+      card: liveCard,
+      statePatch: {
+        hasActedThisTurn: true
+      }
+    };
+  }
+
   if (liveCard.id === 'ch') {
     const validationMessage = getSpecialCardValidationMessage({
       cardId: liveCard.id,

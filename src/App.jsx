@@ -60,7 +60,8 @@ const CARD_IMAGE_BY_NAME = Object.fromEntries(
 );
 const CARD_IMAGE_BY_ID = {
   ta: CARD_IMAGE_BY_NAME['tarjeta amarilla'] ?? null,
-  tr: CARD_IMAGE_BY_NAME['tarjeta roja'] ?? null
+  tr: CARD_IMAGE_BY_NAME['tarjeta roja'] ?? null,
+  pel: CARD_IMAGE_BY_NAME['penalti'] ?? null
 };
 const YELLOW_CARD_IMAGE = yellowCardImage;
 const RED_CARD_IMAGE = redCardImage;
@@ -342,7 +343,10 @@ const CardItem = ({
                     ? 'VAR'
                     : 'Juego';
 
-  const glowClass = !hideContent && !disabled ? getCardGlowClass(card?.type) : '';
+  const isLegendary = !hideContent && card?.rarity === 'legendary';
+  const glowClass = !hideContent && !disabled
+    ? isLegendary ? 'card-glow-legendary' : getCardGlowClass(card?.type)
+    : '';
   const playabilityClass = !hideContent && !isDiscardMode
     ? disabled ? 'hand-card-not-playable' : 'hand-card-playable'
     : '';
@@ -376,7 +380,7 @@ const CardItem = ({
         hideContent || cardImage ? 'bg-slate-900' : card?.color || 'bg-slate-800'
       } ${hideContent ? 'hand-card-hidden' : ''} ${
         !disabled ? 'hand-card-enabled' : 'hand-card-disabled'
-      } ${isSelected ? 'hand-card-selected' : ''} hand-card-button-${interactionState} ${glowClass} ${playabilityClass}`}
+      } ${isSelected ? 'hand-card-selected' : ''} hand-card-button-${interactionState} ${glowClass} ${playabilityClass} ${isLegendary ? 'hand-card-legendary' : ''}`}
     >
       {!hideContent && <div className="hand-card-badge">{cardTypeLabel}</div>}
       {/* Badge de valor de pase */}
@@ -389,10 +393,13 @@ const CardItem = ({
             src={cardImage}
             alt={card?.name}
             className="absolute inset-0 h-full w-full rounded-[18px] object-cover object-center"
+            style={isLegendary ? { filter: 'sepia(0.25) saturate(1.4) hue-rotate(-10deg) brightness(1.08)' } : undefined}
           />
-          <div className="absolute inset-0 rounded-[18px] bg-gradient-to-b from-black/18 via-transparent to-black/28" />
+          <div className={`absolute inset-0 rounded-[18px] ${isLegendary ? 'bg-gradient-to-b from-amber-900/20 via-transparent to-amber-900/35' : 'bg-gradient-to-b from-black/18 via-transparent to-black/28'}`} />
         </>
       )}
+      {isLegendary && <div className="legendary-shine" />}
+      {isLegendary && <div className="card-legendary-badge">Legendario</div>}
       <div className="hand-card-frame" />
       {hideContent ? (
         <div className="absolute inset-0 flex items-center justify-center px-3 text-center text-[10px] font-black uppercase tracking-[0.2em] text-white/75 max-sm:text-[7px]">
@@ -401,7 +408,7 @@ const CardItem = ({
       ) : null}
     </button>
 
-    <div className="hand-card-name">
+    <div className={`hand-card-name ${isLegendary ? 'text-amber-300 font-black' : ''}`}>
       {cardLabel}
     </div>
   </div>
@@ -455,7 +462,8 @@ const TABLE_SEQUENCE_START_TYPES = new Set([
   'special-corner',
   'special-chilena',
   'shoot-card',
-  'penalty-card'
+  'penalty-card',
+  'penalty-legendary-card'
 ]);
 
 const TutorialStepCard = ({ label }) => {
@@ -854,7 +862,7 @@ export default function App() {
       return;
     }
 
-    if (['ta', 'tr', 'off', 'pe'].includes(card.id)) {
+    if (['ta', 'tr', 'off', 'pe', 'pel'].includes(card.id)) {
       audioManagerRef.current?.playSfx('foul');
       return;
     }
@@ -1698,6 +1706,11 @@ export default function App() {
     const passIndex = getPreferredPassIndex('opponent');
     if (passIndex >= 0) {
       return { type: 'play', index: passIndex };
+    }
+
+    const legendaryPenaltyIndex = getFirstCardIndex('opponent', (card) => card.id === 'pel');
+    if (legendaryPenaltyIndex >= 0) {
+      return { type: 'play', index: legendaryPenaltyIndex };
     }
 
     const penaltyIndex = getFirstCardIndex('opponent', (card) => card.id === 'pe');
@@ -3364,6 +3377,14 @@ export default function App() {
       appendCardToTable(card, actor);
       applyEngineStatePatch(playCardAction.statePatch);
       startShotResolution(actor, 'penalty');
+      return;
+    }
+
+    if (playCardAction.type === 'penalty-legendary-card') {
+      consumeCard(actor, index, card);
+      appendCardToTable(card, actor);
+      applyEngineStatePatch(playCardAction.statePatch);
+      startShotResolution(actor, 'penalty_legendary');
       return;
     }
 

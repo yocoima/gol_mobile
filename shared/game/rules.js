@@ -358,13 +358,13 @@ export const getShotResolutionPlan = ({
   defenderHasOffside
 }) => {
   const defender = getOpponent(attacker);
-  const unstoppable = shotType === 'chilena';
+  const unstoppable = shotType === 'chilena' || shotType === 'penalty_legendary';
 
   if (unstoppable) {
     return {
       type: 'goal',
       scorer: attacker,
-      reason: shotType === 'chilena' ? 'Chilena: gol automatico.' : 'Remate: gol.'
+      reason: shotType === 'chilena' ? 'Chilena: gol automatico.' : shotType === 'penalty_legendary' ? 'Penalti Legendario: gol imparable.' : 'Remate: gol.'
     };
   }
 

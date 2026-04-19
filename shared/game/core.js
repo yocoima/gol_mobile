@@ -18,6 +18,7 @@ export const BASE_DECK_DEFINITION = [
   { id: 'ba', name: 'Barrida', value: 0, type: 'defense', color: 'bg-slate-700', count: 6, detail: 'Quita posesion' },
   { id: 'fa', name: 'Falta Agresiva', value: 0, type: 'defense', color: 'bg-orange-800', count: 4, detail: 'Responde con tarjeta' },
   { id: 'pe', name: 'Penalti', value: 0, type: 'shoot_direct', color: 'bg-yellow-500', count: 3, detail: 'Tiro directo' },
+  { id: 'pel', name: 'Penalti Legendario', value: 0, type: 'shoot_direct', color: 'bg-amber-400', count: 1, detail: 'Imparable — ni VAR ni arquero', rarity: 'legendary' },
   { id: 'off', name: 'Offside', value: 0, type: 'save', color: 'bg-amber-600', count: 4, detail: 'Anula Tiro a Gol' },
   { id: 'paq', name: 'Parada Arquero', value: 0, type: 'save', color: 'bg-stone-500', count: 6, detail: 'Evita un gol' },
   { id: 'rem', name: 'Remate', value: 0, type: 'special', color: 'bg-pink-600', count: 4, detail: 'Tras Parada Arquero' },
