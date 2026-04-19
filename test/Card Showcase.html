@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GOL — Cartas Premium</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+@property --holo-angle { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #060a12;
+  min-height: 100vh;
+  font-family: 'Inter', sans-serif;
+  color: #fff;
+  overflow-x: hidden;
+}
+
+/* ─── Background field texture ─── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(16,185,129,0.04) 0%, transparent 70%),
+    repeating-linear-gradient(0deg, transparent, transparent 59px, rgba(255,255,255,0.02) 60px),
+    repeating-linear-gradient(90deg, transparent, transparent 59px, rgba(255,255,255,0.02) 60px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.page { position: relative; z-index: 1; padding: 48px 24px 80px; max-width: 1280px; margin: 0 auto; }
+
+/* ─── Header ─── */
+.header { text-align: center; margin-bottom: 48px; }
+.header-eyebrow {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.3em;
+  text-transform: uppercase; color: rgba(255,255,255,0.35);
+  margin-bottom: 10px;
+}
+.header-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(48px, 8vw, 88px);
+  letter-spacing: 0.06em; line-height: 0.9;
+  background: linear-gradient(135deg, #fff 20%, rgba(251,191,36,0.9) 60%, #fff 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.header-sub {
+  font-size: 13px; font-weight: 600; letter-spacing: 0.15em;
+  text-transform: uppercase; color: rgba(255,255,255,0.3);
+  margin-top: 8px;
+}
+
+/* ─── Filters ─── */
+.filters {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  justify-content: center; margin-bottom: 40px;
+}
+.filter-btn {
+  padding: 7px 16px; border-radius: 99px;
+  border: 1.5px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.5);
+  font-size: 11px; font-weight: 700; letter-spacing: 0.2em;
+  text-transform: uppercase; cursor: pointer;
+  transition: all 0.18s; font-family: 'Inter', sans-serif;
+}
+.filter-btn:hover { border-color: rgba(255,255,255,0.25); color: rgba(255,255,255,0.8); }
+.filter-btn.active {
+  border-color: var(--fc, #fff);
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+  box-shadow: 0 0 16px rgba(255,255,255,0.08);
+}
+
+/* ─── Grid ─── */
+.cards-grid {
+  display: flex; flex-wrap: wrap; gap: 20px; justify-content: center;
+}
+
+/* ─── CARD ─── */
+.card-wrap {
+  width: 168px; flex-shrink: 0;
+  perspective: 900px; cursor: pointer;
+}
+
+.card-inner {
+  position: relative; width: 168px; height: 235px;
+  border-radius: 16px; overflow: hidden;
+  transform-style: preserve-3d;
+  will-change: transform;
+  transition: transform 0.08s ease-out, box-shadow 0.2s;
+  box-shadow:
+    0 8px 24px rgba(0,0,0,0.6),
+    0 0 0 1px rgba(255,255,255,0.07);
+}
+
+.card-wrap:hover .card-inner {
+  box-shadow:
+    0 24px 64px rgba(0,0,0,0.8),
+    0 0 0 1px rgba(255,255,255,0.15),
+    0 0 40px color-mix(in oklch, var(--tc) 40%, transparent);
+}
+
+/* Art image fills card */
+.card-art {
+  position: absolute; inset: 0;
+  background: #0f1a2a;
+}
+.card-art img {
+  width: 100%; height: 100%;
+  object-fit: cover; object-position: center 20%;
+  display: block;
+}
+
+/* Type-tinted gradient overlay on top of art */
+.card-tint {
+  position: absolute; inset: 0;
+  background: linear-gradient(160deg,
+    color-mix(in oklch, var(--tc) 35%, transparent) 0%,
+    transparent 40%,
+    transparent 55%,
+    color-mix(in oklch, var(--tc) 15%, transparent) 100%
+  );
+  mix-blend-mode: multiply;
+}
+
+/* Dark gradient for readability */
+.card-gradient {
+  position: absolute; inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0,0,0,0.6) 0%,
+    rgba(0,0,0,0) 30%,
+    rgba(0,0,0,0) 50%,
+    rgba(0,0,0,0.55) 72%,
+    rgba(0,0,0,0.88) 100%
+  );
+}
+
+/* Holographic foil overlay */
+.card-holo {
+  position: absolute; inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s;
+  mix-blend-mode: screen;
+  border-radius: 16px;
+}
+.card-wrap:hover .card-holo { opacity: 1; }
+
+/* Always-on holo for legendary */
+.rarity-legendary .card-holo {
+  opacity: 0.55;
+  animation: legendaryPulse 4s ease-in-out infinite alternate;
+}
+@keyframes legendaryPulse {
+  from { opacity: 0.45; }
+  to   { opacity: 0.75; }
+}
+
+/* Metallic border */
+.card-border {
+  position: absolute; inset: 0; border-radius: 16px;
+  pointer-events: none; z-index: 10;
+}
+.rarity-common  .card-border { box-shadow: inset 0 0 0 1.5px rgba(148,163,184,0.25); }
+.rarity-rare    .card-border { box-shadow: inset 0 0 0 1.5px rgba(99,179,237,0.55), inset 0 0 12px rgba(99,179,237,0.08); }
+.rarity-epic    .card-border { box-shadow: inset 0 0 0 2px rgba(167,139,250,0.7), inset 0 0 20px rgba(139,92,246,0.12); }
+.rarity-legendary .card-border {
+  box-shadow:
+    inset 0 0 0 2px rgba(251,191,36,0.9),
+    inset 0 0 28px rgba(251,191,36,0.2),
+    0 0 24px rgba(251,191,36,0.3);
+}
+
+/* Inner frame line */
+.card-frame {
+  position: absolute; inset: 5px; border-radius: 12px;
+  pointer-events: none; z-index: 9;
+}
+.rarity-common   .card-frame { box-shadow: inset 0 0 0 0.5px rgba(255,255,255,0.06); }
+.rarity-rare     .card-frame { box-shadow: inset 0 0 0 0.5px rgba(147,210,255,0.2); }
+.rarity-epic     .card-frame { box-shadow: inset 0 0 0 0.5px rgba(200,180,255,0.25); }
+.rarity-legendary .card-frame {
+  box-shadow: inset 0 0 0 1px rgba(251,191,36,0.35);
+  animation: legendaryFrame 2s linear infinite;
+}
+@keyframes legendaryFrame {
+  0%   { box-shadow: inset 0 0 0 1px rgba(251,191,36,0.3); }
+  50%  { box-shadow: inset 0 0 0 1px rgba(251,191,36,0.7); }
+  100% { box-shadow: inset 0 0 0 1px rgba(251,191,36,0.3); }
+}
+
+/* ─── TOP SECTION ─── */
+.card-top {
+  position: absolute; top: 0; left: 0; right: 0;
+  padding: 10px 11px 0;
+  display: flex; justify-content: space-between; align-items: flex-start;
+  z-index: 6;
+}
+
+.card-power-block { line-height: 1; }
+.card-power {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 40px; line-height: 1;
+  color: #fff;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.9), 0 0 20px color-mix(in oklch, var(--tc) 60%, transparent);
+  display: block;
+}
+.card-type-abbr {
+  font-size: 8.5px; font-weight: 800; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--tc);
+  text-shadow: 0 0 12px var(--tc);
+  display: block; margin-top: 1px;
+}
+
+.card-icon-wrap {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: rgba(0,0,0,0.55);
+  border: 1.5px solid rgba(255,255,255,0.18);
+  backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+/* ─── BOTTOM SECTION ─── */
+.card-bottom {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  padding: 8px 11px 11px;
+  z-index: 6;
+}
+.card-name {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 19px; letter-spacing: 0.06em; line-height: 1;
+  color: #fff;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.9);
+  margin-bottom: 5px;
+}
+.card-rarity-row { display: flex; align-items: center; gap: 3px; }
+.card-diamond {
+  width: 6px; height: 6px;
+  transform: rotate(45deg);
+  background: rgba(255,255,255,0.15);
+  transition: background 0.2s;
+}
+.card-diamond.lit {
+  background: var(--rc);
+  box-shadow: 0 0 5px var(--rc);
+}
+.rarity-label {
+  font-size: 8px; font-weight: 700; letter-spacing: 0.22em;
+  text-transform: uppercase; color: var(--rc);
+  margin-left: 5px;
+  text-shadow: 0 0 8px var(--rc);
+}
+
+/* ─── Type color variables ─── */
+.t-pass        { --tc: #10b981; }
+.t-shoot       { --tc: #f97316; }
+.t-shoot_spec  { --tc: #f59e0b; }
+.t-defense     { --tc: #3b82f6; }
+.t-save        { --tc: #a855f7; }
+.t-counter     { --tc: #eab308; }
+.t-penalty     { --tc: #fb923c; }
+.t-var         { --tc: #94a3b8; }
+.t-card_y      { --tc: #fbbf24; }
+.t-card_r      { --tc: #ef4444; }
+
+/* ─── Golden legendary treatment ─── */
+.golden-card .card-art img {
+  filter: sepia(0.55) saturate(1.5) hue-rotate(5deg) brightness(0.95);
+}
+.golden-card .card-art::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(
+    160deg,
+    rgba(251,191,36,0.38) 0%,
+    rgba(217,119,6,0.22) 40%,
+    rgba(120,53,15,0.35) 100%
+  );
+  mix-blend-mode: color;
+  pointer-events: none;
+}
+.golden-card .card-gradient {
+  background: linear-gradient(
+    to bottom,
+    rgba(30,15,0,0.65) 0%,
+    rgba(0,0,0,0) 30%,
+    rgba(0,0,0,0) 50%,
+    rgba(30,10,0,0.6) 72%,
+    rgba(20,8,0,0.92) 100%
+  );
+}
+.golden-card .card-tint {
+  background: linear-gradient(160deg,
+    rgba(251,191,36,0.45) 0%,
+    rgba(217,119,6,0.2) 45%,
+    transparent 70%
+  );
+  mix-blend-mode: overlay;
+}
+.golden-card .card-power { color: #fde68a; text-shadow: 0 0 24px rgba(251,191,36,0.9), 0 2px 8px rgba(0,0,0,0.9); }
+.golden-card .card-name  { color: #fde68a; text-shadow: 0 0 16px rgba(251,191,36,0.6), 0 1px 4px rgba(0,0,0,0.9); }
+
+/* ─── Rarity color variable ─── */
+.rarity-common    { --rc: #94a3b8; }
+.rarity-rare      { --rc: #60a5fa; }
+.rarity-epic      { --rc: #a78bfa; }
+.rarity-legendary { --rc: #f59e0b; }
+
+/* ─── Legendary sparkles ─── */
+.spark {
+  position: absolute; width: 3px; height: 3px;
+  border-radius: 50%; background: #fde68a;
+  pointer-events: none; z-index: 11;
+  animation: sparkAnim var(--sd, 2s) ease-in-out var(--sd2, 0s) infinite;
+}
+@keyframes sparkAnim {
+  0%,100% { opacity:0; transform:scale(0) translate(0,0); }
+  40%     { opacity:1; transform:scale(1) translate(var(--sx,0px), var(--sy,0px)); }
+  80%     { opacity:0.3; transform:scale(0.4) translate(var(--sx,0px), var(--sy,0px)); }
+}
+
+/* ─── Modal overlay ─── */
+.modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.85); backdrop-filter: blur(12px);
+  z-index: 100; display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  animation: fadeIn 0.18s ease;
+}
+@keyframes fadeIn { from { opacity: 0; } }
+
+.modal-card-big {
+  position: relative; width: 260px; height: 364px;
+  border-radius: 22px; overflow: hidden;
+  box-shadow: 0 40px 100px rgba(0,0,0,0.9), 0 0 60px color-mix(in oklch, var(--tc) 30%, transparent);
+  animation: popIn 0.22s cubic-bezier(0.34,1.56,0.64,1);
+}
+@keyframes popIn {
+  from { transform: scale(0.8); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+.modal-card-big .card-power { font-size: 62px; }
+.modal-card-big .card-type-abbr { font-size: 13px; }
+.modal-card-big .card-name { font-size: 28px; margin-bottom: 8px; }
+.modal-card-big .card-icon-wrap { width: 40px; height: 40px; }
+.modal-card-big .card-diamond { width: 9px; height: 9px; }
+.modal-card-big .rarity-label { font-size: 10px; }
+.modal-card-big .card-top { padding: 14px 15px 0; }
+.modal-card-big .card-bottom { padding: 10px 15px 14px; }
+
+.modal-close {
+  position: absolute; top: -48px; right: 0;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.7); font-size: 18px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s;
+}
+.modal-close:hover { background: rgba(255,255,255,0.2); color: #fff; }
+
+.modal-info {
+  margin-left: 28px; max-width: 320px; color: #fff;
+  display: flex; flex-direction: column; justify-content: center;
+}
+.modal-info-name {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 42px; letter-spacing: 0.05em; line-height: 1;
+  color: #fff; margin-bottom: 6px;
+}
+.modal-info-type {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.25em;
+  text-transform: uppercase; color: var(--tc);
+  text-shadow: 0 0 12px var(--tc);
+  margin-bottom: 20px;
+}
+.modal-stat-row {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 12px;
+}
+.modal-stat-label {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.18em;
+  text-transform: uppercase; color: rgba(255,255,255,0.4);
+  min-width: 70px;
+}
+.modal-stat-bar-wrap {
+  flex: 1; height: 4px; border-radius: 4px;
+  background: rgba(255,255,255,0.08); overflow: hidden;
+}
+.modal-stat-bar {
+  height: 100%; border-radius: 4px;
+  background: linear-gradient(to right, var(--tc), color-mix(in oklch, var(--tc) 60%, #fff));
+  transition: width 0.6s cubic-bezier(0.16,1,0.3,1);
+}
+.modal-stat-val {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 20px; color: #fff; min-width: 28px; text-align: right;
+}
+
+.modal-rarity-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 12px; border-radius: 99px;
+  border: 1px solid var(--rc);
+  background: color-mix(in oklch, var(--rc) 10%, transparent);
+  color: var(--rc); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.2em; text-transform: uppercase;
+  text-shadow: 0 0 8px var(--rc);
+  box-shadow: 0 0 12px color-mix(in oklch, var(--rc) 20%, transparent);
+  margin-top: 16px;
+}
+
+@media (max-width: 640px) {
+  .modal-backdrop { align-items: flex-end; padding: 0; }
+  .modal-inner { flex-direction: column; align-items: center; }
+  .modal-info { margin: 16px 0 0; text-align: center; }
+  .modal-close { top: auto; bottom: calc(100% + 8px); right: 0; }
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useRef, useCallback, useEffect } = React;
+
+const RARITIES = {
+  common:    { label: 'Común',     diamonds: 1 },
+  rare:      { label: 'Raro',      diamonds: 2 },
+  epic:      { label: 'Épico',     diamonds: 3 },
+  legendary: { label: 'Legendario',diamonds: 4 },
+};
+
+const CARDS = [
+  { id:'pc',  name:'Pase Corto',       type:'pass',       tClass:'t-pass',       typeAbbr:'PAS', typeName:'Pase',    power:45, rarity:'common',    image:'imagenes/Pase corto.png',         stats:[{label:'Velocidad',val:40},{label:'Precisión',val:72},{label:'Alcance',val:35}] },
+  { id:'pl',  name:'Pase Largo',       type:'pass',       tClass:'t-pass',       typeAbbr:'PAS', typeName:'Pase',    power:62, rarity:'rare',      image:'imagenes/Pase largo.png',         stats:[{label:'Velocidad',val:55},{label:'Precisión',val:65},{label:'Alcance',val:80}] },
+  { id:'pa',  name:'Pase Aéreo',       type:'pass',       tClass:'t-pass',       typeAbbr:'PAS', typeName:'Pase',    power:78, rarity:'epic',      image:'imagenes/Pase aereo.png',         stats:[{label:'Velocidad',val:70},{label:'Precisión',val:75},{label:'Alcance',val:90}] },
+  { id:'sb',  name:'Saque Banda',      type:'pass',       tClass:'t-pass',       typeAbbr:'PAS', typeName:'Pase',    power:50, rarity:'common',    image:'imagenes/Saque de banda.png',     stats:[{label:'Velocidad',val:50},{label:'Precisión',val:60},{label:'Alcance',val:45}] },
+  { id:'sc',  name:'Saque Corner',     type:'pass',       tClass:'t-pass',       typeAbbr:'PAS', typeName:'Pase',    power:58, rarity:'rare',      image:'imagenes/Saque de corner.png',    stats:[{label:'Velocidad',val:52},{label:'Precisión',val:68},{label:'Alcance',val:62}] },
+  { id:'rem', name:'Remate',           type:'shoot',      tClass:'t-shoot',      typeAbbr:'REM', typeName:'Remate',  power:85, rarity:'epic',      image:'imagenes/Remate.png',             stats:[{label:'Potencia',val:88},{label:'Precisión',val:80},{label:'Ángulo',val:82}] },
+  { id:'tag', name:'Tirar a Gol',      type:'shoot',      tClass:'t-shoot',      typeAbbr:'REM', typeName:'Remate',  power:88, rarity:'epic',      image:'imagenes/Tirar a gol.png',        stats:[{label:'Potencia',val:90},{label:'Precisión',val:85},{label:'Ángulo',val:86}] },
+  { id:'ch',  name:'Chilena',          type:'shoot_spec', tClass:'t-shoot_spec', typeAbbr:'ESP', typeName:'Especial',power:95, rarity:'legendary', image:'imagenes/Chilena.png',            stats:[{label:'Potencia',val:97},{label:'Espectáculo',val:99},{label:'Rareza',val:95}] },
+  { id:'bar', name:'Barrida',          type:'defense',    tClass:'t-defense',    typeAbbr:'DEF', typeName:'Defensa', power:72, rarity:'rare',      image:'imagenes/barrida.png',            stats:[{label:'Fuerza',val:78},{label:'Timing',val:68},{label:'Riesgo',val:55}] },
+  { id:'reg', name:'Regatear',         type:'defense',    tClass:'t-defense',    typeAbbr:'DEF', typeName:'Defensa', power:70, rarity:'rare',      image:'imagenes/Regatear.png',           stats:[{label:'Agilidad',val:85},{label:'Velocidad',val:72},{label:'Control',val:68}] },
+  { id:'off', name:'Offside',          type:'defense',    tClass:'t-defense',    typeAbbr:'DEF', typeName:'Defensa', power:68, rarity:'rare',      image:'imagenes/Offside.png',            stats:[{label:'Visión',val:80},{label:'Timing',val:70},{label:'Táctica',val:65}] },
+  { id:'fa',  name:'Falta Agresiva',   type:'defense',    tClass:'t-defense',    typeAbbr:'DEF', typeName:'Defensa', power:80, rarity:'epic',      image:'imagenes/Falta agresiva.png',     stats:[{label:'Fuerza',val:90},{label:'Impacto',val:85},{label:'Riesgo',val:72}] },
+  { id:'paq', name:'Parada Arquero',   type:'save',       tClass:'t-save',       typeAbbr:'PAR', typeName:'Parada',  power:83, rarity:'epic',      image:'imagenes/Parada del arquero.png', stats:[{label:'Reflejos',val:88},{label:'Alcance',val:80},{label:'Seguridad',val:85}] },
+  { id:'ca',  name:'Contraataque',     type:'counter',    tClass:'t-counter',    typeAbbr:'CNT', typeName:'Contra',  power:87, rarity:'epic',      image:'imagenes/Contraataque.png',       stats:[{label:'Velocidad',val:92},{label:'Transición',val:88},{label:'Sorpresa',val:85}] },
+  { id:'pe',  name:'Penalti',          type:'penalty',    tClass:'t-penalty',    typeAbbr:'ESP', typeName:'Especial',power:90, rarity:'epic',      image:'imagenes/Penalti.png',            stats:[{label:'Potencia',val:88},{label:'Precisión',val:90},{label:'Presión',val:85}] },
+  { id:'pel', name:'Penalti Legendario', type:'shoot_spec', tClass:'t-shoot_spec', typeAbbr:'ESP', typeName:'Especial',power:99, rarity:'legendary', golden:true, image:'imagenes/Penalti.png', stats:[{label:'Potencia',val:99},{label:'Imparable',val:99},{label:'Presión',val:95}] },
+  { id:'var', name:'VAR',              type:'var',        tClass:'t-var',        typeAbbr:'VAR', typeName:'VAR',     power:75, rarity:'epic',      image:'imagenes/var.png',                stats:[{label:'Precisión',val:99},{label:'Impacto',val:75},{label:'Velocidad',val:40}] },
+  { id:'ta',  name:'Tarj. Amarilla',   type:'card_y',     tClass:'t-card_y',     typeAbbr:'TAR', typeName:'Tarjeta', power:60, rarity:'rare',      image:'imagenes/Tarjeta amarilla.png',   stats:[{label:'Sanción',val:65},{label:'Impacto',val:60},{label:'Duración',val:55}] },
+  { id:'tr',  name:'Tarj. Roja',       type:'card_r',     tClass:'t-card_r',     typeAbbr:'TAR', typeName:'Tarjeta', power:77, rarity:'epic',      image:'imagenes/Tarjeta roja.png',       stats:[{label:'Sanción',val:95},{label:'Impacto',val:85},{label:'Duración',val:80}] },
+];
+
+const TYPE_ICONS = {
+  pass:       <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8h10M9 5l3 3-3 3" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+  shoot:      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="white" strokeWidth="1.5"/><path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="white" strokeWidth="1.2" strokeLinecap="round"/></svg>,
+  shoot_spec: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><polygon points="8,2 10,6.5 15,6.5 11,9.5 12.5,14 8,11 3.5,14 5,9.5 1,6.5 6,6.5" stroke="white" strokeWidth="1.2" fill="rgba(255,255,255,0.15)"/></svg>,
+  defense:    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2L3 4.5V9c0 2.5 2 4.5 5 5 3-0.5 5-2.5 5-5V4.5L8 2z" stroke="white" strokeWidth="1.5" fill="rgba(255,255,255,0.1)"/></svg>,
+  save:       <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 11 Q8 4 13 11" stroke="white" strokeWidth="1.8" strokeLinecap="round" fill="none"/><circle cx="8" cy="12" r="1.5" fill="white"/></svg>,
+  counter:    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.5L4 6.5h3L3 12.5l8-7H8l3-4H7z" stroke="white" strokeWidth="1.2" fill="rgba(255,255,255,0.2)" strokeLinejoin="round"/></svg>,
+  penalty:    <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.5" fill="white"/><circle cx="8" cy="8" r="5.5" stroke="white" strokeWidth="1.2"/></svg>,
+  var:        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="3.5" width="12" height="8" rx="1.5" stroke="white" strokeWidth="1.4"/><path d="M6 11.5v2M10 11.5v2M5 13.5h6" stroke="white" strokeWidth="1.2" strokeLinecap="round"/></svg>,
+  card_y:     <svg width="14" height="16" viewBox="0 0 14 16" fill="none"><rect x="1" y="1" width="12" height="14" rx="2" fill="rgba(251,191,36,0.7)" stroke="white" strokeWidth="1.2"/></svg>,
+  card_r:     <svg width="14" height="16" viewBox="0 0 14 16" fill="none"><rect x="1" y="1" width="12" height="14" rx="2" fill="rgba(239,68,68,0.7)" stroke="white" strokeWidth="1.2"/></svg>,
+};
+
+const FILTER_TYPES = [
+  { id: 'all', label: 'Todas' },
+  { id: 'pass', label: 'Pases' },
+  { id: 'shoot', label: 'Remates', ids: ['shoot','shoot_spec'] },
+  { id: 'defense', label: 'Defensa' },
+  { id: 'save', label: 'Parada' },
+  { id: 'counter', label: 'Contra' },
+  { id: 'special', label: 'Especiales', ids: ['penalty','var','card_y','card_r'] },
+  { id: 'legendary', label: '⭐ Legendaria', rarity: 'legendary' },
+];
+
+function CardFace({ card, big = false }) {
+  const holoRef = useRef(null);
+  const innerRef = useRef(null);
+  const rarityInfo = RARITIES[card.rarity];
+
+  const handleMouseMove = useCallback((e) => {
+    if (!innerRef.current) return;
+    const rect = innerRef.current.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+    const rotX = (y - 0.5) * -18;
+    const rotY = (x - 0.5) * 18;
+    innerRef.current.style.transform = `rotateX(${rotX}deg) rotateY(${rotY}deg) scale(${big ? 1.02 : 1.05})`;
+    if (holoRef.current) {
+      const angle = Math.atan2(y - 0.5, x - 0.5) * (180 / Math.PI);
+      const dist = Math.sqrt((x-0.5)**2 + (y-0.5)**2);
+      holoRef.current.style.background = `
+        radial-gradient(ellipse 80% 80% at ${x*100}% ${y*100}%,
+          rgba(255,255,255,0.04),
+          transparent 55%
+        ),
+        conic-gradient(
+          from ${angle}deg at ${x*100}% ${y*100}%,
+          rgba(255,80,120,${0.12*dist}),
+          rgba(80,255,180,${0.10*dist}),
+          rgba(80,120,255,${0.12*dist}),
+          rgba(255,200,80,${0.10*dist}),
+          rgba(255,80,200,${0.10*dist}),
+          rgba(255,80,120,${0.12*dist})
+        )
+      `;
+    }
+  }, [big]);
+
+  const handleMouseLeave = useCallback(() => {
+    if (!innerRef.current) return;
+    innerRef.current.style.transform = '';
+  }, []);
+
+  const sparks = card.rarity === 'legendary'
+    ? Array.from({length: 6}, (_,i) => ({
+        top: `${15 + i*12}%`,
+        left: `${10 + (i%3)*35}%`,
+        sd: `${1.8 + i*0.4}s`,
+        sd2: `${i*0.35}s`,
+        sx: `${(i%2===0?1:-1)*6}px`,
+        sy: `-${6+i*2}px`,
+      }))
+    : [];
+
+  const sizeClass = big ? 'modal-card-big' : '';
+
+  return (
+    <div
+      ref={innerRef}
+      className={`card-inner ${card.tClass} rarity-${card.rarity} ${card.golden ? 'golden-card' : ''} ${sizeClass}`}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+    >
+      {/* Art */}
+      <div className="card-art">
+        <img src={card.image} alt={card.name} draggable={false} />
+      </div>
+
+      {/* Tint overlay */}
+      <div className="card-tint" />
+
+      {/* Dark gradient for text */}
+      <div className="card-gradient" />
+
+      {/* Holographic foil */}
+      <div
+        ref={holoRef}
+        className="card-holo"
+        style={card.rarity === 'legendary' ? {
+          background: 'conic-gradient(from var(--holo-angle,0deg) at 50% 50%, rgba(255,80,120,0.1), rgba(80,255,180,0.1), rgba(80,120,255,0.1), rgba(255,200,80,0.1), rgba(255,80,200,0.1), rgba(255,80,120,0.1))',
+          animation: 'legendaryPulse 4s ease-in-out infinite alternate'
+        } : {}}
+      />
+
+      {/* Sparkles for legendary */}
+      {sparks.map((s, i) => (
+        <div key={i} className="spark" style={{
+          top: s.top, left: s.left,
+          '--sd': s.sd, '--sd2': s.sd2, '--sx': s.sx, '--sy': s.sy
+        }} />
+      ))}
+
+      {/* Border */}
+      <div className="card-border" />
+      <div className="card-frame" />
+
+      {/* TOP */}
+      <div className="card-top">
+        <div className="card-power-block">
+          <span className="card-type-abbr" style={{fontSize: card.typeAbbr === 'ESP' || card.typeAbbr === 'VAR' ? '9px' : '9px', marginTop: 0}}>{card.typeAbbr}</span>
+        </div>
+        <div className="card-icon-wrap">
+          {TYPE_ICONS[card.type] || TYPE_ICONS['pass']}
+        </div>
+      </div>
+
+      {/* BOTTOM */}
+      <div className="card-bottom">
+        <div className="card-name">{card.name}</div>
+        <div className="card-rarity-row">
+          {Array.from({length: 4}, (_, i) => (
+            <div key={i} className={`card-diamond ${i < rarityInfo.diamonds ? 'lit' : ''}`} />
+          ))}
+          <span className="rarity-label">{rarityInfo.label}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CardModal({ card, onClose }) {
+  const rarityInfo = RARITIES[card.rarity];
+
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div style={{position:'relative', display:'flex', flexWrap:'wrap', alignItems:'center', gap:'0'}}
+        className="modal-inner"
+        onClick={e => e.stopPropagation()}
+      >
+        <div style={{position:'relative'}}>
+          <button className="modal-close" onClick={onClose}>✕</button>
+          <CardFace card={card} big={true} />
+        </div>
+        <div className={`modal-info ${card.tClass} rarity-${card.rarity}`} style={{'--tc': 'var(--tc)', '--rc': 'var(--rc)'}}>
+          <div className="modal-info-type">{card.typeName}</div>
+          <div className="modal-info-name">{card.name}</div>
+          {card.stats.map(s => (
+            <div className="modal-stat-row" key={s.label}>
+              <span className="modal-stat-label">{s.label}</span>
+              <div className="modal-stat-bar-wrap">
+                <div className="modal-stat-bar" style={{width: `${s.val}%`}} />
+              </div>
+              <span className="modal-stat-val">{s.val}</span>
+            </div>
+          ))}
+          <div className={`modal-rarity-badge rarity-${card.rarity}`}>
+            {Array.from({length: rarityInfo.diamonds}, (_,i) => (
+              <div key={i} className="card-diamond lit" style={{marginRight:1}} />
+            ))}
+            {rarityInfo.label}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [selectedCard, setSelectedCard] = useState(null);
+
+  const filteredCards = CARDS.filter(c => {
+    if (activeFilter === 'all') return true;
+    const f = FILTER_TYPES.find(ft => ft.id === activeFilter);
+    if (!f) return true;
+    if (f.rarity) return c.rarity === f.rarity;
+    if (f.ids) return f.ids.includes(c.type);
+    return c.type === f.id;
+  });
+
+  const filterColor = {
+    pass: '#10b981', shoot: '#f97316', defense: '#3b82f6',
+    save: '#a855f7', counter: '#eab308', special: '#fb923c',
+    legendary: '#f59e0b', all: '#fff'
+  };
+
+  return (
+    <div className="page">
+      <div className="header">
+        <div className="header-eyebrow">Colección oficial</div>
+        <div className="header-title">GOL</div>
+        <div className="header-sub">{CARDS.length} cartas · Sistema Premium</div>
+      </div>
+
+      <div className="filters">
+        {FILTER_TYPES.map(f => (
+          <button
+            key={f.id}
+            className={`filter-btn ${activeFilter === f.id ? 'active' : ''}`}
+            style={{'--fc': filterColor[f.id] || '#fff'}}
+            onClick={() => setActiveFilter(f.id)}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="cards-grid">
+        {filteredCards.map(card => (
+          <div
+            key={card.id}
+            className="card-wrap"
+            onClick={() => setSelectedCard(card)}
+          >
+            <CardFace card={card} />
+          </div>
+        ))}
+      </div>
+
+      {selectedCard && (
+        <CardModal card={selectedCard} onClose={() => setSelectedCard(null)} />
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

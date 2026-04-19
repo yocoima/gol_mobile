@@ -306,6 +306,48 @@ const SoccerBallIcon = ({ size, className }) =>
     </svg>
   );
 
+const CARD_RARITY_MAP = {
+  ch: 'legendary',
+  pa: 'epic',
+  cont: 'epic',
+  fa: 'epic',
+  tg: 'epic',
+  pe: 'epic',
+  paq: 'epic',
+  rem: 'epic',
+  tr: 'epic',
+  var: 'epic',
+  pl: 'rare',
+  reg: 'rare',
+  ba: 'rare',
+  off: 'rare',
+  sc: 'rare',
+  ta: 'rare'
+};
+
+const CARD_TYPE_CLASS = {
+  pass: 'card-t-pass',
+  defense: 'card-t-defense',
+  counter: 'card-t-counter',
+  shoot: 'card-t-shoot',
+  shoot_special: 'card-t-shoot-special',
+  shoot_direct: 'card-t-penalty',
+  save: 'card-t-save',
+  special: 'card-t-special',
+  card: 'card-t-card',
+  card_hard: 'card-t-card-hard',
+  var: 'card-t-var'
+};
+
+const RARITY_GEMS = { legendary: 4, epic: 3, rare: 2, common: 1 };
+
+const LEGENDARY_SPARKS = [
+  { top: '18%', left: '14%', sd: '2s', sdelay: '0s' },
+  { top: '30%', left: '72%', sd: '2.4s', sdelay: '0.6s' },
+  { top: '58%', left: '20%', sd: '1.9s', sdelay: '1.1s' },
+  { top: '72%', left: '62%', sd: '2.2s', sdelay: '0.3s' }
+];
+
 const CardItem = ({
   card,
   onClick,
@@ -322,96 +364,165 @@ const CardItem = ({
   interactionState = 'idle',
   dataIndex = null
 }) => {
+  const btnRef = useRef(null);
+  const holoRef = useRef(null);
+
   const cardImage = card?.imageUrl;
   const cardLabel = hideContent ? 'Carta oculta' : card?.name;
+  const rarity = hideContent ? 'common' : (CARD_RARITY_MAP[card?.id] ?? 'common');
+  const typeClass = hideContent ? '' : (CARD_TYPE_CLASS[card?.type] ?? '');
+  const gemCount = RARITY_GEMS[rarity] ?? 1;
+  const isLegendary = rarity === 'legendary';
+  const isGolden = card?.id === 'pel';
   const cardTypeLabel =
-    hideContent
-      ? 'Oculta'
-      : card?.type === 'pass'
-        ? 'Pase'
-        : card?.type === 'defense'
-          ? 'Defensa'
-          : card?.type === 'shoot' || card?.type === 'shoot_special'
-            ? 'Remate'
-            : card?.type === 'save'
-              ? 'Parada'
-              : card?.type === 'counter'
-                ? 'Contrataque'
-                : card?.type === 'card'
-                  ? 'Tarjeta'
-                  : card?.type === 'var'
-                    ? 'VAR'
-                    : 'Juego';
+    hideContent ? 'Oculta'
+      : card?.type === 'pass' ? 'Pase'
+      : card?.type === 'defense' ? 'Defensa'
+      : card?.type === 'shoot' || card?.type === 'shoot_special' ? 'Remate'
+      : card?.type === 'shoot_direct' ? 'Penalti'
+      : card?.type === 'save' ? 'Parada'
+      : card?.type === 'counter' ? 'Regate'
+      : card?.type === 'special' ? 'Especial'
+      : card?.type === 'card' ? 'Tarjeta'
+      : card?.type === 'card_hard' ? 'Tarjeta'
+      : card?.type === 'var' ? 'VAR'
+      : 'Juego';
 
-  const isLegendary = !hideContent && card?.rarity === 'legendary';
-  const glowClass = !hideContent && !disabled
-    ? isLegendary ? 'card-glow-legendary' : getCardGlowClass(card?.type)
-    : '';
+  const glowClass = !hideContent && !disabled ? getCardGlowClass(card?.type) : '';
   const playabilityClass = !hideContent && !isDiscardMode
     ? disabled ? 'hand-card-not-playable' : 'hand-card-playable'
     : '';
 
+  const handleMouseMove = useCallback((event) => {
+    if (!btnRef.current) {
+      return;
+    }
+
+    const rect = btnRef.current.getBoundingClientRect();
+    const x = (event.clientX - rect.left) / rect.width;
+    const y = (event.clientY - rect.top) / rect.height;
+    const rotX = (y - 0.5) * -10;
+    const rotY = (x - 0.5) * 10;
+
+    btnRef.current.style.transform =
+      `rotateX(${rotX}deg) rotateY(${rotY}deg) scale(1.06) translateY(-12px) rotate(-1.2deg)`;
+
+    if (holoRef.current) {
+      const angle = Math.atan2(y - 0.5, x - 0.5) * (180 / Math.PI);
+      const dist = Math.sqrt(((x - 0.5) ** 2) + ((y - 0.5) ** 2));
+      holoRef.current.style.background = `
+        radial-gradient(ellipse 70% 70% at ${x * 100}% ${y * 100}%,
+          rgba(255,255,255,0.04), transparent 55%),
+        conic-gradient(from ${angle}deg at ${x * 100}% ${y * 100}%,
+          rgba(255,80,120,${0.11 * dist}),
+          rgba(80,255,180,${0.09 * dist}),
+          rgba(80,120,255,${0.11 * dist}),
+          rgba(255,200,80,${0.09 * dist}),
+          rgba(255,80,200,${0.09 * dist}),
+          rgba(255,80,120,${0.11 * dist}))
+      `;
+    }
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    if (!btnRef.current) {
+      return;
+    }
+
+    btnRef.current.style.transform = '';
+    if (holoRef.current) {
+      holoRef.current.style.background = '';
+    }
+  }, []);
+
   return (
-  <div
-    className={`hand-card-shell group hand-card-shell-${interactionState}`}
-    data-hand-card-index={dataIndex}
-    onTouchStart={onLongPressStart ? (e) => onLongPressStart(card, e, disabled) : undefined}
-    onTouchEnd={onLongPressEnd}
-    onTouchCancel={onLongPressEnd}
-    onMouseLeave={onLongPressEnd}
-  >
-    {canSelectDiscard && isDiscardMode && !disabled && (
-      <button
-        onClick={onSelect}
-        className={`absolute -top-2 -right-1 z-30 rounded-full border p-1 shadow-lg transition-all ${
-          isSelected ? 'border-white bg-orange-500' : 'border-white/20 bg-slate-700'
-        }`}
-      >
-        {isSelected ? <Trash2 size={10} /> : <RefreshCcw size={10} className="opacity-50" />}
-      </button>
-    )}
-
-    <button
-      onClick={isDiscardMode ? onSelect : onClick}
-      onPointerDown={onPointerDown}
-      onPointerEnter={onPointerEnter}
-      disabled={disabled}
-      className={`hand-card-button ${
-        hideContent || cardImage ? 'bg-slate-900' : card?.color || 'bg-slate-800'
-      } ${hideContent ? 'hand-card-hidden' : ''} ${
-        !disabled ? 'hand-card-enabled' : 'hand-card-disabled'
-      } ${isSelected ? 'hand-card-selected' : ''} hand-card-button-${interactionState} ${glowClass} ${playabilityClass} ${isLegendary ? 'hand-card-legendary' : ''}`}
+    <div
+      className={`hand-card-shell group hand-card-shell-${interactionState}`}
+      data-hand-card-index={dataIndex}
+      onMouseMove={!disabled && !hideContent ? handleMouseMove : undefined}
+      onMouseLeave={!disabled && !hideContent ? handleMouseLeave : onLongPressEnd}
+      onTouchStart={onLongPressStart ? (e) => onLongPressStart(card, e, disabled) : undefined}
+      onTouchEnd={onLongPressEnd}
+      onTouchCancel={onLongPressEnd}
     >
-      {!hideContent && <div className="hand-card-badge">{cardTypeLabel}</div>}
-      {/* Badge de valor de pase */}
-      {!hideContent && card?.value > 0 && (
-        <div className="card-value-badge">+{card.value}</div>
+      {canSelectDiscard && isDiscardMode && !disabled && (
+        <button
+          onClick={onSelect}
+          className={`absolute -top-2 -right-1 z-30 rounded-full border p-1 shadow-lg transition-all ${
+            isSelected ? 'border-white bg-orange-500' : 'border-white/20 bg-slate-700'
+          }`}
+        >
+          {isSelected ? <Trash2 size={10} /> : <RefreshCcw size={10} className="opacity-50" />}
+        </button>
       )}
-      {cardImage && !hideContent && (
-        <>
-          <img
-            src={cardImage}
-            alt={card?.name}
-            className="absolute inset-0 h-full w-full rounded-[18px] object-cover object-center"
-            style={isLegendary ? { filter: 'sepia(0.25) saturate(1.4) hue-rotate(-10deg) brightness(1.08)' } : undefined}
-          />
-          <div className={`absolute inset-0 rounded-[18px] ${isLegendary ? 'bg-gradient-to-b from-amber-900/20 via-transparent to-amber-900/35' : 'bg-gradient-to-b from-black/18 via-transparent to-black/28'}`} />
-        </>
-      )}
-      {isLegendary && <div className="legendary-shine" />}
-      {isLegendary && <div className="card-legendary-badge">Legendario</div>}
-      <div className="hand-card-frame" />
-      {hideContent ? (
-        <div className="absolute inset-0 flex items-center justify-center px-3 text-center text-[10px] font-black uppercase tracking-[0.2em] text-white/75 max-sm:text-[7px]">
-          Carta
-        </div>
-      ) : null}
-    </button>
 
-    <div className={`hand-card-name ${isLegendary ? 'text-amber-300 font-black' : ''}`}>
-      {cardLabel}
+      <button
+        ref={btnRef}
+        onClick={isDiscardMode ? onSelect : onClick}
+        onPointerDown={onPointerDown}
+        onPointerEnter={onPointerEnter}
+        disabled={disabled}
+        className={[
+          'hand-card-button',
+          hideContent || cardImage ? 'bg-slate-900' : card?.color || 'bg-slate-800',
+          hideContent ? 'hand-card-hidden' : '',
+          !disabled ? 'hand-card-enabled' : 'hand-card-disabled',
+          isSelected ? 'hand-card-selected' : '',
+          `hand-card-button-${interactionState}`,
+          glowClass,
+          playabilityClass,
+          typeClass,
+          `card-r-${rarity}`,
+          isGolden ? 'card-golden' : ''
+        ].filter(Boolean).join(' ')}
+      >
+        {!hideContent && <div className="hand-card-badge">{cardTypeLabel}</div>}
+        {!hideContent && card?.value > 0 && (
+          <div className="card-value-badge">+{card.value}</div>
+        )}
+        {cardImage && !hideContent && (
+          <>
+            <img
+              src={cardImage}
+              alt={card?.name}
+              className="absolute inset-0 h-full w-full rounded-[18px] object-cover object-center"
+            />
+            <div className="absolute inset-0 rounded-[18px] bg-gradient-to-b from-black/18 via-transparent to-black/28" />
+          </>
+        )}
+
+        {!hideContent && (
+          <div ref={holoRef} className="card-holo" />
+        )}
+
+        {isLegendary && !hideContent && LEGENDARY_SPARKS.map((spark, index) => (
+          <div
+            key={`legendary-spark-${index}`}
+            className="card-spark"
+            style={{ top: spark.top, left: spark.left, '--sd': spark.sd, '--sdelay': spark.sdelay }}
+          />
+        ))}
+
+        {!hideContent && !disabled && (
+          <div className="card-rarity-gems">
+            {Array.from({ length: 4 }, (_, index) => (
+              <div key={`rarity-gem-${index}`} className={`card-gem ${index < gemCount ? 'lit' : ''}`} />
+            ))}
+          </div>
+        )}
+
+        <div className="hand-card-frame" />
+        {hideContent ? (
+          <div className="absolute inset-0 flex items-center justify-center px-3 text-center text-[10px] font-black uppercase tracking-[0.2em] text-white/75 max-sm:text-[7px]">
+            Carta
+          </div>
+        ) : null}
+      </button>
+
+      <div className="hand-card-name">
+        {cardLabel}
+      </div>
     </div>
-  </div>
   );
 };
 

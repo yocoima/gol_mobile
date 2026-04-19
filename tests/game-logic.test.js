@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BASE_DECK_DEFINITION, createInitialMatchState } from '../shared/game/core.js';
 import { applyEndTurnAction, applyPlayCardAction } from '../shared/game/engine.js';
+import { getShotResolutionPlan } from '../shared/game/rules.js';
 
 const getCard = (id, overrides = {}) => {
   const baseCard = BASE_DECK_DEFINITION.find((entry) => entry.id === id);
@@ -130,6 +131,20 @@ describe('game logic', () => {
     expect(result.plan.type).toBe('pending-shot');
     expect(result.plan.nextPendingShot.phase).toBe('remate');
     expect(result.plan.nextTurn).toBe('player');
+  });
+
+  it('treats Penalti Legendario as an unstoppable goal even if the defender has answers', () => {
+    const result = getShotResolutionPlan({
+      attacker: 'player',
+      shotType: 'penalty_legendary',
+      defenderHasVar: true,
+      defenderHasArquero: true,
+      defenderHasOffside: true
+    });
+
+    expect(result.type).toBe('goal');
+    expect(result.scorer).toBe('player');
+    expect(result.reason).toContain('Penalti Legendario');
   });
 
   it('turns a red card response into a VAR window for the defender', () => {

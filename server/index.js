@@ -239,7 +239,7 @@ const trimTablePlayOnPossessionChange = (matchState, previousPossession, nextPos
   matchState.tablePlay = (matchState.tablePlay || []).slice(-2);
 };
 const shouldResetTableForNewSequence = (matchState, actor, playType) =>
-  ['pass-play', 'special-corner', 'special-chilena', 'shoot-card', 'penalty-card'].includes(playType) &&
+  ['pass-play', 'special-corner', 'special-chilena', 'shoot-card', 'penalty-card', 'penalty-legendary-card'].includes(playType) &&
   matchState.possession === actor &&
   !matchState.pendingShot &&
   !matchState.pendingDefense &&
@@ -1281,6 +1281,14 @@ io.on('connection', (socket) => {
       appendCardToTable(room.matchState, card, actor);
       applyStatePatch(room.matchState, playCardAction.statePatch);
       startShotResolution(room.matchState, actor, 'penalty');
+      emitMatchState(io, room);
+      return;
+    }
+
+    if (playCardAction.type === 'penalty-legendary-card') {
+      appendCardToTable(room.matchState, card, actor);
+      applyStatePatch(room.matchState, playCardAction.statePatch);
+      startShotResolution(room.matchState, actor, 'penalty_legendary');
       emitMatchState(io, room);
       return;
     }

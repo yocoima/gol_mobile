@@ -721,6 +721,41 @@ describe('online server integration', () => {
     }
   });
 
+  it('resolves Penalti Legendario as a direct goal online', async () => {
+    const preset = createTestPreset({
+      playerHand: ['pel', 'pc', 'pc', 'pc', 'pc'],
+      opponentHand: ['var', 'paq', 'pc', 'pc', 'pc'],
+      deck: ['pc', 'pc', 'pc', 'pc', 'pc', 'pc'],
+      currentTurn: 'player',
+      possession: 'player',
+      pendingShot: null,
+      pendingDefense: null,
+      pendingBlindDiscard: null,
+      pendingCombo: null,
+      activePlay: []
+    });
+    const { host, guest } = await setupStartedMatch({ TEST_MATCH_PRESET: preset });
+
+    try {
+      const hostUpdatePromise = waitForSocketEvent(host, 'match:updated');
+      const guestUpdatePromise = waitForSocketEvent(guest, 'match:updated');
+      host.emit('match:play_card', { index: 0 });
+
+      const [hostUpdate, guestUpdate] = await Promise.all([hostUpdatePromise, guestUpdatePromise]);
+      expect(hostUpdate.matchState.pendingShot).toBeNull();
+      expect(guestUpdate.matchState.pendingShot).toBeNull();
+      expect(hostUpdate.matchState.playerScore).toBe(1);
+      expect(guestUpdate.matchState.playerScore).toBe(1);
+      expect(hostUpdate.matchState.currentTurn).toBe('opponent');
+      expect(guestUpdate.matchState.currentTurn).toBe('opponent');
+      expect(hostUpdate.matchState.tablePlay.some((card) => card.id === 'pel')).toBe(true);
+      expect(guestUpdate.matchState.tablePlay.some((card) => card.id === 'pel')).toBe(true);
+    } finally {
+      await closeClient(host);
+      await closeClient(guest);
+    }
+  });
+
   it('opens and resolves the blind discard flow after a red-card foul online', async () => {
     const preset = createTestPreset({
       playerHand: ['tr', 'pc', 'pc', 'pc', 'pc'],

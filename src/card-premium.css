@@ -1,0 +1,221 @@
+/* Premium card visuals layered on top of the base hand card styles. */
+
+.card-t-pass { --ct: #10b981; }
+.card-t-defense { --ct: #3b82f6; }
+.card-t-counter { --ct: #14b8a6; }
+.card-t-shoot { --ct: #ef4444; }
+.card-t-shoot-special { --ct: #f59e0b; }
+.card-t-penalty { --ct: #f97316; }
+.card-t-save { --ct: #8b5cf6; }
+.card-t-special { --ct: #ec4899; }
+.card-t-card { --ct: #fbbf24; }
+.card-t-card-hard { --ct: #ef4444; }
+.card-t-var { --ct: #6366f1; }
+
+.hand-card-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, var(--ct, #334155) 30%, transparent) 0%,
+    transparent 45%
+  );
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.7;
+}
+
+.hand-card-button::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  border-radius: 0 0 2px 2px;
+  background: var(--ct, transparent);
+  opacity: 0.55;
+  pointer-events: none;
+  z-index: 4;
+  box-shadow: 0 0 8px var(--ct, transparent);
+  transition: opacity 0.2s;
+}
+
+.hand-card-enabled:hover::after {
+  opacity: 0.85;
+}
+
+.card-holo {
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  opacity: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  z-index: 3;
+  transition: opacity 0.25s ease;
+}
+
+.hand-card-enabled:hover .card-holo {
+  opacity: 1;
+}
+
+.card-r-legendary .card-holo {
+  opacity: 0.55 !important;
+  animation: premiumHoloPulse 3.5s ease-in-out infinite alternate;
+}
+
+@keyframes premiumHoloPulse {
+  from { opacity: 0.4; }
+  to { opacity: 0.7; }
+}
+
+.card-r-common.hand-card-button {
+  border-color: rgba(148, 163, 184, 0.18);
+}
+
+.card-r-rare.hand-card-button {
+  border-color: rgba(96, 165, 250, 0.5) !important;
+  box-shadow:
+    0 14px 30px rgba(0, 0, 0, 0.35),
+    0 0 0 0.5px rgba(96, 165, 250, 0.2) !important;
+}
+
+.card-r-rare.hand-card-enabled:hover {
+  border-color: rgba(96, 165, 250, 0.75) !important;
+  box-shadow:
+    0 20px 34px rgba(0, 0, 0, 0.44),
+    0 0 0 1px rgba(96, 165, 250, 0.3),
+    0 0 22px rgba(96, 165, 250, 0.2) !important;
+}
+
+.card-r-epic.hand-card-button {
+  border-color: rgba(167, 139, 250, 0.65) !important;
+  box-shadow:
+    0 14px 30px rgba(0, 0, 0, 0.38),
+    inset 0 0 14px rgba(139, 92, 246, 0.08) !important;
+}
+
+.card-r-epic.hand-card-enabled:hover {
+  border-color: rgba(167, 139, 250, 0.9) !important;
+  box-shadow:
+    0 20px 38px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(167, 139, 250, 0.35),
+    0 0 28px rgba(139, 92, 246, 0.28) !important;
+}
+
+.card-r-legendary.hand-card-button {
+  border-color: rgba(251, 191, 36, 0.85) !important;
+  box-shadow:
+    0 14px 32px rgba(0, 0, 0, 0.42),
+    inset 0 0 20px rgba(251, 191, 36, 0.12),
+    0 0 16px rgba(251, 191, 36, 0.2) !important;
+  animation: legendaryBorder 2.2s ease-in-out infinite;
+}
+
+.card-r-legendary.hand-card-enabled:hover {
+  box-shadow:
+    0 22px 44px rgba(0, 0, 0, 0.56),
+    0 0 0 1px rgba(251, 191, 36, 0.5),
+    0 0 36px rgba(251, 191, 36, 0.35) !important;
+}
+
+@keyframes legendaryBorder {
+  0%, 100% {
+    box-shadow:
+      0 14px 32px rgba(0, 0, 0, 0.42),
+      inset 0 0 20px rgba(251, 191, 36, 0.12),
+      0 0 16px rgba(251, 191, 36, 0.2);
+  }
+  50% {
+    box-shadow:
+      0 14px 32px rgba(0, 0, 0, 0.42),
+      inset 0 0 28px rgba(251, 191, 36, 0.22),
+      0 0 28px rgba(251, 191, 36, 0.38);
+  }
+}
+
+.card-r-legendary .hand-card-frame {
+  border-color: rgba(251, 191, 36, 0.28) !important;
+}
+
+.card-golden img {
+  filter: sepia(0.5) saturate(1.5) hue-rotate(5deg) brightness(0.92);
+}
+
+.card-golden::before {
+  background: linear-gradient(
+    160deg,
+    rgba(251, 191, 36, 0.42) 0%,
+    rgba(217, 119, 6, 0.2) 40%,
+    rgba(120, 53, 15, 0.3) 100%
+  ) !important;
+  mix-blend-mode: overlay;
+  opacity: 1 !important;
+}
+
+.card-rarity-gems {
+  position: absolute;
+  bottom: 5px;
+  right: 7px;
+  display: flex;
+  gap: 2.5px;
+  align-items: center;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.card-gem {
+  width: 4px;
+  height: 4px;
+  transform: rotate(45deg);
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.card-gem.lit {
+  background: var(--ct, rgba(255, 255, 255, 0.6));
+  box-shadow: 0 0 4px var(--ct, rgba(255, 255, 255, 0.4));
+}
+
+.card-r-legendary .card-gem.lit {
+  background: #fbbf24;
+  box-shadow: 0 0 5px rgba(251, 191, 36, 0.7);
+}
+
+.card-spark {
+  position: absolute;
+  width: 2.5px;
+  height: 2.5px;
+  border-radius: 50%;
+  background: #fde68a;
+  pointer-events: none;
+  z-index: 5;
+  animation: cardSparkle var(--sd, 2s) ease-in-out var(--sdelay, 0s) infinite;
+}
+
+@keyframes cardSparkle {
+  0%, 100% {
+    opacity: 0;
+    transform: scale(0);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  80% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
+
+.hand-card-button {
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.hand-card-badge {
+  border-color: color-mix(in srgb, var(--ct, white) 35%, rgba(255, 255, 255, 0.14)) !important;
+  color: color-mix(in srgb, var(--ct, white) 60%, rgba(255, 255, 255, 0.82)) !important;
+}

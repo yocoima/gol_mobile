@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import './index.css';
+import './card-premium.css';
 
 class RootErrorBoundary extends React.Component {
   constructor(props) {
