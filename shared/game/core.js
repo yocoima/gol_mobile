@@ -2,7 +2,8 @@ export const normalizeAssetName = (value) =>
   value
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\.(png|jpe?g|webp|gif|bmp)$/i, '')
+    .replace(/\s+\./g, '.')
+    .replace(/(?:\.(png|jpe?g|webp|gif|bmp))+$/i, '')
     .replace(/\s+/g, ' ')
     .trim()
     .toLowerCase();
