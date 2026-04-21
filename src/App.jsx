@@ -80,9 +80,9 @@ const DROP_RETURN_DURATION_MS = 220;
 const CARD_IMAGE_ALIASES = {
   'barrida': ['barrida'],
   'saque banda': ['saque de banda', 'saque banda'],
-  'pase corto': ['pase corto'],
+  'pase corto': ['pase corto', 'pase corto '],
   'pase largo': ['pase largo'],
-  'pase aereo': ['pase aereo'],
+  'pase aereo': ['pase aereo', 'pase aéreo'],
   'falta agresiva': ['falta agresiva'],
   'offside': ['offside'],
   'parada arquero': ['parada del arquero'],
@@ -3825,7 +3825,7 @@ export default function App() {
                 return (
                   <div
                     key={`${card.visualId || card.id}-${index}`}
-                    className={`${card.color || 'bg-slate-800'} table-card table-card-enter relative flex h-[101px] min-w-[74px] flex-col justify-between p-2 max-sm:h-[84px] max-sm:min-w-[59px] max-sm:p-1 ${
+                    className={`${card.color || 'bg-slate-800'} table-card table-card-enter relative flex h-[111px] min-w-[81px] flex-col justify-between p-2 max-sm:h-[92px] max-sm:min-w-[65px] max-sm:p-1 ${
                       isRivalCard ? 'table-card-opponent' : 'table-card-player'
                     } ${lastActiveCard?.visualId === card.visualId ? 'table-card-featured' : ''} ${getCardGlowClass(card.type)}`}
                     style={{
