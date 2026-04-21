@@ -161,15 +161,15 @@
   bottom: 5px;
   right: 7px;
   display: flex;
-  gap: 2.5px;
+  gap: 3px;
   align-items: center;
   z-index: 4;
   pointer-events: none;
 }
 
 .card-gem {
-  width: 4px;
-  height: 4px;
+  width: 5px;
+  height: 5px;
   transform: rotate(45deg);
   background: rgba(255, 255, 255, 0.18);
 }
@@ -218,4 +218,5 @@
 .hand-card-badge {
   border-color: color-mix(in srgb, var(--ct, white) 35%, rgba(255, 255, 255, 0.14)) !important;
   color: color-mix(in srgb, var(--ct, white) 60%, rgba(255, 255, 255, 0.82)) !important;
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.24);
 }

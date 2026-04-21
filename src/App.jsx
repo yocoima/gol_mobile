@@ -61,7 +61,7 @@ const CARD_IMAGE_BY_NAME = Object.fromEntries(
 const CARD_IMAGE_BY_ID = {
   ta: CARD_IMAGE_BY_NAME['tarjeta amarilla'] ?? null,
   tr: CARD_IMAGE_BY_NAME['tarjeta roja'] ?? null,
-  pel: CARD_IMAGE_BY_NAME['penalti'] ?? null
+  pel: CARD_IMAGE_BY_NAME['penalti legendario'] ?? CARD_IMAGE_BY_NAME['penalti'] ?? null
 };
 const YELLOW_CARD_IMAGE = yellowCardImage;
 const RED_CARD_IMAGE = redCardImage;
@@ -378,6 +378,7 @@ const CardItem = ({
     hideContent ? 'Oculta'
       : card?.type === 'pass' ? 'Pase'
       : card?.type === 'defense' ? 'Defensa'
+      : card?.id === 'tg' ? 'Disparo'
       : card?.type === 'shoot' || card?.type === 'shoot_special' ? 'Remate'
       : card?.type === 'shoot_direct' ? 'Penalti'
       : card?.type === 'save' ? 'Parada'

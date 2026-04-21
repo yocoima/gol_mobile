@@ -561,13 +561,13 @@ input {
 .hand-card-badge {
   position: absolute;
   left: 8px;
-  top: 8px;
+  bottom: 8px;
   z-index: 2;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(2, 6, 23, 0.68);
-  padding: 4px 7px;
-  font-size: 7px;
+  padding: 4px 8px;
+  font-size: 8px;
   font-weight: 900;
   text-transform: uppercase;
   letter-spacing: 0.14em;
@@ -581,7 +581,7 @@ input {
   width: 100%;
   padding: 0 0.25rem;
   text-align: center;
-  font-size: 7px;
+  font-size: 8px;
   font-weight: 900;
   line-height: 1.2;
   text-transform: uppercase;
@@ -954,15 +954,15 @@ input {
 
   .hand-card-badge {
     left: 5px;
-    top: 5px;
-    padding: 3px 5px;
-    font-size: 5px;
+    bottom: 5px;
+    padding: 3px 6px;
+    font-size: 6px;
   }
 
   .hand-card-name {
     min-height: 12px;
     margin-top: 0.25rem;
-    font-size: 6px;
+    font-size: 7px;
   }
 
   .room-code-value {
@@ -1108,8 +1108,8 @@ input {
   top: 6px;
   right: 7px;
   z-index: 4;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1117,16 +1117,16 @@ input {
   background: rgba(2, 6, 23, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.2);
   font-family: 'Rajdhani', sans-serif;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   color: #fbbf24;
   backdrop-filter: blur(4px);
 }
 @media (max-width: 640px) {
   .card-value-badge {
-    width: 15px;
-    height: 15px;
-    font-size: 8px;
+    width: 17px;
+    height: 17px;
+    font-size: 9px;
     top: 4px;
     right: 5px;
   }
