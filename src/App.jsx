@@ -758,6 +758,7 @@ export default function App() {
   const { currentPassTotal, getPassTrackerTotal, hasReactionWindow, canUseDiscard } = engineContext;
   const lastActiveCard = tablePlay[tablePlay.length - 1];
   const currentTutorial = TUTORIAL_SEQUENCES[tutorialPage] ?? TUTORIAL_SEQUENCES[0];
+  const tutorialUrl = `${import.meta.env.BASE_URL}Tutorial.html`;
   const isTurnCountdownActive =
     onlineEnabled &&
     gameState === 'playing' &&
@@ -4188,119 +4189,34 @@ export default function App() {
           {gameState === 'tutorial' && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-6">
               <ModalCard
-                eyebrow="Tutorial rapido"
+                eyebrow="Tutorial interactivo"
                 title="Como se juega"
                 tone="cyan"
-                className="w-full max-w-3xl px-8 py-8 text-left"
+                className="w-full max-w-6xl px-4 py-5 text-left sm:px-6 sm:py-6"
                 align="left"
               >
-                <div className="glass-panel rounded-[1.5rem] p-5">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="text-[11px] font-black uppercase tracking-[0.28em] text-cyan-300">
-                      {currentTutorial.title}
+                <div className="glass-panel overflow-hidden rounded-[1.5rem] border border-white/10 bg-black/30">
+                  <div className="flex items-center justify-between gap-4 border-b border-white/10 px-4 py-3">
+                    <div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.28em] text-cyan-300">
+                        Tutorial completo
+                      </div>
+                      <div className="mt-1 text-sm font-semibold leading-tight text-white/65">
+                        Reemplaza el tutorial anterior y usa las imagenes reales de las cartas.
+                      </div>
                     </div>
-                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45">
-                      Paso {tutorialPage + 1} de {TUTORIAL_SEQUENCES.length}
+                    <div className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-cyan-200">
+                      Desliza o usa las flechas
                     </div>
                   </div>
-                  <div className="mt-2 text-sm font-semibold leading-tight text-white/70">
-                    {currentTutorial.note}
-                  </div>
-                  {currentTutorial.layout === 'versus' ? (
-                    <div className="mt-5 grid gap-4 md:grid-cols-2">
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-center">
-                        <div className="text-[11px] font-black uppercase tracking-[0.24em] text-cyan-300">
-                          {currentTutorial.left.title}
-                        </div>
-                        <div className="mt-3 flex justify-center">
-                          <TutorialStepCard label={currentTutorial.left.card} />
-                        </div>
-                        <div className="mt-3 text-sm font-semibold leading-tight text-white/75">
-                          {currentTutorial.left.text}
-                        </div>
-                      </div>
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-center">
-                        <div className="text-[11px] font-black uppercase tracking-[0.24em] text-cyan-300">
-                          {currentTutorial.right.title}
-                        </div>
-                        <div className="mt-3 flex justify-center">
-                          <TutorialStepCard label={currentTutorial.right.card} />
-                        </div>
-                        <div className="mt-3 text-sm font-semibold leading-tight text-white/75">
-                          {currentTutorial.right.text}
-                        </div>
-                      </div>
-                    </div>
-                  ) : currentTutorial.layout === 'penalty' || currentTutorial.layout === 'foul' ? (
-                    <div className="mt-5 space-y-4">
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-center">
-                        <div className="text-[11px] font-black uppercase tracking-[0.24em] text-cyan-300">
-                          {currentTutorial.center.title}
-                        </div>
-                        <div className="mt-3 flex justify-center">
-                          <TutorialStepCard label={currentTutorial.center.card} />
-                        </div>
-                        <div className="mt-3 text-sm font-semibold leading-tight text-white/75">
-                          {currentTutorial.center.text}
-                        </div>
-                      </div>
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-center">
-                          <div className="text-[11px] font-black uppercase tracking-[0.24em] text-cyan-300">
-                            {currentTutorial.left.title}
-                          </div>
-                          <div className="mt-3 flex justify-center">
-                            <TutorialStepCard label={currentTutorial.left.card} />
-                          </div>
-                          <div className="mt-3 text-sm font-semibold leading-tight text-white/75">
-                            {currentTutorial.left.text}
-                          </div>
-                        </div>
-                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-center">
-                          <div className="text-[11px] font-black uppercase tracking-[0.24em] text-cyan-300">
-                            {currentTutorial.right.title}
-                          </div>
-                          <div className="mt-3 flex justify-center">
-                            <TutorialStepCard label={currentTutorial.right.card} />
-                          </div>
-                          <div className="mt-3 text-sm font-semibold leading-tight text-white/75">
-                            {currentTutorial.right.text}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="mt-5 flex flex-wrap items-start justify-center gap-3">
-                      {currentTutorial.steps.map((step, index) => (
-                        <React.Fragment key={`${currentTutorial.title}-${step}-${index}`}>
-                          <TutorialStepCard label={step} />
-                          {index < currentTutorial.steps.length - 1 ? (
-                            <div className="pt-10 text-lg font-black text-cyan-300/60">+</div>
-                          ) : null}
-                        </React.Fragment>
-                      ))}
-                    </div>
-                  )}
-                  <div className="mt-6 flex items-center justify-between gap-3">
-                    <AppButton
-                      onClick={() => setTutorialPage((previous) => Math.max(0, previous - 1))}
-                      disabled={tutorialPage === 0}
-                      variant="secondary"
-                      className="rounded-2xl px-5 py-3 text-sm"
-                    >
-                      ANTERIOR
-                    </AppButton>
-                    <AppButton
-                      onClick={() => setTutorialPage((previous) => Math.min(TUTORIAL_SEQUENCES.length - 1, previous + 1))}
-                      disabled={tutorialPage === TUTORIAL_SEQUENCES.length - 1}
-                      variant="accent"
-                      className="rounded-2xl px-5 py-3 text-sm"
-                    >
-                      SIGUIENTE
-                    </AppButton>
-                  </div>
+                  <iframe
+                    key={tutorialUrl}
+                    src={tutorialUrl}
+                    title="Tutorial del juego GOL"
+                    className="block h-[70vh] min-h-[520px] w-full bg-slate-950 max-sm:h-[68vh] max-sm:min-h-[440px]"
+                  />
                 </div>
-                <div className="mt-8 flex flex-wrap items-center justify-end gap-4">
+                <div className="mt-5 flex flex-wrap items-center justify-end gap-4">
                   <AppButton
                     onClick={() => setGameState('menu')}
                     variant="secondary"
