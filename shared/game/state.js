@@ -39,7 +39,12 @@ export const drawCardsFromPools = (currentDeck, currentDiscardPile, amount, held
   };
 };
 
-export const createLocalMatchSnapshot = ({ startingPlayer = 'player', deckDefinition } = {}) => {
+export const createLocalMatchSnapshot = ({
+  startingPlayer = 'player',
+  deckDefinition,
+  playerName = 'Jugador',
+  opponentName = 'Rival'
+} = {}) => {
   const matchState = createInitialMatchState({ startingPlayer, deckDefinition });
 
   return {
@@ -59,6 +64,8 @@ export const createLocalMatchSnapshot = ({ startingPlayer = 'player', deckDefini
     pendingBlindDiscard: matchState.pendingBlindDiscard,
     activePlay: matchState.activePlay,
     bonusTurnFor: matchState.bonusTurnFor,
-    gameState: matchState.gameState
+    gameState: matchState.gameState,
+    playerName,
+    opponentName
   };
 };

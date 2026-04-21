@@ -156,34 +156,6 @@
   opacity: 1 !important;
 }
 
-.card-rarity-gems {
-  position: absolute;
-  bottom: 5px;
-  right: 7px;
-  display: flex;
-  gap: 3px;
-  align-items: center;
-  z-index: 4;
-  pointer-events: none;
-}
-
-.card-gem {
-  width: 5px;
-  height: 5px;
-  transform: rotate(45deg);
-  background: rgba(255, 255, 255, 0.18);
-}
-
-.card-gem.lit {
-  background: var(--ct, rgba(255, 255, 255, 0.6));
-  box-shadow: 0 0 4px var(--ct, rgba(255, 255, 255, 0.4));
-}
-
-.card-r-legendary .card-gem.lit {
-  background: #fbbf24;
-  box-shadow: 0 0 5px rgba(251, 191, 36, 0.7);
-}
-
 .card-spark {
   position: absolute;
   width: 2.5px;

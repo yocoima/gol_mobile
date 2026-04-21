@@ -339,8 +339,6 @@ const CARD_TYPE_CLASS = {
   var: 'card-t-var'
 };
 
-const RARITY_GEMS = { legendary: 4, epic: 3, rare: 2, common: 1 };
-
 const LEGENDARY_SPARKS = [
   { top: '18%', left: '14%', sd: '2s', sdelay: '0s' },
   { top: '30%', left: '72%', sd: '2.4s', sdelay: '0.6s' },
@@ -371,7 +369,6 @@ const CardItem = ({
   const cardLabel = hideContent ? 'Carta oculta' : card?.name;
   const rarity = hideContent ? 'common' : (CARD_RARITY_MAP[card?.id] ?? 'common');
   const typeClass = hideContent ? '' : (CARD_TYPE_CLASS[card?.type] ?? '');
-  const gemCount = RARITY_GEMS[rarity] ?? 1;
   const isLegendary = rarity === 'legendary';
   const isGolden = card?.id === 'pel';
   const cardTypeLabel =
@@ -503,14 +500,6 @@ const CardItem = ({
             style={{ top: spark.top, left: spark.left, '--sd': spark.sd, '--sdelay': spark.sdelay }}
           />
         ))}
-
-        {!hideContent && !disabled && (
-          <div className="card-rarity-gems">
-            {Array.from({ length: 4 }, (_, index) => (
-              <div key={`rarity-gem-${index}`} className={`card-gem ${index < gemCount ? 'lit' : ''}`} />
-            ))}
-          </div>
-        )}
 
         <div className="hand-card-frame" />
         {hideContent ? (
@@ -2606,7 +2595,18 @@ export default function App() {
   };
 
   const startFromMenu = (nextAiMode = false) => {
+    const normalizedName = onlinePlayerName.trim();
+    if (!normalizedName) {
+      setOnlineError('Ingresa tu nombre antes de empezar.');
+      return;
+    }
+
+    const normalizedOpponentName = nextAiMode ? 'IA' : 'RIVAL';
+    setOnlinePlayerName(normalizedName);
+    setOnlineError('');
     setAiMode(nextAiMode);
+    setPlayerDisplayName(normalizedName.toUpperCase());
+    setOpponentDisplayName(normalizedOpponentName);
     setGameState('coin-flip');
     setTutorialPage(0);
     setGameLog([nextAiMode ? 'Modo IA activado' : 'Posesion persistente activada']);
@@ -2992,7 +2992,9 @@ export default function App() {
     coinFlipResolvedRef.current = false;
     const matchSnapshot = createLocalMatchSnapshot({
       startingPlayer: coinFlipState.winner,
-      deckDefinition: DECK_DEFINITION
+      deckDefinition: DECK_DEFINITION,
+      playerName: onlinePlayerName.trim() || 'Jugador',
+      opponentName: aiMode ? 'IA' : 'Rival'
     });
     setDiscardShowcase({
       player: { current: [], archive: [] },
@@ -3018,8 +3020,8 @@ export default function App() {
     setTablePlay([]);
     setBonusTurnFor(matchSnapshot.bonusTurnFor);
     setGameState(matchSnapshot.gameState);
-    setPlayerDisplayName('JUGADOR');
-    setOpponentDisplayName('RIVAL');
+    setPlayerDisplayName((matchSnapshot.playerName || 'Jugador').toUpperCase());
+    setOpponentDisplayName((matchSnapshot.opponentName || 'Rival').toUpperCase());
   };
 
   const handleEndTurnButtonClick = () => {
