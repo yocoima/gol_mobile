@@ -4194,7 +4194,7 @@ export default function App() {
                 title="Tutorial del juego GOL"
                 className="block h-full w-full bg-slate-950"
               />
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-end p-4 max-sm:p-3">
+              <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-end p-4 max-sm:p-3">
                 <div className="pointer-events-auto flex flex-wrap items-center justify-end gap-3 rounded-[1.5rem] border border-white/10 bg-slate-950/78 p-3 shadow-[0_18px_40px_rgba(0,0,0,0.38)] backdrop-blur-sm">
                   <AppButton
                     onClick={() => setGameState('menu')}
