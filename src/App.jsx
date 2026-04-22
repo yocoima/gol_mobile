@@ -634,13 +634,11 @@ const TutorialStepCard = ({ label }) => {
 export default function App() {
   const audioManagerRef = useRef(null);
   const socketRef = useRef(null);
-  const tutorialFrameRef = useRef(null);
   const pendingOnlineActionRef = useRef(null);
   const lastRecentActionIdRef = useRef(null);
   const lastReactionHintRef = useRef('');
   const [gameState, setGameState] = useState('menu');
   const [tutorialPage, setTutorialPage] = useState(0);
-  const [tutorialFrameState, setTutorialFrameState] = useState({ current: 0, total: 0 });
   const [coinFlipState, setCoinFlipState] = useState({
     choice: null,
     result: null,
@@ -785,20 +783,15 @@ export default function App() {
     const handleTutorialMessage = (event) => {
       if (event.origin !== window.location.origin) return;
       const data = event.data;
-      if (!data || data.type !== 'gol-tutorial-state') return;
-      setTutorialFrameState({
-        current: typeof data.current === 'number' ? data.current : 0,
-        total: typeof data.total === 'number' ? data.total : 0
-      });
+      if (!data || data.type !== 'gol-tutorial-action') return;
+      if (data.action === 'close') {
+        setGameState('menu');
+      }
     };
 
     window.addEventListener('message', handleTutorialMessage);
     return () => window.removeEventListener('message', handleTutorialMessage);
   }, []);
-
-  const postTutorialNavAction = (action) => {
-    tutorialFrameRef.current?.contentWindow?.postMessage({ type: 'gol-tutorial-nav', action }, window.location.origin);
-  };
 
   // ---- HAPTIC FEEDBACK ----
   const vibrate = useCallback((pattern) => {
@@ -4208,48 +4201,13 @@ export default function App() {
           )}
 
           {gameState === 'tutorial' && (
-            <div className="fixed inset-0 z-50 flex flex-col bg-black">
+            <div className="fixed inset-0 z-50 bg-black">
               <iframe
-                ref={tutorialFrameRef}
                 key={tutorialUrl}
                 src={tutorialUrl}
                 title="Tutorial del juego GOL"
-                className="block min-h-0 w-full flex-1 bg-slate-950"
+                className="block h-full w-full bg-slate-950"
               />
-              <div className="border-t border-white/10 bg-slate-950/96 px-3 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] pt-3 shadow-[0_-10px_28px_rgba(0,0,0,0.32)] backdrop-blur-sm max-sm:px-2 max-sm:pt-2">
-                <div className="mx-auto grid w-full max-w-3xl grid-cols-2 gap-2 sm:grid-cols-4">
-                  <button
-                    type="button"
-                    onClick={() => postTutorialNavAction('prev')}
-                    disabled={tutorialFrameState.current <= 0}
-                    className="rounded-xl border border-white/10 bg-white/6 px-2 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-white/78 transition disabled:cursor-default disabled:opacity-35 max-sm:py-2.5 max-sm:text-[10px]"
-                  >
-                    ANTERIOR
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => postTutorialNavAction('next')}
-                    disabled={tutorialFrameState.total > 0 && tutorialFrameState.current >= tutorialFrameState.total - 1}
-                    className="rounded-xl border border-emerald-400/25 bg-emerald-500/18 px-2 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-emerald-100 transition disabled:cursor-default disabled:opacity-35 max-sm:py-2.5 max-sm:text-[10px]"
-                  >
-                    SIGUIENTE
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setGameState('menu')}
-                    className="rounded-xl border border-white/10 bg-white/6 px-2 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-white/78 transition hover:bg-white/10 max-sm:py-2.5 max-sm:text-[10px]"
-                  >
-                    VOLVER
-                  </button>
-                  <button
-                    type="button"
-                    onClick={startFromMenu}
-                    className="rounded-xl border border-emerald-300/30 bg-emerald-400 px-2 py-2 text-[11px] font-black uppercase tracking-[0.08em] text-slate-950 shadow-[0_8px_20px_rgba(52,211,153,0.28)] transition hover:bg-emerald-300 max-sm:py-2.5 max-sm:text-[10px]"
-                  >
-                    IR A JUGAR
-                  </button>
-                </div>
-              </div>
             </div>
           )}
 
