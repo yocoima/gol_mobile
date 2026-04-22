@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<title>Tutorial â€” GOL</title>
+<title>Tutorial — GOL</title>
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
@@ -40,17 +40,17 @@
 
 const { useState, useEffect, useRef, useCallback } = React;
 
-// â”€â”€ Card data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Card data ─────────────────────────────────────────────────────────────────
 const CARDS = {
   pc: { name: 'Pase Corto', img: 'imagenes/Pase corto.png', type: 'pass', label: 'PASE', color: '#10b981', value: '+1' },
   pl: { name: 'Pase Largo', img: 'imagenes/Pase largo.png', type: 'pass', label: 'PASE', color: '#3b82f6', value: '+2' },
-  pa: { name: 'Pase AÃ©reo', img: 'imagenes/Pase aereo.png', type: 'pass', label: 'PASE', color: '#06b6d4', value: '+3' },
+  pa: { name: 'Pase Aéreo', img: 'imagenes/Pase aereo.png', type: 'pass', label: 'PASE', color: '#06b6d4', value: '+3' },
   tg: { name: 'Tirar a Gol', img: 'imagenes/Tirar a gol.png', type: 'shoot', label: 'DISPARO', color: '#ef4444' },
   ch: { name: 'Chilena', img: 'imagenes/Chilena.png', type: 'special', label: 'ESPECIAL', color: '#f97316' },
   ba: { name: 'Barrida', img: 'imagenes/barrida.png', type: 'defense', label: 'DEFENSA', color: '#64748b' },
   fa: { name: 'Falta Agresiva', img: 'imagenes/Falta agresiva.png', type: 'defense', label: 'FALTA', color: '#92400e' },
   pe: { name: 'Penalti', img: 'imagenes/Penalti.png', type: 'shoot', label: 'PENALTI', color: '#eab308' },
-  pel: { name: 'Penalti Legendario', img: 'imagenes/penalti legendario.png', type: 'special', label: 'â˜… LEGENDARIO', color: '#d97706' },
+  pel: { name: 'Penalti Legendario', img: 'imagenes/penalti legendario.png', type: 'special', label: '★ LEGENDARIO', color: '#d97706' },
   off: { name: 'Offside', img: 'imagenes/Offside.png', type: 'save', label: 'DEFENSA', color: '#b45309' },
   paq: { name: 'Parada Arquero', img: 'imagenes/Parada del arquero.png', type: 'save', label: 'PARADA', color: '#78716c' },
   rem: { name: 'Remate', img: 'imagenes/Remate.png', type: 'special', label: 'REMATE', color: '#ec4899' },
@@ -63,7 +63,7 @@ const CARDS = {
   cont: { name: 'Contraataque', img: 'imagenes/Contraataque.png', type: 'defense', label: 'CONTRA', color: '#4f46e5' }
 };
 
-// â”€â”€ Card component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Card component ─────────────────────────────────────────────────────────────
 const Card = ({ id, size = 'md', float = false, floatR = false, glow = false, dimmed = false, onClick, selected, badge }) => {
   const card = CARDS[id];
   if (!card) return null;
@@ -97,7 +97,7 @@ const Card = ({ id, size = 'md', float = false, floatR = false, glow = false, di
 
 };
 
-// â”€â”€ Arrow connector â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Arrow connector ─────────────────────────────────────────────────────────────
 const Arrow = ({ label, color = '#22d3ee' }) =>
 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '0 6px', flexShrink: 0 }}>
     {label && <span style={{ fontSize: 9, fontWeight: 900, color, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{label}</span>}
@@ -112,14 +112,14 @@ const VSLabel = () =>
 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 36, height: 36, background: 'rgba(255,255,255,0.06)', borderRadius: '50%', border: '1.5px solid rgba(255,255,255,0.12)', fontSize: 11, fontWeight: 900, color: 'rgba(255,255,255,0.5)', flexShrink: 0 }}>VS</div>;
 
 
-// â”€â”€ Section title â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Section title ──────────────────────────────────────────────────────────────
 const SectionTag = ({ children, color = '#22d3ee' }) =>
 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: color + '18', border: `1.5px solid ${color}44`, borderRadius: 20, padding: '4px 12px', marginBottom: 10 }}>
     <span style={{ fontSize: 10, fontWeight: 900, color, letterSpacing: '0.15em', textTransform: 'uppercase' }}>{children}</span>
   </div>;
 
 
-// â”€â”€ Pill chip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Pill chip ──────────────────────────────────────────────────────────────────
 const Chip = ({ children, color = '#22d3ee', icon }) =>
 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: color + '20', border: `1px solid ${color}55`, borderRadius: 20, padding: '5px 12px' }}>
     {icon && <span style={{ fontSize: 14 }}>{icon}</span>}
@@ -127,24 +127,24 @@ const Chip = ({ children, color = '#22d3ee', icon }) =>
   </div>;
 
 
-// â”€â”€ Info box â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Info box ───────────────────────────────────────────────────────────────────
 const InfoBox = ({ children, color = 'rgba(255,255,255,0.06)', border = 'rgba(255,255,255,0.1)' }) =>
 <div style={{ background: color, border: `1.5px solid ${border}`, borderRadius: 14, padding: '14px 18px' }}>
     {children}
   </div>;
 
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ══════════════════════════════════════════════════════════════════════════════
 // SLIDES
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ══════════════════════════════════════════════════════════════════════════════
 const slides = [
 
-// â”€â”€ 0. Portada â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 0. Portada ─────────────────────────────────────────────────────────────
 {
   id: 'cover',
   render: () =>
   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 28, padding: '40px 24px', textAlign: 'center' }}>
-        <img src="imagenes/balon.png" alt="balÃ³n" style={{ width: 90, height: 90, borderRadius: '50%', boxShadow: '0 0 40px rgba(34,197,94,0.4), 0 16px 32px rgba(0,0,0,0.6)', animation: 'ballBounce 2.2s ease-in-out infinite' }} />
+        <img src="imagenes/balon.png" alt="balón" style={{ width: 90, height: 90, borderRadius: '50%', boxShadow: '0 0 40px rgba(34,197,94,0.4), 0 16px 32px rgba(0,0,0,0.6)', animation: 'ballBounce 2.2s ease-in-out infinite' }} />
         <div>
           <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: '0.35em', color: '#22c55e', textTransform: 'uppercase', marginBottom: 10 }}>Tutorial</div>
           <h1 style={{ fontSize: 44, fontWeight: 900, color: '#fff', letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 12 }}>GOL MOBILE</h1>
@@ -153,16 +153,16 @@ const slides = [
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
           {['pc', 'tg', 'paq', 'ch', 'var'].map((id) => <Card key={id} id={id} size="sm" float />)}
         </div>
-        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 8 }}>Desliza para comenzar â†’</div>
+        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 8 }}>Desliza para comenzar →</div>
       </div>
 
 },
 
-// â”€â”€ 1. Objetivo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 1. Objetivo ────────────────────────────────────────────────────────────
 {
   id: 'objetivo',
   render: () =>
-  <SlideLayout title="El Objetivo" tag="CÃ³mo ganar" tagColor="#22c55e">
+  <SlideLayout title="El Objetivo" tag="Cómo ganar" tagColor="#22c55e">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%' }}>
           <InfoBox color="rgba(34,197,94,0.08)" border="rgba(34,197,94,0.25)">
             <div style={{ fontSize: 28, fontWeight: 900, color: '#22c55e', textAlign: 'center', marginBottom: 6 }}>Primero en marcar 5 goles</div>
@@ -170,10 +170,10 @@ const slides = [
           </InfoBox>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             {[
-        { icon: 'ðŸƒ', title: '5 cartas', desc: 'Cada jugador empieza con 5 cartas en mano' },
-        { icon: 'âš½', title: 'PosesiÃ³n', desc: 'Solo quien tiene el balÃ³n puede atacar' },
-        { icon: 'ðŸ”„', title: 'Turnos', desc: 'En un turno puedes Descartar cartas o jugar las cartas disponibles. Si decides jugar, ya no puedes descartar.' },
-        { icon: 'ðŸ†', title: 'Meta: 5 goles', desc: 'Para anotar goles, debes sumar 4 pases, lo que te habilita a Tirar a gol.' }].
+        { icon: '🃏', title: '5 cartas', desc: 'Cada jugador empieza con 5 cartas en mano' },
+        { icon: '⚽', title: 'Posesión', desc: 'Solo quien tiene el balón puede atacar' },
+        { icon: '🔄', title: 'Turnos', desc: 'En un turno puedes Descartar cartas o jugar las cartas disponibles. Si decides jugar, ya no puedes descartar.' },
+        { icon: '🏆', title: 'Meta: 5 goles', desc: 'Para anotar goles, debes sumar 4 pases, lo que te habilita a Tirar a gol.' }].
         map(({ icon, title, desc }) =>
         <div key={title} style={{ background: 'rgba(255,255,255,0.05)', border: '1.5px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '14px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <div style={{ fontSize: 22 }}>{icon}</div>
@@ -187,20 +187,20 @@ const slides = [
 
 },
 
-// â”€â”€ 2. PosesiÃ³n â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 2. Posesión ────────────────────────────────────────────────────────────
 {
   id: 'posesion',
   render: () =>
-  <SlideLayout title="La PosesiÃ³n" tag="MecÃ¡nica base" tagColor="#06b6d4">
+  <SlideLayout title="La Posesión" tag="Mecánica base" tagColor="#06b6d4">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%' }}>
           <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.65)', lineHeight: 1.6 }}>
-            Solo el jugador con posesiÃ³n del balÃ³n puede hacer jugadas ofensivas. El rival debe intentar recuperarlo.
+            Solo el jugador con posesión del balón puede hacer jugadas ofensivas. El rival debe intentar recuperarlo.
           </p>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 20, padding: '18px 0' }}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'linear-gradient(135deg, #22c55e, #15803d)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, color: '#fff', letterSpacing: '0.05em', boxShadow: '0 0 20px rgba(34,197,94,0.4)', border: '2px solid rgba(34,197,94,0.6)' }}>TÃš</div>
-              <img src="imagenes/balon.png" style={{ width: 32, height: 32, borderRadius: '50%', boxShadow: '0 0 12px rgba(34,197,94,0.5)' }} alt="balÃ³n" />
-              <div style={{ fontSize: 10, fontWeight: 800, color: '#22c55e', letterSpacing: '0.1em' }}>CON BALÃ“N</div>
+              <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'linear-gradient(135deg, #22c55e, #15803d)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 900, color: '#fff', letterSpacing: '0.05em', boxShadow: '0 0 20px rgba(34,197,94,0.4)', border: '2px solid rgba(34,197,94,0.6)' }}>TÚ</div>
+              <img src="imagenes/balon.png" style={{ width: 32, height: 32, borderRadius: '50%', boxShadow: '0 0 12px rgba(34,197,94,0.5)' }} alt="balón" />
+              <div style={{ fontSize: 10, fontWeight: 800, color: '#22c55e', letterSpacing: '0.1em' }}>CON BALÓN</div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center' }}>
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.08em' }}>PUEDE JUGAR</div>
@@ -212,7 +212,7 @@ const slides = [
           </div>
           <InfoBox color="rgba(239,68,68,0.07)" border="rgba(239,68,68,0.2)">
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', lineHeight: 1.5 }}>
-              <strong style={{ color: '#f87171' }}>Sin posesiÃ³n:</strong> solo puedes jugar cartas defensivas como Barrida, Contraataque, Saque de Banda o Saque de Corner para recuperar el balÃ³n.
+              <strong style={{ color: '#f87171' }}>Sin posesión:</strong> solo puedes jugar cartas defensivas como Barrida, Contraataque, Saque de Banda o Saque de Corner para recuperar el balón.
             </div>
           </InfoBox>
         </div>
@@ -220,15 +220,15 @@ const slides = [
 
 },
 
-// â”€â”€ 3. Pases â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 3. Pases ───────────────────────────────────────────────────────────────
 {
   id: 'pases',
   render: () => {
     const [step, setStep] = useState(0);
     const passes = [
-    { id: 'pc', desc: 'El mÃ¡s comÃºn. Avanza poco pero es fÃ¡cil de jugar.', value: 1 },
-    { id: 'pl', desc: 'MÃ¡s difÃ­cil de conseguir, pero avanza mÃ¡s.', value: 2 },
-    { id: 'pa', desc: 'Pase largo por el aire. El mÃ¡s poderoso â€” habilita la Chilena.', value: 3 }];
+    { id: 'pc', desc: 'El más común. Avanza poco pero es fácil de jugar.', value: 1 },
+    { id: 'pl', desc: 'Más difícil de conseguir, pero avanza más.', value: 2 },
+    { id: 'pa', desc: 'Pase largo por el aire. El más poderoso — habilita la Chilena.', value: 3 }];
 
     return (
       <SlideLayout title="Los Pases" tag="Construye la jugada" tagColor="#10b981">
@@ -252,32 +252,32 @@ const slides = [
                 </div>
               </InfoBox>
           }
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', textAlign: 'center' }}>Toca cada carta para ver mÃ¡s</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', textAlign: 'center' }}>Toca cada carta para ver más</div>
           </div>
         </SlideLayout>);
 
   }
 },
 
-// â”€â”€ 4. Jugada bÃ¡sica â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 4. Jugada básica ───────────────────────────────────────────────────────
 {
   id: 'jugada',
   render: () =>
-  <SlideLayout title="La Jugada BÃ¡sica" tag="Flujo de ataque" tagColor="#ef4444">
+  <SlideLayout title="La Jugada Básica" tag="Flujo de ataque" tagColor="#ef4444">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%' }}>
           <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>Para anotar un gol necesitas construir una secuencia de pases (que sumen 4 pases en total) y cerrarla con un Tiro a Gol.</p>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, flexWrap: 'wrap', padding: '8px 0' }}>
             <Card id="pc" size="sm" />
-            <Arrow label="â†’" color="#10b981" />
+            <Arrow label="→" color="#10b981" />
             <Card id="pl" size="sm" />
-            <Arrow label="â†’" color="#10b981" />
+            <Arrow label="→" color="#10b981" />
             <Card id="pa" size="sm" />
-            <Arrow label="â†’" color="#ef4444" />
+            <Arrow label="→" color="#ef4444" />
             <Card id="tg" size="sm" glow />
           </div>
           <InfoBox color="rgba(239,68,68,0.07)" border="rgba(239,68,68,0.25)">
-            <div style={{ fontSize: 13, fontWeight: 800, color: '#f87171', marginBottom: 8 }}>âš¡ Tirar a Gol</div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', lineHeight: 1.5 }}>Cuando juegas Tirar a Gol, el rival tiene la oportunidad de responder con <strong style={{ color: '#a78bfa' }}>Parada Arquero</strong> u <strong style={{ color: '#d97706' }}>Offside</strong>. Si no tiene ninguna de esas cartas, Â¡es GOL!</div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: '#f87171', marginBottom: 8 }}>⚡ Tirar a Gol</div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', lineHeight: 1.5 }}>Cuando juegas Tirar a Gol, el rival tiene la oportunidad de responder con <strong style={{ color: '#a78bfa' }}>Parada Arquero</strong> u <strong style={{ color: '#d97706' }}>Offside</strong>. Si no tiene ninguna de esas cartas, ¡es GOL!</div>
           </InfoBox>
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center', alignItems: 'center' }}>
             <Card id="tg" size="sm" />
@@ -292,13 +292,13 @@ const slides = [
 
 },
 
-// â”€â”€ 5. Parada + Remate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 5. Parada + Remate ────────────────────────────────────────────────────
 {
   id: 'parada',
   render: () =>
   <SlideLayout title="Parada y Remate" tag="Respuesta defensiva" tagColor="#78716c">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
-          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>Cuando el rival para tu tiro, aÃºn puedes intentar un Remate.</p>
+          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>Cuando el rival para tu tiro, aún puedes intentar un Remate.</p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {/* Tiro */}
@@ -310,17 +310,17 @@ const slides = [
             </div>
             {/* Remate */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingLeft: 30 }}>
-              <div style={{ fontSize: 11, color: '#ec4899', fontWeight: 700 }}>â†³</div>
+              <div style={{ fontSize: 11, color: '#ec4899', fontWeight: 700 }}>↳</div>
               <Card id="rem" size="sm" glow />
               <div style={{ flex: 1, height: 2, background: 'rgba(239,68,68,0.4)', borderRadius: 2 }} />
-              <div style={{ fontSize: 22 }}>âš½</div>
+              <div style={{ fontSize: 22 }}>⚽</div>
               <div style={{ fontSize: 11, color: '#22c55e', fontWeight: 900 }}>GOL</div>
             </div>
           </div>
 
           <InfoBox color="rgba(78,70,60,0.2)" border="rgba(255,255,255,0.1)">
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>
-              <strong style={{ color: '#d6d3d1' }}>Parada Arquero</strong> es tu Ãºltima lÃ­nea de defensa ante un Tiro a Gol o un Penalti. GuÃ¡rdala bien â€” solo funciona si la tienes en mano cuando el rival dispara.
+              <strong style={{ color: '#d6d3d1' }}>Parada Arquero</strong> es tu última línea de defensa ante un Tiro a Gol o un Penalti. Guárdala bien — solo funciona si la tienes en mano cuando el rival dispara.
             </div>
           </InfoBox>
         </div>
@@ -328,7 +328,7 @@ const slides = [
 
 },
 
-// â”€â”€ 6. Chilena â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 6. Chilena ─────────────────────────────────────────────────────────────
 {
   id: 'chilena',
   render: () =>
@@ -338,8 +338,8 @@ const slides = [
             <Card id="ch" size="lg" glow float />
           </div>
           <InfoBox color="rgba(249,115,22,0.1)" border="rgba(249,115,22,0.35)">
-            <div style={{ fontSize: 13, fontWeight: 900, color: '#fb923c', marginBottom: 6 }}>âš¡ Gol automÃ¡tico â€” ninguna carta la para</div>
-            <div style={{ fontSize: 12, lineHeight: 1.5, color: "rgb(249, 243, 243)" }}>La Chilena solo se puede jugar con posesiÃ³n de Pase AÃ©reo + Tirar a gol. â€” Parada Arquero ni Offside funcionan. Es Gol automÃ¡tico</div>
+            <div style={{ fontSize: 13, fontWeight: 900, color: '#fb923c', marginBottom: 6 }}>⚡ Gol automático — ninguna carta la para</div>
+            <div style={{ fontSize: 12, lineHeight: 1.5, color: "rgb(249, 243, 243)" }}>La Chilena solo se puede jugar con posesión de Pase Aéreo + Tirar a gol. — Parada Arquero ni Offside funcionan. Es Gol automático</div>
           </InfoBox>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
             <Card id="ch" size="sm" glow />
@@ -348,40 +348,40 @@ const slides = [
             <Arrow label="=" color="#22c55e" />
             <Card id="tg" size="sm" />
           </div>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', textAlign: 'center' }}>Solo 3 Chilenas en todo el mazo â€” Ãºsalas con sabidurÃ­a</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', textAlign: 'center' }}>Solo 3 Chilenas en todo el mazo — úsalas con sabiduría</div>
         </div>
       </SlideLayout>
 
 },
 
-// â”€â”€ 7. Barrida â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 7. Barrida ─────────────────────────────────────────────────────────────
 {
   id: 'barrida',
   render: () => {
     const [chosen, setChosen] = useState(null);
     return (
-      <SlideLayout title="La Barrida" tag="Recuperar posesiÃ³n" tagColor="#64748b">
+      <SlideLayout title="La Barrida" tag="Recuperar posesión" tagColor="#64748b">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
-            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>La Barrida te permite robar el balÃ³n al rival mientras construye su jugada. Pero hay una respuesta posible.</p>
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>La Barrida te permite robar el balón al rival mientras construye su jugada. Pero hay una respuesta posible.</p>
             <div style={{ display: 'flex', gap: 20, justifyContent: 'center', alignItems: 'flex-start' }}>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                 <div style={{ fontSize: 10, fontWeight: 800, color: '#94a3b8', letterSpacing: '0.1em' }}>DEFENSOR JUEGA</div>
                 <Card id="ba" size="md" />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, marginTop: 20 }}>
-                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>â†’ atacante responde</div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>→ atacante responde</div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <div onClick={() => setChosen('reg')} style={{ cursor: 'pointer', transform: chosen === 'reg' ? 'scale(1.1)' : 'scale(1)', transition: 'transform 0.2s' }}>
                     <Card id="reg" size="md" glow={chosen === 'reg'} />
                   </div>
                 </div>
-                <div style={{ fontSize: 10, color: '#0d9488', fontWeight: 700 }}>Regatear â†’ continÃºa jugando</div>
-                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>Sin Regate â†’ pierde el balÃ³n</div>
+                <div style={{ fontSize: 10, color: '#0d9488', fontWeight: 700 }}>Regatear → continúa jugando</div>
+                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 4 }}>Sin Regate → pierde el balón</div>
               </div>
             </div>
             {chosen === 'reg' &&
           <InfoBox color="rgba(13,148,136,0.1)" border="rgba(13,148,136,0.3)">
-                <div style={{ fontSize: 13, color: '#2dd4bf', fontWeight: 700 }}>âœ“ Â¡Regate exitoso! La jugada continÃºa.</div>
+                <div style={{ fontSize: 13, color: '#2dd4bf', fontWeight: 700 }}>✓ ¡Regate exitoso! La jugada continúa.</div>
               </InfoBox>
           }
           </div>
@@ -390,11 +390,11 @@ const slides = [
   }
 },
 
-// â”€â”€ 8. Falta agresiva â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 8. Falta agresiva ──────────────────────────────────────────────────────
 {
   id: 'falta',
   render: () =>
-  <SlideLayout title="Falta Agresiva" tag="Escalada de tensiÃ³n" tagColor="#92400e">
+  <SlideLayout title="Falta Agresiva" tag="Escalada de tensión" tagColor="#92400e">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
           <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>La Falta Agresiva no puede ser evadida con Regatear. El atacante debe responder con una tarjeta.</p>
           <div style={{ display: 'flex', gap: 16, justifyContent: 'center', alignItems: 'flex-start', flexWrap: 'wrap' }}>
@@ -406,13 +406,13 @@ const slides = [
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Arrow label="" color="#ca8a04" />
                 <Card id="ta" size="sm" />
-                <div style={{ fontSize: 11, color: '#fbbf24', fontWeight: 700 }}>â†’ rival pierde el turno</div>
+                <div style={{ fontSize: 11, color: '#fbbf24', fontWeight: 700 }}>→ rival pierde el turno</div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Arrow label="" color="#dc2626" />
                 <Card id="tr" size="sm" />
-                <div style={{ fontSize: 11, color: '#f87171', fontWeight: 700 }}>â†’ rival descarta 1 carta
-Â durante 3 turnos</div>
+                <div style={{ fontSize: 11, color: '#f87171', fontWeight: 700 }}>→ rival descarta 1 carta
+ durante 3 turnos</div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 34 }}>
                 <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>rival puede usar</div>
@@ -430,7 +430,7 @@ const slides = [
       </SlideLayout>
 },
 
-// â”€â”€ 9. Tarjetas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 9. Tarjetas ────────────────────────────────────────────────────────────
 {
   id: 'tarjetas',
   render: () =>
@@ -442,7 +442,7 @@ const slides = [
               <div style={{ fontSize: 12, fontWeight: 800, color: '#fbbf24', textAlign: 'center' }}>Tarjeta Amarilla</div>
               <ul style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', lineHeight: 1.6, paddingLeft: 14 }}>
                 <li>Se usa ante Falta Agresiva</li>
-                <li>Mantienes la posesiÃ³n</li>
+                <li>Mantienes la posesión</li>
                 <li>El rival pierde el turno siguiente</li>
               </ul>
             </div>
@@ -451,7 +451,7 @@ const slides = [
               <div style={{ fontSize: 12, fontWeight: 800, color: '#f87171', textAlign: 'center' }}>Tarjeta Roja</div>
               <ul style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', lineHeight: 1.6, paddingLeft: 14 }}>
                 <li>Se usa ante Falta Agresiva</li>
-                <li>Mantienes la posesiÃ³n</li>
+                <li>Mantienes la posesión</li>
                 <li>Rival juega con 4 cartas x3 turnos</li>
                 <li>Eliges 1 carta rival para descartar</li>
               </ul>
@@ -460,7 +460,7 @@ const slides = [
           <InfoBox color="rgba(124,58,237,0.07)" border="rgba(124,58,237,0.25)">
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <Card id="var" size="sm" />
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', lineHeight: 1.5 }}>El <strong style={{ color: '#c4b5fd' }}>VAR</strong> puede anular una Tarjeta Roja si el defensor la juega antes de que se aplique la sanciÃ³n.</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', lineHeight: 1.5 }}>El <strong style={{ color: '#c4b5fd' }}>VAR</strong> puede anular una Tarjeta Roja si el defensor la juega antes de que se aplique la sanción.</div>
             </div>
           </InfoBox>
         </div>
@@ -468,7 +468,7 @@ const slides = [
 
 },
 
-// â”€â”€ 10. Penalti â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 10. Penalti ────────────────────────────────────────────────────────────
 {
   id: 'penalti',
   render: () =>
@@ -481,17 +481,17 @@ const slides = [
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
               <Card id="pel" size="md" glow float />
-              <div style={{ fontSize: 10, color: '#d97706', fontWeight: 700 }}>â˜… LEGENDARIO</div>
+              <div style={{ fontSize: 10, color: '#d97706', fontWeight: 700 }}>★ LEGENDARIO</div>
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <InfoBox color="rgba(234,179,8,0.07)" border="rgba(234,179,8,0.25)">
-              <div style={{ fontSize: 12, fontWeight: 800, color: '#fde68a', marginBottom: 5 }}>Penalti normal (con posesiÃ³n de balÃ³n)</div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: '#fde68a', marginBottom: 5 }}>Penalti normal (con posesión de balón)</div>
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>El rival puede responder con <strong style={{ color: '#c4b5fd' }}>VAR</strong> (anula el penalti) o <strong style={{ color: '#a8a29e' }}>Parada Arquero</strong> (para el tiro). Si para el tiro y tienes Remate, puedes intentarlo.</div>
             </InfoBox>
             <InfoBox color="rgba(217,119,6,0.1)" border="rgba(217,119,6,0.4)">
-              <div style={{ fontSize: 12, fontWeight: 800, color: '#fbbf24', marginBottom: 5 }}>â˜… Penalti Legendario (con posesiÃ³n de balÃ³n)</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>Solo hay <strong style={{ color: '#fff' }}>1 carta</strong> en todo el mazo. Es imparable â€” ni VAR ni Parada Arquero lo detienen. Siempre entra.</div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: '#fbbf24', marginBottom: 5 }}>★ Penalti Legendario (con posesión de balón)</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>Solo hay <strong style={{ color: '#fff' }}>1 carta</strong> en todo el mazo. Es imparable — ni VAR ni Parada Arquero lo detienen. Siempre entra.</div>
             </InfoBox>
           </div>
         </div>
@@ -499,31 +499,31 @@ const slides = [
 
 },
 
-// â”€â”€ 11. Contraataque + Saques â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 11. Contraataque + Saques ──────────────────────────────────────────────
 {
   id: 'especiales',
   render: () =>
-  <SlideLayout title="Recuperar el BalÃ³n (combinaciÃ³n de cartas)" tag="Cartas especiales" tagColor="#4f46e5">
+  <SlideLayout title="Recuperar el Balón (combinación de cartas)" tag="Cartas especiales" tagColor="#4f46e5">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: '100%' }}>
           {[
       {
         id: 'cont',
         title: 'Contraataque',
-        desc: 'Recuperas el balÃ³n durante la jugada del rival. Luego juegas un Pase + Tirar a Gol directamente.',
+        desc: 'Recuperas el balón durante la jugada del rival. Luego juegas un Pase + Tirar a Gol directamente.',
         follow: ['pc', 'tg'],
         color: '#4f46e5'
       },
       {
         id: 'sb',
         title: 'Saque de Banda',
-        desc: 'Recuperas el balÃ³n. Se aÃ±ade un Pase Corto automÃ¡tico a tu jugada.',
+        desc: 'Recuperas el balón. Se añade un Pase Corto automático a tu jugada.',
         follow: ['pc'],
         color: '#65a30d'
       },
       {
         id: 'sc',
         title: 'Saque de Corner',
-        desc: 'Recuperas el balÃ³n. Debes jugar Pase AÃ©reo y luego Tirar a Gol.',
+        desc: 'Recuperas el balón. Debes jugar Pase Aéreo y luego Tirar a Gol.',
         follow: ['pa', 'tg'],
         color: '#0369a1'
       }].
@@ -547,7 +547,7 @@ const slides = [
 
 },
 
-// â”€â”€ 12. Offside + VAR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 12. Offside + VAR ──────────────────────────────────────────────────────
 {
   id: 'offside',
   render: () =>
@@ -559,23 +559,23 @@ const slides = [
           </div>
           <InfoBox color="rgba(180,83,9,0.1)" border="rgba(180,83,9,0.3)">
             <div style={{ fontSize: 12, fontWeight: 800, color: '#fb923c', marginBottom: 5 }}>Offside</div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>Se juega cuando el rival lanza un Tiro a Gol. Anula el tiro y cambias de posesiÃ³n. El rival puede usar <strong style={{ color: '#c4b5fd' }}>VAR</strong> para revertirlo. Si no tiene VAR, el gol queda anulado.</div>
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>Se juega cuando el rival lanza un Tiro a Gol. Anula el tiro y cambias de posesión. El rival puede usar <strong style={{ color: '#c4b5fd' }}>VAR</strong> para revertirlo. Si no tiene VAR, el gol queda anulado.</div>
           </InfoBox>
           <InfoBox color="rgba(124,58,237,0.1)" border="rgba(124,58,237,0.3)">
             <div style={{ fontSize: 12, fontWeight: 800, color: '#c4b5fd', marginBottom: 5 }}>VAR</div>
-            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>Carta comodÃ­n defensiva. Puede anular:<br />
-              <span style={{ color: '#fbbf24' }}>â€¢ Offside</span> â†’ mantiene el Tiro a Gol activo<br />
-              <span style={{ color: '#f87171' }}>â€¢ Tarjeta Roja</span> â†’ cancela la sanciÃ³n<br />
-              <span style={{ color: '#fde68a' }}>â€¢ Penalti</span> â†’ anula el tiro
+            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5 }}>Carta comodín defensiva. Puede anular:<br />
+              <span style={{ color: '#fbbf24' }}>• Offside</span> → mantiene el Tiro a Gol activo<br />
+              <span style={{ color: '#f87171' }}>• Tarjeta Roja</span> → cancela la sanción<br />
+              <span style={{ color: '#fde68a' }}>• Penalti</span> → anula el tiro
             </div>
           </InfoBox>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', textAlign: 'center' }}>Solo 2 cartas de VAR en el mazo â€” Ãºsalas en el momento justo</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', textAlign: 'center' }}>Solo 2 cartas de VAR en el mazo — úsalas en el momento justo</div>
         </div>
       </SlideLayout>
 
 },
 
-// â”€â”€ 13. Resumen cartas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 13. Resumen cartas ─────────────────────────────────────────────────────
 {
   id: 'todas',
   render: () => {
@@ -587,7 +587,7 @@ const slides = [
     { label: 'Tarjetas', color: '#eab308', ids: ['ta', 'tr', 'var', 'reg'] }];
 
     return (
-      <SlideLayout title="Todas las Cartas" tag="Referencia rÃ¡pida" tagColor="#22c55e">
+      <SlideLayout title="Todas las Cartas" tag="Referencia rápida" tagColor="#22c55e">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14, width: '100%' }}>
             {groups.map(({ label, color, ids }) =>
           <div key={label}>
@@ -608,19 +608,19 @@ const slides = [
   }
 },
 
-// â”€â”€ 14. Consejos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 14. Consejos ───────────────────────────────────────────────────────────
 {
   id: 'consejos',
   render: () =>
   <SlideLayout title="Consejos Clave" tag="Juega mejor" tagColor="#22c55e">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, width: '100%' }}>
           {[
-      { icon: 'ðŸ›¡ï¸', tip: 'Guarda siempre una Parada Arquero o VAR mientras el rival construye su jugada.' },
-      { icon: 'âš¡', tip: 'La Chilena despuÃ©s del Pase AÃ©reo es tu arma secreta â€” nadie la puede parar.' },
-      { icon: 'ðŸ”´', tip: 'Usa la Tarjeta Roja con cuidado: el rival puede anularla con VAR antes de que se aplique.' },
-      { icon: 'âš½', tip: 'Si el rival no tiene Parada Arquero ni Offside en mano, es el momento perfecto para tirar a gol.' },
-      { icon: 'ðŸ”„', tip: 'El Contraataque es ideal cuando el rival tiene muchos pases acumulados â€” lo interrumpes en su mejor momento.' },
-      { icon: 'ðŸŒŸ', tip: 'El Penalti Legendario es imparable. GuÃ¡rdalo para un momento decisivo.' }].
+      { icon: '🛡️', tip: 'Guarda siempre una Parada Arquero o VAR mientras el rival construye su jugada.' },
+      { icon: '⚡', tip: 'La Chilena después del Pase Aéreo es tu arma secreta — nadie la puede parar.' },
+      { icon: '🔴', tip: 'Usa la Tarjeta Roja con cuidado: el rival puede anularla con VAR antes de que se aplique.' },
+      { icon: '⚽', tip: 'Si el rival no tiene Parada Arquero ni Offside en mano, es el momento perfecto para tirar a gol.' },
+      { icon: '🔄', tip: 'El Contraataque es ideal cuando el rival tiene muchos pases acumulados — lo interrumpes en su mejor momento.' },
+      { icon: '🌟', tip: 'El Penalti Legendario es imparable. Guárdalo para un momento decisivo.' }].
       map(({ icon, tip }, i) =>
       <div key={i} style={{ display: 'flex', gap: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 12, padding: '12px 14px', alignItems: 'flex-start' }}>
               <span style={{ fontSize: 20, flexShrink: 0 }}>{icon}</span>
@@ -632,16 +632,16 @@ const slides = [
 
 },
 
-// â”€â”€ 15. Final â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── 15. Final ──────────────────────────────────────────────────────────────
 {
   id: 'fin',
   render: () =>
   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 24, padding: '40px 24px', textAlign: 'center' }}>
-        <div style={{ fontSize: 64 }}>ðŸ†</div>
+        <div style={{ fontSize: 64 }}>🏆</div>
         <div>
-          <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: '0.3em', color: '#22c55e', textTransform: 'uppercase', marginBottom: 10 }}>Â¡Listo para jugar!</div>
+          <div style={{ fontSize: 11, fontWeight: 900, letterSpacing: '0.3em', color: '#22c55e', textTransform: 'uppercase', marginBottom: 10 }}>¡Listo para jugar!</div>
           <h2 style={{ fontSize: 32, fontWeight: 900, color: '#fff', letterSpacing: '-0.02em', marginBottom: 12 }}>Primero en marcar 5 goles gana</h2>
-          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)', lineHeight: 1.6, maxWidth: 300 }}>Ya conoces todas las reglas. Construye jugadas, protege tu arco y Â¡a meter goles!</p>
+          <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)', lineHeight: 1.6, maxWidth: 300 }}>Ya conoces todas las reglas. Construye jugadas, protege tu arco y ¡a meter goles!</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {['ch', 'pel', 'var', 'tr', 'paq'].map((id) => <Card key={id} id={id} size="sm" float />)}
@@ -651,7 +651,7 @@ const slides = [
 }];
 
 
-// â”€â”€ Slide layout wrapper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Slide layout wrapper ────────────────────────────────────────────────────────
 const SlideLayout = ({ title, tag, tagColor, children }) =>
 <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '20px 20px 12px', gap: 10, overflowY: 'auto' }}>
     <div>
@@ -662,9 +662,9 @@ const SlideLayout = ({ title, tag, tagColor, children }) =>
   </div>;
 
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ══════════════════════════════════════════════════════════════════════════════
 // MAIN APP
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ══════════════════════════════════════════════════════════════════════════════
 function App() {
   const [current, setCurrent] = useState(() => {
     const saved = localStorage.getItem('gol-tutorial-slide');
@@ -701,16 +701,6 @@ function App() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [current]);
-
-  useEffect(() => {
-    const handleMessage = (event) => {
-      if (event.origin !== window.location.origin) return;
-      const data = event.data;
-      if (!data || data.type !== 'gol-tutorial-nav') return;
-    };
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
   }, [current]);
 
   const progress = current / (slides.length - 1) * 100;
