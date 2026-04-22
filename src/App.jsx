@@ -4187,36 +4187,15 @@ export default function App() {
           )}
 
           {gameState === 'tutorial' && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 p-6">
-              <ModalCard
-                eyebrow="Tutorial interactivo"
-                title="Como se juega"
-                tone="cyan"
-                className="w-full max-w-6xl px-4 py-5 text-left sm:px-6 sm:py-6"
-                align="left"
-              >
-                <div className="glass-panel overflow-hidden rounded-[1.5rem] border border-white/10 bg-black/30">
-                  <div className="flex items-center justify-between gap-4 border-b border-white/10 px-4 py-3">
-                    <div>
-                      <div className="text-[11px] font-black uppercase tracking-[0.28em] text-cyan-300">
-                        Tutorial completo
-                      </div>
-                      <div className="mt-1 text-sm font-semibold leading-tight text-white/65">
-                        Reemplaza el tutorial anterior y usa las imagenes reales de las cartas.
-                      </div>
-                    </div>
-                    <div className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-cyan-200">
-                      Desliza o usa las flechas
-                    </div>
-                  </div>
-                  <iframe
-                    key={tutorialUrl}
-                    src={tutorialUrl}
-                    title="Tutorial del juego GOL"
-                    className="block h-[70vh] min-h-[520px] w-full bg-slate-950 max-sm:h-[68vh] max-sm:min-h-[440px]"
-                  />
-                </div>
-                <div className="mt-5 flex flex-wrap items-center justify-end gap-4">
+            <div className="fixed inset-0 z-50 bg-black">
+              <iframe
+                key={tutorialUrl}
+                src={tutorialUrl}
+                title="Tutorial del juego GOL"
+                className="block h-full w-full bg-slate-950"
+              />
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-end p-4 max-sm:p-3">
+                <div className="pointer-events-auto flex flex-wrap items-center justify-end gap-3 rounded-[1.5rem] border border-white/10 bg-slate-950/78 p-3 shadow-[0_18px_40px_rgba(0,0,0,0.38)] backdrop-blur-sm">
                   <AppButton
                     onClick={() => setGameState('menu')}
                     variant="secondary"
@@ -4231,7 +4210,7 @@ export default function App() {
                     IR A JUGAR
                   </AppButton>
                 </div>
-              </ModalCard>
+              </div>
             </div>
           )}
 
