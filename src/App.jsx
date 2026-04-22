@@ -634,11 +634,13 @@ const TutorialStepCard = ({ label }) => {
 export default function App() {
   const audioManagerRef = useRef(null);
   const socketRef = useRef(null);
+  const tutorialFrameRef = useRef(null);
   const pendingOnlineActionRef = useRef(null);
   const lastRecentActionIdRef = useRef(null);
   const lastReactionHintRef = useRef('');
   const [gameState, setGameState] = useState('menu');
   const [tutorialPage, setTutorialPage] = useState(0);
+  const [tutorialFrameState, setTutorialFrameState] = useState({ current: 0, total: 0 });
   const [coinFlipState, setCoinFlipState] = useState({
     choice: null,
     result: null,
@@ -777,6 +779,25 @@ export default function App() {
 
   const addLog = (message) => {
     setGameLog((previousLog) => [message, ...previousLog].slice(0, 5));
+  };
+
+  useEffect(() => {
+    const handleTutorialMessage = (event) => {
+      if (event.origin !== window.location.origin) return;
+      const data = event.data;
+      if (!data || data.type !== 'gol-tutorial-state') return;
+      setTutorialFrameState({
+        current: typeof data.current === 'number' ? data.current : 0,
+        total: typeof data.total === 'number' ? data.total : 0
+      });
+    };
+
+    window.addEventListener('message', handleTutorialMessage);
+    return () => window.removeEventListener('message', handleTutorialMessage);
+  }, []);
+
+  const postTutorialNavAction = (action) => {
+    tutorialFrameRef.current?.contentWindow?.postMessage({ type: 'gol-tutorial-nav', action }, window.location.origin);
   };
 
   // ---- HAPTIC FEEDBACK ----
@@ -4189,23 +4210,40 @@ export default function App() {
           {gameState === 'tutorial' && (
             <div className="fixed inset-0 z-50 bg-black">
               <iframe
+                ref={tutorialFrameRef}
                 key={tutorialUrl}
                 src={tutorialUrl}
                 title="Tutorial del juego GOL"
                 className="block h-full w-full bg-slate-950"
               />
-              <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-end p-4 max-sm:p-3">
-                <div className="pointer-events-auto flex flex-wrap items-center justify-end gap-3 rounded-[1.5rem] border border-white/10 bg-slate-950/78 p-3 shadow-[0_18px_40px_rgba(0,0,0,0.38)] backdrop-blur-sm">
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center p-3 max-sm:p-2">
+                <div className="pointer-events-auto grid w-full max-w-3xl grid-cols-4 gap-2 rounded-[1.4rem] border border-white/10 bg-slate-950/82 p-2 shadow-[0_18px_40px_rgba(0,0,0,0.38)] backdrop-blur-sm max-sm:gap-1.5 max-sm:p-1.5">
+                  <AppButton
+                    onClick={() => postTutorialNavAction('prev')}
+                    disabled={tutorialFrameState.current <= 0}
+                    variant="secondary"
+                    className="rounded-2xl px-2 py-2 text-[11px] max-sm:px-1.5 max-sm:text-[10px]"
+                  >
+                    ANTERIOR
+                  </AppButton>
+                  <AppButton
+                    onClick={() => postTutorialNavAction('next')}
+                    disabled={tutorialFrameState.total > 0 && tutorialFrameState.current >= tutorialFrameState.total - 1}
+                    variant="secondary"
+                    className="rounded-2xl px-2 py-2 text-[11px] max-sm:px-1.5 max-sm:text-[10px]"
+                  >
+                    SIGUIENTE
+                  </AppButton>
                   <AppButton
                     onClick={() => setGameState('menu')}
                     variant="secondary"
-                    className="rounded-2xl px-6 py-3 text-sm"
+                    className="rounded-2xl px-2 py-2 text-[11px] max-sm:px-1.5 max-sm:text-[10px]"
                   >
                     VOLVER
                   </AppButton>
                   <AppButton
                     onClick={startFromMenu}
-                    className="rounded-2xl px-6 py-3 text-sm"
+                    className="rounded-2xl px-2 py-2 text-[11px] max-sm:px-1.5 max-sm:text-[10px]"
                   >
                     IR A JUGAR
                   </AppButton>
