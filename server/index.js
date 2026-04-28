@@ -136,6 +136,8 @@ const createMatchStateForRoom = (startingPlayer) => {
     playerHand,
     opponentHand,
     deck,
+    playerScore: preset.playerScore ?? baseState.playerScore,
+    opponentScore: preset.opponentScore ?? baseState.opponentScore,
     currentTurn: preset.currentTurn ?? baseState.currentTurn,
     possession: preset.possession ?? baseState.possession,
     activePlay: preset.activePlay ?? baseState.activePlay,
@@ -251,16 +253,8 @@ const trimTablePlayOnPossessionChange = (matchState, previousPossession, nextPos
     return;
   }
 
-  matchState.tablePlay = (matchState.tablePlay || []).slice(-2);
+  matchState.tablePlay = [];
 };
-const shouldResetTableForNewSequence = (matchState, playType) =>
-  ['pass-play', 'steal-defense', 'special-corner', 'special-chilena', 'shoot-card', 'penalty-card', 'penalty-legendary-card'].includes(playType) &&
-  !matchState.pendingShot &&
-  !matchState.pendingDefense &&
-  !matchState.pendingBlindDiscard &&
-  !matchState.pendingCombo &&
-  !matchState.hasActedThisTurn &&
-  (matchState.tablePlay || []).length > 0;
 const getExpectedActor = (matchState) => {
   if (matchState.pendingBlindDiscard?.actor) {
     return matchState.pendingBlindDiscard.actor;
@@ -480,7 +474,6 @@ const resolveServerEndTurn = (room) => {
 
   room.matchState.currentTurn = flowPlan.nextActor;
   room.matchState.hasActedThisTurn = false;
-  room.matchState.tablePlay = [];
   return { ok: true };
 };
 
@@ -709,6 +702,37 @@ const emitMatchState = (ioServer, room) => {
       room: getPublicRoom(room),
       matchState: sanitizeMatchStateForPlayer(room.matchState, role)
     });
+  }
+};
+
+const emitMatchErrorWithSync = (socket, room, message, extra = {}) => {
+  serverDebugLog('match action rejected', {
+    roomCode: room?.code ?? null,
+    socketId: socket.id,
+    message,
+    currentTurn: room?.matchState?.currentTurn ?? null,
+    possession: room?.matchState?.possession ?? null,
+    expectedActor: room?.matchState ? getExpectedActor(room.matchState) : null,
+    ...extra
+  });
+  socket.emit('match:error', { message });
+
+  if (room?.matchState) {
+    emitMatchState(io, room);
+  }
+};
+
+const emitRoomErrorWithSync = (socket, room, message, extra = {}) => {
+  serverDebugLog('room action rejected', {
+    roomCode: room?.code ?? null,
+    socketId: socket.id,
+    message,
+    ...extra
+  });
+  socket.emit('room:error', { message });
+
+  if (room?.matchState) {
+    emitMatchState(io, room);
   }
 };
 
@@ -1104,7 +1128,7 @@ io.on('connection', (socket) => {
     });
 
     if (!room || !room.matchState) {
-      socket.emit('room:error', { message: 'No hay una partida activa en esta sala.' });
+      emitRoomErrorWithSync(socket, room, 'No hay una partida activa en esta sala.');
       return;
     }
 
@@ -1112,13 +1136,13 @@ io.on('connection', (socket) => {
 
     const expectedActor = getExpectedActor(room.matchState);
     if (!actor || expectedActor !== actor) {
-      socket.emit('room:error', { message: 'No es tu turno.' });
+      emitRoomErrorWithSync(socket, room, 'No es tu turno.', { actor, expectedActor });
       return;
     }
 
     const outcome = resolveServerEndTurn(room);
     if (!outcome.ok) {
-      socket.emit('match:error', { message: outcome.message });
+      emitMatchErrorWithSync(socket, room, outcome.message, { actor });
       return;
     }
     recordPlayerActivity(room.matchState, actor, 'end_turn');
@@ -1135,7 +1159,7 @@ io.on('connection', (socket) => {
     });
 
     if (!room || !room.matchState) {
-      socket.emit('room:error', { message: 'No hay una partida activa en esta sala.' });
+      emitRoomErrorWithSync(socket, room, 'No hay una partida activa en esta sala.');
       return;
     }
 
@@ -1143,17 +1167,17 @@ io.on('connection', (socket) => {
 
     const expectedActor = getExpectedActor(room.matchState);
     if (!actor || expectedActor !== actor) {
-      socket.emit('match:error', { message: 'Aun no es tu turno para responder.' });
+      emitMatchErrorWithSync(socket, room, 'Aun no es tu turno para responder.', { actor, expectedActor, index });
       return;
     }
     if (room.matchState.pendingBlindDiscard) {
       if (!Number.isInteger(index)) {
-        socket.emit('match:error', { message: 'Debes elegir una posicion valida para descartar.' });
+        emitMatchErrorWithSync(socket, room, 'Debes elegir una posicion valida para descartar.', { actor, index });
         return;
       }
 
       if (!resolveBlindDiscard(room.matchState, actor, index)) {
-        socket.emit('match:error', { message: 'No se pudo resolver el descarte oculto.' });
+        emitMatchErrorWithSync(socket, room, 'No se pudo resolver el descarte oculto.', { actor, index });
         return;
       }
 
@@ -1166,7 +1190,11 @@ io.on('connection', (socket) => {
     const card = Number.isInteger(index) ? hand[index] : null;
 
     if (!card) {
-      socket.emit('match:error', { message: 'La carta seleccionada no es valida.' });
+      emitMatchErrorWithSync(socket, room, 'La carta seleccionada no es valida.', {
+        actor,
+        index,
+        handLength: hand.length
+      });
       return;
     }
 
@@ -1182,15 +1210,15 @@ io.on('connection', (socket) => {
     });
 
     if (!playCardAction.ok) {
-      socket.emit('match:error', { message: playCardAction.logMessage || 'No puedes jugar esa carta ahora.' });
+      emitMatchErrorWithSync(socket, room, playCardAction.logMessage || 'No puedes jugar esa carta ahora.', {
+        actor,
+        index,
+        cardId: card.id
+      });
       return;
     }
 
     recordPlayerActivity(room.matchState, actor, 'play_card');
-
-    if (shouldResetTableForNewSequence(room.matchState, playCardAction.type)) {
-      room.matchState.tablePlay = [];
-    }
 
     consumeCard(room.matchState, actor, index, card);
 
@@ -1341,7 +1369,11 @@ io.on('connection', (socket) => {
       return;
     }
 
-    socket.emit('match:error', { message: 'La accion aun no esta soportada por el backend.' });
+    emitMatchErrorWithSync(socket, room, 'La accion aun no esta soportada por el backend.', {
+      actor,
+      index,
+      playType: playCardAction.type
+    });
   });
 
   socket.on('match:discard', ({ indexes } = {}) => {
@@ -1354,17 +1386,17 @@ io.on('connection', (socket) => {
     });
 
     if (!room || !room.matchState) {
-      socket.emit('room:error', { message: 'No hay una partida activa en esta sala.' });
+      emitRoomErrorWithSync(socket, room, 'No hay una partida activa en esta sala.');
       return;
     }
 
     const actor = getPlayerRole(room, socket.id);
     if (!actor || room.matchState.currentTurn !== actor) {
-      socket.emit('match:error', { message: 'No es tu turno para descartar.' });
+      emitMatchErrorWithSync(socket, room, 'No es tu turno para descartar.', { actor, indexes });
       return;
     }
     if (room.matchState.pendingShot || room.matchState.pendingDefense || room.matchState.pendingBlindDiscard || room.matchState.pendingCombo) {
-      socket.emit('match:error', { message: 'No puedes descartar mientras hay una respuesta pendiente.' });
+      emitMatchErrorWithSync(socket, room, 'No puedes descartar mientras hay una respuesta pendiente.', { actor, indexes });
       return;
     }
 
@@ -1375,7 +1407,7 @@ io.on('connection', (socket) => {
       : [];
 
     if (uniqueIndexes.length === 0) {
-      socket.emit('match:error', { message: 'Selecciona al menos una carta para descartar.' });
+      emitMatchErrorWithSync(socket, room, 'Selecciona al menos una carta para descartar.', { actor, indexes });
       return;
     }
 
@@ -1393,7 +1425,6 @@ io.on('connection', (socket) => {
     room.matchState.discardPile = drawResult.discardPile;
     room.matchState.currentTurn = getOpponent(actor);
     room.matchState.hasActedThisTurn = false;
-    room.matchState.tablePlay = [];
     applyRedCardTurnProgress(room.matchState, actor);
     recordPlayerActivity(room.matchState, actor, 'discard');
 

@@ -562,16 +562,6 @@ const DiscardLane = ({ title, pile }) => {
   );
 };
 
-const TABLE_SEQUENCE_START_TYPES = new Set([
-  'pass-play',
-  'steal-defense',
-  'special-corner',
-  'special-chilena',
-  'shoot-card',
-  'penalty-card',
-  'penalty-legendary-card'
-]);
-
 const TutorialStepCard = ({ label }) => {
   const normalizedLabel = normalizeAssetName(label);
   const tutorialAliases = {
@@ -695,6 +685,7 @@ export default function App() {
   const [onlineRole, setOnlineRole] = useState(null);
   const [onlineSocketId, setOnlineSocketId] = useState(null);
   const [onlineError, setOnlineError] = useState('');
+  const [onlineActionPending, setOnlineActionPending] = useState(false);
   const [onlineDiagnostics, setOnlineDiagnostics] = useState([]);
   const [showOnlineCoinChoice, setShowOnlineCoinChoice] = useState(false);
   const [systemNotice, setSystemNotice] = useState('');
@@ -775,10 +766,12 @@ export default function App() {
   const isPlayerHandInteractionBlocked =
     !isPlayerTurn ||
     isDribbleVideoPlaying ||
+    onlineActionPending ||
     (pendingBlindDiscard?.actor === 'player' && blindDiscardTargetActor === 'opponent');
   const canUseTouchHandInteraction =
     !discardMode &&
     blindDiscardTargetActor !== 'player' &&
+    !onlineActionPending &&
     !isPlayerHandInteractionBlocked;
 
   const addLog = (message) => {
@@ -1621,6 +1614,7 @@ export default function App() {
       });
       setOnlineRoom(room);
       setOnlineRole(matchState.playerRole);
+      setOnlineActionPending(false);
       setShowOnlineCoinChoice(false);
       hydrateFromOnlineState(matchState);
       const swapActor = (actor) => (actor === 'player' ? 'opponent' : actor === 'opponent' ? 'player' : actor);
@@ -1658,12 +1652,14 @@ export default function App() {
       });
       setOnlineRoom(room);
       setOnlineRole(matchState.playerRole);
+      setOnlineActionPending(false);
       hydrateFromOnlineState(matchState);
     });
 
     socket.on('room:error', ({ message }) => {
       onlineDebugLog('room error', { message });
       addOnlineDiagnostic('Error de sala', { message });
+      setOnlineActionPending(false);
       setOnlineError(message);
       addLog(message);
     });
@@ -1671,6 +1667,7 @@ export default function App() {
     socket.on('match:error', ({ message }) => {
       onlineDebugLog('match error', { message });
       addOnlineDiagnostic('Error de partida', { message });
+      setOnlineActionPending(false);
       setOnlineError(message);
       addLog(message);
     });
@@ -1678,6 +1675,7 @@ export default function App() {
     socket.on('match:terminated', ({ message }) => {
       onlineDebugLog('match terminated', { message });
       addOnlineDiagnostic('Partida terminada', { message });
+      setOnlineActionPending(false);
       resetMatch();
       setSystemNotice(message || 'La partida fue terminada.');
     });
@@ -1685,6 +1683,7 @@ export default function App() {
     socket.on('session:missing', ({ message, code }) => {
       onlineDebugLog('session missing after reconnect', { message, code });
       addOnlineDiagnostic('Sesion online no disponible', { message, code });
+      setOnlineActionPending(false);
       resetMatch();
       setSystemNotice(message || 'La sesion online ya no esta disponible.');
     });
@@ -1692,6 +1691,7 @@ export default function App() {
     socket.on('disconnect', (reason) => {
       onlineDebugLog('socket disconnected', { reason, roomCode: onlineRoomCode });
       addOnlineDiagnostic('Socket desconectado', { reason, roomCode: onlineRoomCodeRef.current });
+      setOnlineActionPending(false);
       setOnlineError('La conexion online se interrumpio. Intentando reconectar...');
       setSystemNotice('Conexion online interrumpida. Intentando reconectar...');
     });
@@ -1699,6 +1699,7 @@ export default function App() {
     socket.on('connect_error', (error) => {
       onlineDebugLog('connect error', { message: error?.message });
       addOnlineDiagnostic('Error de conexion', { message: error?.message });
+      setOnlineActionPending(false);
       setOnlineError('No se pudo conectar con el servidor online.');
       setSystemNotice('No se pudo conectar con el servidor online.');
     });
@@ -2146,20 +2147,11 @@ export default function App() {
     ].slice(-TABLE_PLAY_MAX_CARDS));
   };
 
-  const shouldResetTableForNewSequence = (playType) =>
-    TABLE_SEQUENCE_START_TYPES.has(playType) &&
-    !pendingShot &&
-    !pendingDefense &&
-    !pendingBlindDiscard &&
-    !pendingCombo &&
-    !hasActedThisTurn &&
-    tablePlay.length > 0;
-
   useEffect(() => {
     const previousPossession = previousPossessionRef.current;
 
     if (previousPossession && possession && previousPossession !== possession) {
-      setTablePlay((previousPlay) => (previousPlay.length <= 2 ? previousPlay : previousPlay.slice(-2)));
+      setTablePlay([]);
     }
 
     // Fondo dinámico por posesión
@@ -2460,6 +2452,32 @@ export default function App() {
     socketRef.current?.connect?.();
   };
 
+  const emitOnlineMatchAction = (event, payload = {}) => {
+    if (!onlineEnabled || !socketRef.current) {
+      return false;
+    }
+
+    if (onlineActionPending) {
+      setSystemNotice('Esperando respuesta del servidor online.');
+      return false;
+    }
+
+    if (!socketRef.current.connected) {
+      setOnlineError('La conexion online no esta lista. Intentando reconectar...');
+      setSystemNotice('Reconectando con el servidor online...');
+      socketRef.current.connect?.();
+      return false;
+    }
+
+    setOnlineActionPending(true);
+    addOnlineDiagnostic('Enviando accion de partida', {
+      event,
+      roomCode: onlineRoomCodeRef.current || null
+    });
+    socketRef.current.emit(event, payload);
+    return true;
+  };
+
   const createOnlineRoom = () => {
     const normalizedName = onlinePlayerName.trim() || 'Jugador 1';
     setOnlinePlayerName(normalizedName);
@@ -2492,6 +2510,7 @@ export default function App() {
     setOnlineRoomCode('');
     setOnlineRoom(null);
     setOnlineRole(null);
+    setOnlineActionPending(false);
     setShowOnlineCoinChoice(false);
     setOnlineError('');
     clearDribbleAnimation();
@@ -2591,6 +2610,7 @@ export default function App() {
     setOnlineJoinCode('');
     setOnlineRoom(null);
     setOnlineRole(null);
+    setOnlineActionPending(false);
     setShowOnlineCoinChoice(false);
     setOnlineError('');
     setPlayerDisplayName('JUGADOR');
@@ -2813,7 +2833,6 @@ export default function App() {
     setHasActedThisTurn(false);
     setSelectedForDiscard([]);
     setDiscardMode(false);
-    setTablePlay([]);
 
     if (drawResult.reshuffled) {
       addLog('El mazo se vacio. Se barajo el descarte y se formo un nuevo mazo.');
@@ -2984,7 +3003,6 @@ export default function App() {
     }
 
     clearTransientState();
-    setTablePlay([]);
     setPossession(defensePlan.nextPossession);
     setCurrentTurn(defensePlan.nextTurn);
     setHasActedThisTurn(true);
@@ -3156,11 +3174,11 @@ export default function App() {
   };
 
   const endTurn = () => {
-    if (isDribbleVideoPlaying) {
+    if (isDribbleVideoPlaying || onlineActionPending) {
       return;
     }
     if (onlineEnabled && socketRef.current) {
-      socketRef.current.emit('match:end_turn');
+      emitOnlineMatchAction('match:end_turn');
       return;
     }
 
@@ -3193,7 +3211,6 @@ export default function App() {
           clearTransientState();
         }
 
-        setTablePlay([]);
         setPossession(noResponsePlan.nextPossession);
         setCurrentTurn(noResponsePlan.nextTurn);
         addLog(noResponsePlan.logMessage);
@@ -3221,7 +3238,6 @@ export default function App() {
     }
 
     setDiscardShowcasePendingArchive(true);
-    setTablePlay([]);
     setCurrentTurn(endTurnFlowPlan.nextActor);
     setHasActedThisTurn(false);
     setSelectedForDiscard([]);
@@ -3235,7 +3251,7 @@ export default function App() {
   };
 
   const handleDiscard = () => {
-    if (isDribbleVideoPlaying) {
+    if (isDribbleVideoPlaying || onlineActionPending) {
       return;
     }
     if (!canUseDiscard) {
@@ -3260,9 +3276,10 @@ export default function App() {
     }
 
     if (onlineEnabled && socketRef.current) {
-      socketRef.current.emit('match:discard', { indexes: selectedForDiscard });
-      setDiscardMode(false);
-      setSelectedForDiscard([]);
+      if (emitOnlineMatchAction('match:discard', { indexes: selectedForDiscard })) {
+        setDiscardMode(false);
+        setSelectedForDiscard([]);
+      }
       return;
     }
 
@@ -3322,6 +3339,11 @@ export default function App() {
   };
 
   const handlePlayerCardClick = (event, card, index) => {
+    if (onlineActionPending) {
+      event?.preventDefault?.();
+      return;
+    }
+
     if (suppressHandClickRef.current) {
       suppressHandClickRef.current = false;
       event?.preventDefault?.();
@@ -3344,7 +3366,7 @@ export default function App() {
 
   const executePlayCard = (card, index, isFromPlayer, options = {}) => {
     if (onlineEnabled && socketRef.current) {
-      socketRef.current.emit('match:play_card', { index });
+      emitOnlineMatchAction('match:play_card', { index });
       return;
     }
 
@@ -3378,10 +3400,6 @@ export default function App() {
         addLog(playCardAction.logMessage);
       }
       return;
-    }
-
-    if (shouldResetTableForNewSequence(playCardAction.type)) {
-      setTablePlay([]);
     }
 
     if (!skipSuccessAnimation && card.id === DRIBBLE_CARD_ID) {
@@ -3479,7 +3497,6 @@ export default function App() {
           setPendingCombo(null);
           setBonusTurnFor(null);
           setCounterAttackReady(false);
-          setTablePlay([]);
         }
         applyEngineStatePatch(playCardAction.statePatch);
         addLog(penaltyResponsePlan.logMessage);
@@ -3503,7 +3520,6 @@ export default function App() {
           setPendingCombo(null);
           setBonusTurnFor(null);
           setCounterAttackReady(false);
-          setTablePlay([]);
         }
         applyEngineStatePatch(playCardAction.statePatch);
         if (card.id === GOALKEEPER_SAVE_CARD_ID) {
@@ -3857,7 +3873,7 @@ export default function App() {
 
                       if (blindDiscardTargetActor === 'opponent' && pendingBlindDiscard.actor === 'player') {
                         if (onlineEnabled && socketRef.current) {
-                          socketRef.current.emit('match:play_card', { index });
+                          emitOnlineMatchAction('match:play_card', { index });
                         } else {
                           resolveBlindDiscard('player', index);
                         }
@@ -3868,8 +3884,8 @@ export default function App() {
                     }}
                     disabled={
                       blindDiscardTargetActor === 'opponent'
-                        ? pendingBlindDiscard.actor !== 'player' || isDribbleVideoPlaying
-                        : !isOpponentTurn || isDribbleVideoPlaying
+                        ? pendingBlindDiscard.actor !== 'player' || isDribbleVideoPlaying || onlineActionPending
+                        : !isOpponentTurn || isDribbleVideoPlaying || onlineActionPending
                     }
                     canSelectDiscard={false}
                     isDiscardMode={discardMode}
@@ -4064,7 +4080,7 @@ export default function App() {
               {canUseDiscard && isPlayerTurn && (
               <AppButton
                 onClick={handleDiscardButtonClick}
-                disabled={isDribbleVideoPlaying}
+                disabled={isDribbleVideoPlaying || onlineActionPending}
                 variant={discardMode && selectedForDiscard.length > 0 ? 'danger' : discardMode ? 'ghost' : 'secondary'}
                 className={`flex items-center gap-2 px-6 py-2.5 text-[10px] ${discardMode && selectedForDiscard.length > 0 ? 'scale-105' : ''}`}
               >
@@ -4074,7 +4090,7 @@ export default function App() {
 
               <AppButton
                 onClick={handleEndTurnButtonClick}
-                disabled={Boolean(!isPlayerTurn || pendingBlindDiscard || isDribbleVideoPlaying)}
+                disabled={Boolean(!isPlayerTurn || pendingBlindDiscard || isDribbleVideoPlaying || onlineActionPending)}
                 className="flex items-center gap-2 px-8 py-2.5 text-[10px]"
               >
                 <ArrowRightCircle size={14} /> FINALIZAR TURNO
@@ -4112,7 +4128,7 @@ export default function App() {
                 onPointerEnter={() => handlePlayerCardPointerEnter(index)}
                 onLongPressStart={handleCardLongPressStart}
                 onLongPressEnd={handleCardLongPressEnd}
-                disabled={!isPlayerTurn || isDribbleVideoPlaying || (pendingBlindDiscard?.actor === 'player' && blindDiscardTargetActor === 'opponent')}
+                disabled={isPlayerHandInteractionBlocked}
                 canSelectDiscard={canUseDiscard}
                 isDiscardMode={discardMode}
                 hideContent={blindDiscardTargetActor === 'player'}
@@ -4635,7 +4651,13 @@ export default function App() {
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/88 p-6">
                 <ModalCard
                   eyebrow="Fin del Partido"
-                  title={matchWinner === 'player' ? 'Gana Jugador' : 'Gana Rival'}
+                  title={
+                    matchWinner === 'player'
+                      ? `Gana ${playerDisplayName}`
+                      : matchWinner === 'opponent'
+                        ? `Gana ${opponentDisplayName}`
+                        : 'Fin del Partido'
+                  }
                   tone="emerald"
                   className="w-full max-w-md p-8 text-center"
                 >

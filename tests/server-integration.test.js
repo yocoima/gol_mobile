@@ -388,11 +388,13 @@ describe('online server integration', () => {
       const currentTurn = hostStarted.matchState.currentTurn;
       const outOfTurnSocket = currentTurn === 'player' ? guest : host;
       const errorPromise = waitForSocketEvent(outOfTurnSocket, 'match:error');
+      const resyncPromise = waitForSocketEvent(outOfTurnSocket, 'match:updated');
 
       outOfTurnSocket.emit('match:play_card', { index: 0 });
-      const error = await errorPromise;
+      const [error, resync] = await Promise.all([errorPromise, resyncPromise]);
 
       expect(error.message).toContain('Aun no es tu turno');
+      expect(resync.matchState.currentTurn).toBe(currentTurn);
     } finally {
       await closeClient(host);
       await closeClient(guest);
@@ -406,11 +408,100 @@ describe('online server integration', () => {
       const currentTurn = hostStarted.matchState.currentTurn;
       const actorSocket = currentTurn === 'player' ? host : guest;
       const errorPromise = waitForSocketEvent(actorSocket, 'match:error');
+      const resyncPromise = waitForSocketEvent(actorSocket, 'match:updated');
 
       actorSocket.emit('match:discard', { indexes: [] });
-      const error = await errorPromise;
+      const [error, resync] = await Promise.all([errorPromise, resyncPromise]);
 
       expect(error.message).toBe('Selecciona al menos una carta para descartar.');
+      expect(resync.matchState.currentTurn).toBe(currentTurn);
+    } finally {
+      await closeClient(host);
+      await closeClient(guest);
+    }
+  });
+
+  it('keeps table cards when only the turn changes online', async () => {
+    const preset = createTestPreset({
+      playerHand: ['pc', 'pc', 'pc', 'pc', 'pc'],
+      opponentHand: ['pc', 'pc', 'pc', 'pc', 'pc'],
+      deck: ['pc', 'pc', 'pc', 'pc', 'pc', 'pc'],
+      currentTurn: 'player',
+      possession: 'player',
+      activePlay: [{ id: 'pc', name: 'Pase Corto', value: 1, color: 'bg-emerald-500', tableActor: 'player' }],
+      tablePlay: [{ id: 'pc', name: 'Pase Corto', value: 1, color: 'bg-emerald-500', tableActor: 'player' }]
+    });
+    const { host, guest } = await setupStartedMatch({ TEST_MATCH_PRESET: preset });
+
+    try {
+      const hostUpdatePromise = waitForSocketEvent(host, 'match:updated');
+      const guestUpdatePromise = waitForSocketEvent(guest, 'match:updated');
+      host.emit('match:end_turn');
+
+      const [hostUpdate, guestUpdate] = await Promise.all([hostUpdatePromise, guestUpdatePromise]);
+      expect(hostUpdate.matchState.currentTurn).toBe('opponent');
+      expect(hostUpdate.matchState.possession).toBe('player');
+      expect(hostUpdate.matchState.tablePlay.map((card) => card.id)).toEqual(['pc']);
+      expect(guestUpdate.matchState.tablePlay.map((card) => card.id)).toEqual(['pc']);
+    } finally {
+      await closeClient(host);
+      await closeClient(guest);
+    }
+  });
+
+  it('keeps table cards after a discard because possession does not change', async () => {
+    const preset = createTestPreset({
+      playerHand: ['pc', 'pc', 'pc', 'pc', 'pc'],
+      opponentHand: ['pc', 'pc', 'pc', 'pc', 'pc'],
+      deck: ['pc', 'pc', 'pc', 'pc', 'pc', 'pc'],
+      currentTurn: 'player',
+      possession: 'player',
+      tablePlay: [{ id: 'pl', name: 'Pase Largo', value: 2, color: 'bg-blue-500', tableActor: 'player' }]
+    });
+    const { host, guest } = await setupStartedMatch({ TEST_MATCH_PRESET: preset });
+
+    try {
+      const hostUpdatePromise = waitForSocketEvent(host, 'match:updated');
+      const guestUpdatePromise = waitForSocketEvent(guest, 'match:updated');
+      host.emit('match:discard', { indexes: [0] });
+
+      const [hostUpdate, guestUpdate] = await Promise.all([hostUpdatePromise, guestUpdatePromise]);
+      expect(hostUpdate.matchState.currentTurn).toBe('opponent');
+      expect(hostUpdate.matchState.possession).toBe('player');
+      expect(hostUpdate.matchState.tablePlay.map((card) => card.id)).toEqual(['pl']);
+      expect(guestUpdate.matchState.tablePlay.map((card) => card.id)).toEqual(['pl']);
+    } finally {
+      await closeClient(host);
+      await closeClient(guest);
+    }
+  });
+
+  it('clears table cards when possession changes online', async () => {
+    const preset = createTestPreset({
+      playerHand: ['pc', 'pc', 'pc', 'pc', 'pc'],
+      opponentHand: ['pc', 'pc', 'pc', 'pc', 'pc'],
+      deck: ['pc', 'pc', 'pc', 'pc', 'pc', 'pc'],
+      currentTurn: 'player',
+      possession: 'player',
+      pendingDefense: {
+        defender: 'opponent',
+        possessor: 'player',
+        defenseCardId: 'ba'
+      },
+      tablePlay: [{ id: 'ba', name: 'Barrida', value: 0, color: 'bg-slate-700', tableActor: 'opponent' }]
+    });
+    const { host, guest } = await setupStartedMatch({ TEST_MATCH_PRESET: preset });
+
+    try {
+      const hostUpdatePromise = waitForSocketEvent(host, 'match:updated');
+      const guestUpdatePromise = waitForSocketEvent(guest, 'match:updated');
+      host.emit('match:end_turn');
+
+      const [hostUpdate, guestUpdate] = await Promise.all([hostUpdatePromise, guestUpdatePromise]);
+      expect(hostUpdate.matchState.currentTurn).toBe('opponent');
+      expect(hostUpdate.matchState.possession).toBe('opponent');
+      expect(hostUpdate.matchState.tablePlay).toEqual([]);
+      expect(guestUpdate.matchState.tablePlay).toEqual([]);
     } finally {
       await closeClient(host);
       await closeClient(guest);
@@ -632,7 +723,7 @@ describe('online server integration', () => {
       expect(guestUpdate.matchState.currentTurn).toBe('opponent');
       expect(hostUpdate.matchState.currentTurn).toBe('opponent');
       expect(guestUpdate.matchState.activePlay.map((card) => card.id)).toEqual(['pc_auto']);
-      expect(guestUpdate.matchState.tablePlay.map((card) => card.id)).toEqual(['pc_auto', 'var']);
+      expect(guestUpdate.matchState.tablePlay).toEqual([]);
     } finally {
       await closeClient(host);
       await closeClient(guest);
@@ -816,6 +907,57 @@ describe('online server integration', () => {
       expect(secondTimeout.matchState.gameState).toBe('playing');
       expect(secondTimeout.matchState.matchWinner).toBeNull();
       expect(secondTimeout.matchState.consecutiveTimeoutCount).toBe(1);
+    } finally {
+      await closeClient(host);
+      await closeClient(guest);
+    }
+  });
+
+  it('awards a timeout loss to the surviving player regardless of the score', async () => {
+    const preset = createTestPreset({
+      playerHand: ['pc', 'pc', 'pc', 'pc', 'pc'],
+      opponentHand: ['pc', 'pc', 'pc', 'pc', 'pc'],
+      deck: ['pc', 'pc', 'pc', 'pc', 'pc', 'pc'],
+      playerScore: 4,
+      opponentScore: 0,
+      currentTurn: 'player',
+      possession: 'player',
+      pendingShot: null,
+      pendingDefense: null,
+      pendingBlindDiscard: null,
+      pendingCombo: null,
+      activePlay: []
+    });
+    const { host, guest } = await setupStartedMatch({
+      TEST_MATCH_PRESET: preset,
+      ONLINE_TURN_TIMEOUT_MS: '160'
+    });
+
+    try {
+      await waitForSocketEventMatching(
+        host,
+        'match:updated',
+        (payload) => payload.matchState.lastEvent?.type === 'turn_timeout'
+      );
+
+      const backToPlayerPromise = waitForSocketEventMatching(
+        host,
+        'match:updated',
+        (payload) => payload.matchState.currentTurn === 'player'
+      );
+      guest.emit('match:end_turn');
+      await backToPlayerPromise;
+
+      const finished = await waitForSocketEventMatching(
+        host,
+        'match:updated',
+        (payload) => payload.matchState.lastEvent?.type === 'turn_timeout_loss'
+      );
+      expect(finished.matchState.gameState).toBe('finished');
+      expect(finished.matchState.playerScore).toBe(4);
+      expect(finished.matchState.opponentScore).toBe(0);
+      expect(finished.matchState.matchWinner).toBe('opponent');
+      expect(finished.matchState.lastEvent.winner).toBe('opponent');
     } finally {
       await closeClient(host);
       await closeClient(guest);
