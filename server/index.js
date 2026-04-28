@@ -21,6 +21,7 @@ const httpServer = createServer(app);
 const port = Number(process.env.PORT || 3001);
 const disconnectGraceMs = Number(process.env.DISCONNECT_GRACE_MS || 30000);
 const onlineTurnTimeoutMs = Number(process.env.ONLINE_TURN_TIMEOUT_MS || 30000);
+const tablePlayMaxCards = Number(process.env.TABLE_PLAY_MAX_CARDS || 8);
 const allowedOrigins = (process.env.CLIENT_ORIGIN || 'http://localhost:5173')
   .split(',')
   .map((origin) => origin.trim().replace(/\/$/, ''))
@@ -70,6 +71,20 @@ const serverDebugLog = (message, extra = {}) => {
     Object.keys(extra).length > 0 ? extra : ''
   );
 };
+
+const serializeError = (error) => ({
+  name: error?.name ?? null,
+  message: error?.message ?? String(error),
+  stack: error?.stack ?? null
+});
+
+process.on('unhandledRejection', (reason) => {
+  serverDebugLog('unhandled rejection', serializeError(reason));
+});
+
+process.on('uncaughtException', (error) => {
+  serverDebugLog('uncaught exception', serializeError(error));
+});
 
 const createRoomCode = () => Math.random().toString(36).slice(2, 8).toUpperCase();
 const deckCardById = new Map(BASE_DECK_DEFINITION.map((card) => [card.id, card]));
@@ -229,7 +244,7 @@ const appendCardToTable = (matchState, card, actor = null) => {
   matchState.tablePlay = [
     ...(matchState.tablePlay || []),
     { ...card, tableActor: actor ?? card.tableActor ?? null }
-  ];
+  ].slice(-tablePlayMaxCards);
 };
 const trimTablePlayOnPossessionChange = (matchState, previousPossession, nextPossession) => {
   if (!previousPossession || !nextPossession || previousPossession === nextPossession) {
@@ -238,9 +253,8 @@ const trimTablePlayOnPossessionChange = (matchState, previousPossession, nextPos
 
   matchState.tablePlay = (matchState.tablePlay || []).slice(-2);
 };
-const shouldResetTableForNewSequence = (matchState, actor, playType) =>
-  ['pass-play', 'special-corner', 'special-chilena', 'shoot-card', 'penalty-card', 'penalty-legendary-card'].includes(playType) &&
-  matchState.possession === actor &&
+const shouldResetTableForNewSequence = (matchState, playType) =>
+  ['pass-play', 'steal-defense', 'special-corner', 'special-chilena', 'shoot-card', 'penalty-card', 'penalty-legendary-card'].includes(playType) &&
   !matchState.pendingShot &&
   !matchState.pendingDefense &&
   !matchState.pendingBlindDiscard &&
@@ -277,6 +291,23 @@ const pushRecentAction = (matchState, action) => {
     { ...action, id: createEventId(), at: new Date().toISOString() },
     ...actions
   ].slice(0, 24);
+};
+
+const recordPlayerActivity = (matchState, actor, activityType) => {
+  if (!matchState || !actor) {
+    return;
+  }
+
+  if (matchState.lastTimeoutActor === actor) {
+    matchState.lastTimeoutActor = null;
+    matchState.consecutiveTimeoutCount = 0;
+  }
+
+  matchState.lastActivity = {
+    actor,
+    type: activityType,
+    at: new Date().toISOString()
+  };
 };
 
 const applyStatePatch = (matchState, statePatch) => {
@@ -356,6 +387,7 @@ const applyGoal = (matchState, scorer, reason) => {
   matchState.hasActedThisTurn = false;
   applyRedCardTurnProgress(matchState, scorer);
   clearTransientState(matchState);
+  matchState.tablePlay = [];
 
   if (goalOutcome.isMatchFinished) {
     matchState.gameState = 'finished';
@@ -419,6 +451,7 @@ const resolveServerEndTurn = (room) => {
         clearTransientState(room.matchState);
       }
 
+      room.matchState.tablePlay = [];
       const previousPossession = room.matchState.possession;
       room.matchState.possession = noResponsePlan.nextPossession;
       trimTablePlayOnPossessionChange(room.matchState, previousPossession, noResponsePlan.nextPossession);
@@ -447,6 +480,7 @@ const resolveServerEndTurn = (room) => {
 
   room.matchState.currentTurn = flowPlan.nextActor;
   room.matchState.hasActedThisTurn = false;
+  room.matchState.tablePlay = [];
   return { ok: true };
 };
 
@@ -644,6 +678,7 @@ const startDefenseResolution = (matchState, defender, defenseCard) => {
   }
 
   clearTransientState(matchState);
+  matchState.tablePlay = [];
   matchState.possession = defensePlan.nextPossession;
   trimTablePlayOnPossessionChange(matchState, previousPossession, defensePlan.nextPossession);
   matchState.currentTurn = defensePlan.nextTurn;
@@ -879,6 +914,14 @@ const io = new Server(httpServer, {
   cors: corsOptions
 });
 
+io.engine.on('connection_error', (error) => {
+  serverDebugLog('socket engine connection error', {
+    code: error.code,
+    message: error.message,
+    context: error.context ?? null
+  });
+});
+
 io.on('connection', (socket) => {
   const clientId = getClientIdFromSocket(socket);
   serverDebugLog('socket connected', {
@@ -1078,6 +1121,7 @@ io.on('connection', (socket) => {
       socket.emit('match:error', { message: outcome.message });
       return;
     }
+    recordPlayerActivity(room.matchState, actor, 'end_turn');
     emitMatchState(io, room);
   });
 
@@ -1113,6 +1157,7 @@ io.on('connection', (socket) => {
         return;
       }
 
+      recordPlayerActivity(room.matchState, actor, 'blind_discard');
       emitMatchState(io, room);
       return;
     }
@@ -1141,7 +1186,9 @@ io.on('connection', (socket) => {
       return;
     }
 
-    if (shouldResetTableForNewSequence(room.matchState, actor, playCardAction.type)) {
+    recordPlayerActivity(room.matchState, actor, 'play_card');
+
+    if (shouldResetTableForNewSequence(room.matchState, playCardAction.type)) {
       room.matchState.tablePlay = [];
     }
 
@@ -1212,6 +1259,7 @@ io.on('connection', (socket) => {
         room.matchState.pendingCombo = null;
         room.matchState.bonusTurnFor = null;
         room.matchState.counterAttackReady = false;
+        room.matchState.tablePlay = [];
       }
       if (playCardAction.type === 'save-response' && card.id === 'paq' && playCardAction.plan.type === 'turn-change') {
         room.matchState.lastEvent = { id: createEventId(), type: 'save_success', actor };
@@ -1345,7 +1393,9 @@ io.on('connection', (socket) => {
     room.matchState.discardPile = drawResult.discardPile;
     room.matchState.currentTurn = getOpponent(actor);
     room.matchState.hasActedThisTurn = false;
+    room.matchState.tablePlay = [];
     applyRedCardTurnProgress(room.matchState, actor);
+    recordPlayerActivity(room.matchState, actor, 'discard');
 
     for (const card of cardsToDiscard) {
       pushRecentAction(room.matchState, {

@@ -272,13 +272,27 @@ input {
   border-radius: 999px;
   background: rgba(2, 6, 23, 0.58);
   padding: 0.65rem 1rem;
+  max-width: min(90vw, 460px);
   text-align: center;
   font-size: 11px;
   font-weight: 900;
+  line-height: 1.25;
   text-transform: uppercase;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.12em;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32);
   backdrop-filter: blur(10px);
+  overflow-wrap: anywhere;
+}
+
+.match-lane-slot {
+  position: relative;
+  z-index: 12;
+  display: flex;
+  min-height: 46px;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.5rem;
 }
 
 .notice-pill-cyan {
@@ -575,6 +589,98 @@ input {
   backdrop-filter: blur(6px);
 }
 
+.online-diagnostics {
+  border-radius: 0.85rem;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(2, 6, 23, 0.5);
+  padding: 0.65rem 0.8rem;
+}
+
+.online-diagnostics summary {
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: rgba(165, 243, 252, 0.9);
+}
+
+.online-diagnostics-list {
+  margin-top: 0.6rem;
+  display: grid;
+  max-height: 152px;
+  gap: 0.45rem;
+  overflow: auto;
+  padding-right: 0.2rem;
+}
+
+.online-diagnostics-row {
+  display: grid;
+  gap: 0.15rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  padding-top: 0.45rem;
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+.online-diagnostics-time {
+  font-weight: 900;
+  color: rgba(253, 224, 71, 0.8);
+}
+
+.online-diagnostics-message {
+  font-weight: 800;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.online-diagnostics-detail {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(203, 213, 225, 0.62);
+}
+
+.online-error-panel {
+  position: fixed;
+  left: 0.75rem;
+  top: 4.8rem;
+  z-index: 49;
+  max-width: min(320px, calc(100vw - 1.5rem));
+  border-radius: 1rem;
+  border: 1px solid rgba(248, 113, 113, 0.38);
+  background: rgba(15, 23, 42, 0.88);
+  padding: 0.8rem 0.95rem;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(14px);
+}
+
+.online-error-title {
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  color: #fecaca;
+}
+
+.online-error-message {
+  margin-top: 0.25rem;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.25;
+  color: white;
+}
+
+.online-error-log {
+  margin-top: 0.35rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(226, 232, 240, 0.66);
+}
+
 .hand-card-name {
   margin-top: 0.5rem;
   min-height: 18px;
@@ -703,6 +809,17 @@ input {
   background: linear-gradient(180deg, rgba(6, 13, 25, 0.84), rgba(9, 18, 34, 0.74));
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(14px);
+}
+
+.field-event-toast {
+  pointer-events: none;
+  position: fixed;
+  inset-inline: 0;
+  top: clamp(5.7rem, 15dvh, 8rem);
+  z-index: 69;
+  display: flex;
+  justify-content: center;
+  padding-inline: 1rem;
 }
 
 .online-panel {
@@ -898,6 +1015,12 @@ input {
   .notice-pill {
     padding: 0.55rem 0.85rem;
     font-size: 9px;
+    letter-spacing: 0.08em;
+  }
+
+  .match-lane-slot {
+    min-height: 34px;
+    padding-inline: 0.25rem;
   }
 
   .match-table-panel {
@@ -1010,6 +1133,18 @@ input {
 
   .combo-panel {
     border-radius: 1.25rem;
+  }
+
+  .online-error-panel {
+    left: 0.5rem;
+    right: 0.5rem;
+    top: 3.8rem;
+    max-width: none;
+  }
+
+  .field-event-toast {
+    top: 4.5rem;
+    padding-inline: 0.7rem;
   }
 }
 

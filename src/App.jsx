@@ -66,7 +66,9 @@ const CARD_IMAGE_BY_ID = {
 const YELLOW_CARD_IMAGE = yellowCardImage;
 const RED_CARD_IMAGE = redCardImage;
 const BALL_IMAGE = CARD_IMAGE_BY_NAME.balon ?? null;
-const AI_STATUS_TIMEOUT_MS = 3400;
+const AI_STATUS_TIMEOUT_MS = 5600;
+const ACTION_NOTICE_TIMEOUT_MS = 6800;
+const SYSTEM_NOTICE_TIMEOUT_MS = 5600;
 const FIELD_EVENT_DURATION_MS = 3952;
 const DRIBBLE_CARD_ID = 'reg';
 const CHILENA_CARD_ID = 'ch';
@@ -77,6 +79,8 @@ const TURN_COUNTDOWN_SECONDS = 30;
 const HAND_DRAG_START_DISTANCE = 22;
 const DROP_SNAP_DURATION_MS = 180;
 const DROP_RETURN_DURATION_MS = 220;
+const ONLINE_DIAGNOSTIC_LIMIT = 14;
+const TABLE_PLAY_MAX_CARDS = 8;
 const CARD_IMAGE_ALIASES = {
   'barrida': ['barrida'],
   'saque banda': ['saque de banda', 'saque banda'],
@@ -560,6 +564,7 @@ const DiscardLane = ({ title, pile }) => {
 
 const TABLE_SEQUENCE_START_TYPES = new Set([
   'pass-play',
+  'steal-defense',
   'special-corner',
   'special-chilena',
   'shoot-card',
@@ -690,6 +695,7 @@ export default function App() {
   const [onlineRole, setOnlineRole] = useState(null);
   const [onlineSocketId, setOnlineSocketId] = useState(null);
   const [onlineError, setOnlineError] = useState('');
+  const [onlineDiagnostics, setOnlineDiagnostics] = useState([]);
   const [showOnlineCoinChoice, setShowOnlineCoinChoice] = useState(false);
   const [systemNotice, setSystemNotice] = useState('');
   const [audioMuted, setAudioMuted] = useState(false);
@@ -778,6 +784,42 @@ export default function App() {
   const addLog = (message) => {
     setGameLog((previousLog) => [message, ...previousLog].slice(0, 5));
   };
+
+  const addOnlineDiagnostic = useCallback((message, extra = null) => {
+    let detail = '';
+
+    if (extra) {
+      try {
+        detail = JSON.stringify(extra);
+      } catch {
+        detail = '[detalle no serializable]';
+      }
+    }
+
+    const timestamp = new Date().toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+
+    setOnlineDiagnostics((previousLogs) => {
+      const nextLogs = [
+        {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          timestamp,
+          message,
+          detail
+        },
+        ...previousLogs
+      ].slice(0, ONLINE_DIAGNOSTIC_LIMIT);
+
+      if (typeof window !== 'undefined') {
+        window.__GOL_ONLINE_LOGS__ = nextLogs;
+      }
+
+      return nextLogs;
+    });
+  }, []);
 
   useEffect(() => {
     const handleTutorialMessage = (event) => {
@@ -1381,7 +1423,7 @@ export default function App() {
 
     const timeoutId = window.setTimeout(() => {
       setSystemNotice('');
-    }, 4400);
+    }, SYSTEM_NOTICE_TIMEOUT_MS);
 
     return () => window.clearTimeout(timeoutId);
   }, [systemNotice]);
@@ -1393,7 +1435,7 @@ export default function App() {
 
     const timeoutId = window.setTimeout(() => {
       setLaneNotices({ player: '', opponent: '' });
-    }, 4200);
+    }, ACTION_NOTICE_TIMEOUT_MS);
 
     return () => window.clearTimeout(timeoutId);
   }, [laneNotices.player, laneNotices.opponent]);
@@ -1489,11 +1531,13 @@ export default function App() {
     });
     socketRef.current = socket;
     onlineDebugLog('creating online socket', { apiUrl: ONLINE_API_URL, clientId });
+    addOnlineDiagnostic('Creando conexion online', { apiUrl: ONLINE_API_URL, clientId });
 
     const manager = socket.io;
 
     socket.on('connect', () => {
       onlineDebugLog('socket connected', { socketId: socket.id, clientId });
+      addOnlineDiagnostic('Socket conectado', { socketId: socket.id });
       setOnlineSocketId(socket.id);
       setOnlineError('');
       const currentRoomCode = onlineRoomCodeRef.current;
@@ -1511,6 +1555,7 @@ export default function App() {
 
     socket.on('server:ready', ({ socketId }) => {
       onlineDebugLog('server ready received', { socketId });
+      addOnlineDiagnostic('Servidor online listo', { socketId });
       setOnlineSocketId(socketId);
       const currentRoomCode = onlineRoomCodeRef.current;
       if (currentRoomCode) {
@@ -1521,6 +1566,11 @@ export default function App() {
 
     socket.on('room:created', ({ room, youAreHost }) => {
       onlineDebugLog('room created', { roomCode: room?.code, youAreHost });
+      addOnlineDiagnostic('Sala sincronizada', {
+        roomCode: room?.code,
+        status: room?.status,
+        youAreHost
+      });
       setOnlineRoom(room);
       setOnlineRoomCode(room.code);
       setOnlineRole(youAreHost ? 'player' : null);
@@ -1533,6 +1583,15 @@ export default function App() {
         status: room?.status,
         playerCount: room?.playerCount,
         players: room?.players
+      });
+      addOnlineDiagnostic('Sala actualizada', {
+        roomCode: room?.code,
+        status: room?.status,
+        playerCount: room?.playerCount,
+        players: room?.players?.map((player) => ({
+          name: player.name,
+          connected: player.connected
+        }))
       });
       setOnlineRoom(room);
       setOnlineRoomCode(room.code);
@@ -1549,6 +1608,12 @@ export default function App() {
 
     socket.on('match:started', ({ room, matchState }) => {
       onlineDebugLog('match started', {
+        roomCode: room?.code,
+        role: matchState?.playerRole,
+        currentTurn: matchState?.currentTurn,
+        possession: matchState?.possession
+      });
+      addOnlineDiagnostic('Partida online iniciada', {
         roomCode: room?.code,
         role: matchState?.playerRole,
         currentTurn: matchState?.currentTurn,
@@ -1583,6 +1648,14 @@ export default function App() {
         pendingDefense: matchState?.pendingDefense,
         pendingShot: matchState?.pendingShot
       });
+      addOnlineDiagnostic('Partida actualizada', {
+        roomCode: room?.code,
+        role: matchState?.playerRole,
+        gameState: matchState?.gameState,
+        currentTurn: matchState?.currentTurn,
+        possession: matchState?.possession,
+        lastEvent: matchState?.lastEvent?.type ?? null
+      });
       setOnlineRoom(room);
       setOnlineRole(matchState.playerRole);
       hydrateFromOnlineState(matchState);
@@ -1590,56 +1663,69 @@ export default function App() {
 
     socket.on('room:error', ({ message }) => {
       onlineDebugLog('room error', { message });
+      addOnlineDiagnostic('Error de sala', { message });
       setOnlineError(message);
       addLog(message);
     });
 
     socket.on('match:error', ({ message }) => {
       onlineDebugLog('match error', { message });
+      addOnlineDiagnostic('Error de partida', { message });
       setOnlineError(message);
       addLog(message);
     });
 
     socket.on('match:terminated', ({ message }) => {
       onlineDebugLog('match terminated', { message });
+      addOnlineDiagnostic('Partida terminada', { message });
       resetMatch();
       setSystemNotice(message || 'La partida fue terminada.');
     });
 
     socket.on('session:missing', ({ message, code }) => {
       onlineDebugLog('session missing after reconnect', { message, code });
+      addOnlineDiagnostic('Sesion online no disponible', { message, code });
       resetMatch();
       setSystemNotice(message || 'La sesion online ya no esta disponible.');
     });
 
     socket.on('disconnect', (reason) => {
       onlineDebugLog('socket disconnected', { reason, roomCode: onlineRoomCode });
+      addOnlineDiagnostic('Socket desconectado', { reason, roomCode: onlineRoomCodeRef.current });
       setOnlineError('La conexion online se interrumpio. Intentando reconectar...');
+      setSystemNotice('Conexion online interrumpida. Intentando reconectar...');
     });
 
     socket.on('connect_error', (error) => {
       onlineDebugLog('connect error', { message: error?.message });
+      addOnlineDiagnostic('Error de conexion', { message: error?.message });
       setOnlineError('No se pudo conectar con el servidor online.');
+      setSystemNotice('No se pudo conectar con el servidor online.');
     });
 
     manager.on('reconnect_attempt', (attempt) => {
       onlineDebugLog('reconnect attempt', { attempt });
+      addOnlineDiagnostic('Intentando reconectar', { attempt });
       setOnlineError(`Reconectando con el servidor online... intento ${attempt}`);
     });
 
     manager.on('reconnect', (attempt) => {
       onlineDebugLog('socket reconnected', { attempt, socketId: socket.id });
+      addOnlineDiagnostic('Conexion online recuperada', { attempt, socketId: socket.id });
       setOnlineError('');
       setSystemNotice('Conexion online recuperada.');
     });
 
     manager.on('reconnect_error', (error) => {
       onlineDebugLog('reconnect error', { message: error?.message });
+      addOnlineDiagnostic('Error al reconectar', { message: error?.message });
     });
 
     manager.on('reconnect_failed', () => {
       onlineDebugLog('reconnect failed');
+      addOnlineDiagnostic('Reconexion fallida');
       setOnlineError('No se pudo recuperar la conexion online. Vuelve a entrar a la sala.');
+      setSystemNotice('No se pudo recuperar la conexion online.');
     });
 
     return () => {
@@ -1654,7 +1740,7 @@ export default function App() {
         socketRef.current = null;
       }
     };
-  }, [onlineEnabled]);
+  }, [onlineEnabled, addOnlineDiagnostic]);
 
   const { getHand, hasCardInHand } = engineContext;
   const setSanctionFor = (actor, sanction) => {
@@ -2054,12 +2140,14 @@ export default function App() {
       return;
     }
 
-    setTablePlay((previousPlay) => [...previousPlay, { ...card, tableActor: actor ?? card.tableActor ?? null }]);
+    setTablePlay((previousPlay) => [
+      ...previousPlay,
+      { ...card, tableActor: actor ?? card.tableActor ?? null }
+    ].slice(-TABLE_PLAY_MAX_CARDS));
   };
 
-  const shouldResetTableForNewSequence = (actor, playType) =>
+  const shouldResetTableForNewSequence = (playType) =>
     TABLE_SEQUENCE_START_TYPES.has(playType) &&
-    possession === actor &&
     !pendingShot &&
     !pendingDefense &&
     !pendingBlindDiscard &&
@@ -2157,6 +2245,10 @@ export default function App() {
                 returnTurnTo: swapActor(matchState.pendingBlindDiscard.returnTurnTo)
               }
             : null,
+          tablePlay: (matchState.tablePlay || []).map((card) => ({
+            ...card,
+            tableActor: swapActor(card.tableActor)
+          })),
           bonusTurnFor: swapActor(matchState.bonusTurnFor),
           matchWinner: swapActor(matchState.matchWinner),
           recentActions: (matchState.recentActions || []).map((action) => ({
@@ -2352,6 +2444,11 @@ export default function App() {
       event,
       payload,
       connected: Boolean(socket?.connected)
+    });
+    addOnlineDiagnostic('Enviando evento online', {
+      event,
+      connected: Boolean(socket?.connected),
+      roomCode: payload?.code ?? onlineRoomCodeRef.current ?? null
     });
 
     if (socket?.connected) {
@@ -2716,6 +2813,7 @@ export default function App() {
     setHasActedThisTurn(false);
     setSelectedForDiscard([]);
     setDiscardMode(false);
+    setTablePlay([]);
 
     if (drawResult.reshuffled) {
       addLog('El mazo se vacio. Se barajo el descarte y se formo un nuevo mazo.');
@@ -2817,6 +2915,7 @@ export default function App() {
 
     applyRedCardTurnProgress(scorer);
     clearTransientState();
+    setTablePlay([]);
     setHasActedThisTurn(false);
 
     if (goalOutcome.isMatchFinished) {
@@ -2885,6 +2984,7 @@ export default function App() {
     }
 
     clearTransientState();
+    setTablePlay([]);
     setPossession(defensePlan.nextPossession);
     setCurrentTurn(defensePlan.nextTurn);
     setHasActedThisTurn(true);
@@ -3093,6 +3193,7 @@ export default function App() {
           clearTransientState();
         }
 
+        setTablePlay([]);
         setPossession(noResponsePlan.nextPossession);
         setCurrentTurn(noResponsePlan.nextTurn);
         addLog(noResponsePlan.logMessage);
@@ -3120,6 +3221,7 @@ export default function App() {
     }
 
     setDiscardShowcasePendingArchive(true);
+    setTablePlay([]);
     setCurrentTurn(endTurnFlowPlan.nextActor);
     setHasActedThisTurn(false);
     setSelectedForDiscard([]);
@@ -3278,7 +3380,7 @@ export default function App() {
       return;
     }
 
-    if (shouldResetTableForNewSequence(actor, playCardAction.type)) {
+    if (shouldResetTableForNewSequence(playCardAction.type)) {
       setTablePlay([]);
     }
 
@@ -3377,6 +3479,7 @@ export default function App() {
           setPendingCombo(null);
           setBonusTurnFor(null);
           setCounterAttackReady(false);
+          setTablePlay([]);
         }
         applyEngineStatePatch(playCardAction.statePatch);
         addLog(penaltyResponsePlan.logMessage);
@@ -3400,6 +3503,7 @@ export default function App() {
           setPendingCombo(null);
           setBonusTurnFor(null);
           setCounterAttackReady(false);
+          setTablePlay([]);
         }
         applyEngineStatePatch(playCardAction.statePatch);
         if (card.id === GOALKEEPER_SAVE_CARD_ID) {
@@ -3780,25 +3884,13 @@ export default function App() {
           )}
         </div>
 
-        {gameState === 'playing' && !onlineCoinFlipReveal && !isDribbleVideoPlaying ? (
-          <div className="pointer-events-none absolute left-1/2 top-[16%] z-10 flex w-full max-w-[300px] -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-2 px-2 max-sm:top-[18%] max-sm:max-w-[240px]">
-            {laneNotices.opponent ? (
-              <div className="notice-pill notice-pill-emerald">
-                {laneNotices.opponent}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-
-        {gameState === 'playing' && !onlineCoinFlipReveal && !isDribbleVideoPlaying ? (
-          <div className="pointer-events-none absolute left-1/2 bottom-[36%] z-10 flex w-full max-w-[300px] -translate-x-1/2 translate-y-1/2 flex-col items-center gap-2 px-2 max-sm:bottom-[38%] max-sm:max-w-[240px]">
-            {laneNotices.player ? (
-              <div className="notice-pill notice-pill-cyan">
-                {laneNotices.player}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
+        <div className="match-lane-slot">
+          {gameState === 'playing' && !onlineCoinFlipReveal && !isDribbleVideoPlaying && laneNotices.opponent ? (
+            <div className="notice-pill notice-pill-emerald">
+              {laneNotices.opponent}
+            </div>
+          ) : null}
+        </div>
 
         <div
           className="z-10 flex w-full max-w-4xl items-center justify-center gap-4 px-4 max-sm:gap-2 max-sm:px-1"
@@ -3877,6 +3969,14 @@ export default function App() {
             )}
           </div>
         </div>
+
+            <div className="match-lane-slot">
+              {gameState === 'playing' && !onlineCoinFlipReveal && !isDribbleVideoPlaying && laneNotices.player ? (
+                <div className="notice-pill notice-pill-cyan">
+                  {laneNotices.player}
+                </div>
+              ) : null}
+            </div>
 
             {statusBannerMessage && (
               <div className="status-banner mt-2 hidden sm:block">
@@ -4177,6 +4277,22 @@ export default function App() {
                   {onlineError ? (
                     <div className="mt-2 text-sm font-semibold text-red-300">{onlineError}</div>
                   ) : null}
+                  {onlineDiagnostics.length > 0 ? (
+                    <details className="online-diagnostics mt-3" open={Boolean(onlineError)}>
+                      <summary>Registro online</summary>
+                      <div className="online-diagnostics-list">
+                        {onlineDiagnostics.map((entry) => (
+                          <div key={entry.id} className="online-diagnostics-row">
+                            <span className="online-diagnostics-time">{entry.timestamp}</span>
+                            <span className="online-diagnostics-message">{entry.message}</span>
+                            {entry.detail ? (
+                              <span className="online-diagnostics-detail">{entry.detail}</span>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  ) : null}
                 </div>
                 <div className="flex flex-wrap items-center justify-center gap-4">
                   {!onlineRoomCode ? (
@@ -4352,8 +4468,8 @@ export default function App() {
               </div>
             )}
 
-            {fieldEventAnimation && (
-              <div className="pointer-events-none fixed inset-x-0 top-24 z-[69] flex justify-center px-4 max-sm:top-20">
+            {fieldEventAnimation && !isDribbleVideoPlaying && !comboWindow && (
+              <div className="field-event-toast">
                 <div
                   className={`overlay-banner max-w-xl px-6 py-4 text-center ${
                     fieldEventAnimation.actor === 'player'
@@ -4461,12 +4577,24 @@ export default function App() {
               <div className="pointer-events-none fixed inset-x-0 top-6 z-50 flex justify-center px-4">
                 <div
                   className="rounded-full border border-white/25 bg-black/70 px-5 py-3 text-center text-sm font-black text-white shadow-[0_16px_35px_rgba(0,0,0,0.45)]"
-                  style={{ animation: 'goalPulse 1.6s ease-out forwards' }}
+                  style={{ animation: `goalPulse ${SYSTEM_NOTICE_TIMEOUT_MS}ms ease-out forwards` }}
                 >
                   {systemNotice}
                 </div>
               </div>
             )}
+
+            {onlineEnabled && onlineError ? (
+              <div className="online-error-panel">
+                <div className="online-error-title">Online</div>
+                <div className="online-error-message">{onlineError}</div>
+                {onlineDiagnostics[0] ? (
+                  <div className="online-error-log">
+                    {onlineDiagnostics[0].timestamp} - {onlineDiagnostics[0].message}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             {showOnlineCoinChoice && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-6">

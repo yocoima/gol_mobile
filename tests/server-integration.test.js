@@ -748,8 +748,74 @@ describe('online server integration', () => {
       expect(guestUpdate.matchState.playerScore).toBe(1);
       expect(hostUpdate.matchState.currentTurn).toBe('opponent');
       expect(guestUpdate.matchState.currentTurn).toBe('opponent');
-      expect(hostUpdate.matchState.tablePlay.some((card) => card.id === 'pel')).toBe(true);
-      expect(guestUpdate.matchState.tablePlay.some((card) => card.id === 'pel')).toBe(true);
+      expect(hostUpdate.matchState.tablePlay).toEqual([]);
+      expect(guestUpdate.matchState.tablePlay).toEqual([]);
+    } finally {
+      await closeClient(host);
+      await closeClient(guest);
+    }
+  });
+
+  it('does not finish on a second timeout after that player completed a turn', async () => {
+    const preset = createTestPreset({
+      playerHand: ['pc', 'pc', 'pc', 'pc', 'pc'],
+      opponentHand: ['pc', 'pc', 'pc', 'pc', 'pc'],
+      deck: ['pc', 'pc', 'pc', 'pc', 'pc', 'pc'],
+      currentTurn: 'player',
+      possession: 'player',
+      pendingShot: null,
+      pendingDefense: null,
+      pendingBlindDiscard: null,
+      pendingCombo: null,
+      activePlay: []
+    });
+    const { host, guest } = await setupStartedMatch({
+      TEST_MATCH_PRESET: preset,
+      ONLINE_TURN_TIMEOUT_MS: '180'
+    });
+
+    try {
+      const firstTimeout = await waitForSocketEventMatching(
+        host,
+        'match:updated',
+        (payload) => payload.matchState.lastEvent?.type === 'turn_timeout'
+      );
+      expect(firstTimeout.matchState.currentTurn).toBe('opponent');
+      expect(firstTimeout.matchState.consecutiveTimeoutCount).toBe(1);
+
+      const afterGuestEndPromise = waitForSocketEvent(host, 'match:updated');
+      guest.emit('match:end_turn');
+      const afterGuestEnd = await afterGuestEndPromise;
+      expect(afterGuestEnd.matchState.currentTurn).toBe('player');
+
+      const afterHostEndPromise = waitForSocketEventMatching(
+        guest,
+        'match:updated',
+        (payload) => payload.matchState.currentTurn === 'opponent'
+      );
+      host.emit('match:end_turn');
+      const afterHostEnd = await afterHostEndPromise;
+      expect(afterHostEnd.matchState.currentTurn).toBe('opponent');
+      expect(afterHostEnd.matchState.consecutiveTimeoutCount).toBe(0);
+
+      const afterSecondGuestEndPromise = waitForSocketEventMatching(
+        host,
+        'match:updated',
+        (payload) => payload.matchState.currentTurn === 'player'
+      );
+      guest.emit('match:end_turn');
+      const afterSecondGuestEnd = await afterSecondGuestEndPromise;
+      expect(afterSecondGuestEnd.matchState.currentTurn).toBe('player');
+
+      const secondTimeout = await waitForSocketEventMatching(
+        host,
+        'match:updated',
+        (payload) => ['turn_timeout', 'turn_timeout_loss'].includes(payload.matchState.lastEvent?.type)
+      );
+      expect(secondTimeout.matchState.lastEvent?.type).toBe('turn_timeout');
+      expect(secondTimeout.matchState.gameState).toBe('playing');
+      expect(secondTimeout.matchState.matchWinner).toBeNull();
+      expect(secondTimeout.matchState.consecutiveTimeoutCount).toBe(1);
     } finally {
       await closeClient(host);
       await closeClient(guest);

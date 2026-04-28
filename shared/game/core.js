@@ -95,8 +95,12 @@ export const createInitialMatchState = ({ startingPlayer = 'player', deckDefinit
     pendingCombo: null,
     pendingBlindDiscard: null,
     activePlay: [],
+    tablePlay: [],
     discardPile: [],
     matchWinner: null,
+    turnDeadlineAt: null,
+    lastTimeoutActor: null,
+    consecutiveTimeoutCount: 0,
     playerHand,
     opponentHand,
     deck

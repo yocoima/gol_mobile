@@ -63,6 +63,7 @@ export const createLocalMatchSnapshot = ({
     pendingCombo: matchState.pendingCombo,
     pendingBlindDiscard: matchState.pendingBlindDiscard,
     activePlay: matchState.activePlay,
+    tablePlay: matchState.tablePlay,
     bonusTurnFor: matchState.bonusTurnFor,
     gameState: matchState.gameState,
     playerName,
