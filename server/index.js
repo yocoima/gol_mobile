@@ -431,7 +431,6 @@ const applyGoal = (matchState, scorer, reason) => {
   applyRedCardTurnProgress(matchState, scorer);
   clearTransientState(matchState);
   matchState.tableNeedsResetOnNextPlay = (matchState.tablePlay || []).length > 0;
-  matchState.tableNeedsResetOnNextPlay = false;
 
   if (goalOutcome.isMatchFinished) {
     matchState.gameState = 'finished';
@@ -444,7 +443,6 @@ const applyGoal = (matchState, scorer, reason) => {
 
   matchState.possession = goalOutcome.nextActor;
   matchState.currentTurn = goalOutcome.nextActor;
-  matchState.tableNeedsResetOnNextPlay = false;
   return { logMessage: goalOutcome.logMessage };
 };
 
@@ -1345,7 +1343,6 @@ io.on('connection', (socket) => {
         room.matchState.pendingCombo = null;
         room.matchState.bonusTurnFor = null;
         room.matchState.counterAttackReady = false;
-        room.matchState.tablePlay = [];
       }
       if (playCardAction.type === 'save-response' && card.id === 'paq' && playCardAction.plan.type === 'turn-change') {
         room.matchState.lastEvent = { id: createEventId(), type: 'save_success', actor };

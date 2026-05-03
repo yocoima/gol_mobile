@@ -81,6 +81,7 @@ const DROP_SNAP_DURATION_MS = 180;
 const DROP_RETURN_DURATION_MS = 220;
 const ONLINE_DIAGNOSTIC_LIMIT = 14;
 const TABLE_PLAY_MAX_CARDS = 8;
+const CENTER_STAGE_CARD_IDS = new Set(['var', 'off', 'pel', 'pe', 'rem', 'tg', 'paq']);
 const CARD_IMAGE_ALIASES = {
   'barrida': ['barrida'],
   'saque banda': ['saque de banda', 'saque banda'],
@@ -341,6 +342,54 @@ const CARD_TYPE_CLASS = {
   card: 'card-t-card',
   card_hard: 'card-t-card-hard',
   var: 'card-t-var'
+};
+
+const getCardTypeLabel = (card) => {
+  if (!card) {
+    return 'Jugada';
+  }
+
+  if (card.id === 'pel') {
+    return 'Legendaria';
+  }
+
+  if (card.id === 'tg') {
+    return 'Disparo';
+  }
+
+  if (card.type === 'shoot_direct') {
+    return 'Penalti';
+  }
+
+  if (card.type === 'shoot' || card.type === 'shoot_special') {
+    return 'Remate';
+  }
+
+  if (card.type === 'save') {
+    return 'Parada';
+  }
+
+  if (card.type === 'defense') {
+    return 'Defensa';
+  }
+
+  if (card.type === 'counter') {
+    return 'Contra';
+  }
+
+  if (card.type === 'var') {
+    return 'VAR';
+  }
+
+  if (card.type === 'pass') {
+    return 'Pase';
+  }
+
+  if (card.type === 'card' || card.type === 'card_hard') {
+    return 'Tarjeta';
+  }
+
+  return 'Jugada';
 };
 
 const LEGENDARY_SPARKS = [
@@ -707,6 +756,41 @@ export default function App() {
       window.clearTimeout(timeoutId);
     };
   }, [gameState, onlineError]);
+
+  useEffect(() => {
+    if (!fieldEventAnimation) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setFieldEventAnimation(null);
+    }, FIELD_EVENT_DURATION_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [fieldEventAnimation]);
+
+  useEffect(() => {
+    if (!onlineEnabled || gameState !== 'playing') {
+      return;
+    }
+
+    pendingOnlineActionRef.current = null;
+    setOnlineActionPending(false);
+  }, [
+    currentTurn,
+    gameState,
+    matchWinner,
+    onlineEnabled,
+    pendingBlindDiscard,
+    pendingCombo,
+    pendingDefense,
+    pendingShot,
+    playerScore,
+    opponentScore,
+    tablePlay.length
+  ]);
   const [onlineCoinFlipReveal, setOnlineCoinFlipReveal] = useState(null);
   const [isDribbleVideoPlaying, setIsDribbleVideoPlaying] = useState(false);
   const [activeActionVideo, setActiveActionVideo] = useState(oleVideo);
@@ -737,6 +821,7 @@ export default function App() {
   const lastOnlineTurnRef = useRef(null);
   const previousPossessionRef = useRef(null);
   const onlineRoomCodeRef = useRef('');
+  const lastCenterStageCardRef = useRef(null);
   const dribbleVideoRef = useRef(null);
   const pendingDribbleActionRef = useRef(null);
   const countdownAlertSecondRef = useRef(null);
@@ -747,6 +832,22 @@ export default function App() {
   const playCardRef = useRef(null);
   const releasedGhostTimeoutRef = useRef(null);
   const dropImpactTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    if (!isDribbleVideoPlaying) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      pendingDribbleActionRef.current = null;
+      setActiveActionVideo(oleVideo);
+      setIsDribbleVideoPlaying(false);
+    }, FIELD_EVENT_DURATION_MS + 1600);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [isDribbleVideoPlaying]);
 
   const isPlayerTurn = currentTurn === 'player';
   const isOpponentTurn = currentTurn === 'opponent';
@@ -770,6 +871,37 @@ export default function App() {
   const lastActiveCard = tablePlay[tablePlay.length - 1];
   const currentTutorial = TUTORIAL_SEQUENCES[tutorialPage] ?? TUTORIAL_SEQUENCES[0];
   const tutorialUrl = `${import.meta.env.BASE_URL}Tutorial.html`;
+  const fieldEventCard = fieldEventAnimation?.card ? withCardImage(fieldEventAnimation.card) : null;
+  const fieldEventActorLabel =
+    fieldEventAnimation?.actor === 'player'
+      ? playerDisplayName
+      : fieldEventAnimation?.actor === 'opponent'
+        ? opponentDisplayName
+        : 'Jugada';
+
+  useEffect(() => {
+    if (!onlineEnabled || !lastActiveCard || !CENTER_STAGE_CARD_IDS.has(lastActiveCard.id)) {
+      return;
+    }
+
+    const nextSignature = [
+      lastActiveCard.instanceId ?? lastActiveCard.id,
+      tablePlay.length,
+      lastActiveCard.tableActor ?? 'unknown'
+    ].join(':');
+
+    if (lastCenterStageCardRef.current === nextSignature) {
+      return;
+    }
+
+    lastCenterStageCardRef.current = nextSignature;
+    setFieldEventAnimation({
+      actor: lastActiveCard.tableActor ?? possession ?? 'player',
+      text: lastActiveCard.name,
+      label: lastActiveCard.name,
+      card: withCardImage(lastActiveCard)
+    });
+  }, [lastActiveCard, onlineEnabled, possession, tablePlay.length]);
   const isTurnCountdownActive =
     onlineEnabled &&
     gameState === 'playing' &&
@@ -4499,18 +4631,58 @@ export default function App() {
             )}
 
             {fieldEventAnimation && !isDribbleVideoPlaying && !comboWindow && (
-              <div className="field-event-toast">
+              <div className="field-event-toast pointer-events-none px-4">
                 <div
-                  className={`overlay-banner max-w-xl px-6 py-4 text-center ${
+                  className={`overlay-banner w-full max-w-[min(92vw,420px)] px-5 py-5 text-center sm:px-6 sm:py-6 ${
                     fieldEventAnimation.actor === 'player'
                       ? 'border-blue-300/50 bg-blue-500/20 text-blue-100'
                       : 'border-red-300/50 bg-red-500/20 text-red-100'
                   }`}
                   style={{ animation: `goalPulse ${FIELD_EVENT_DURATION_MS}ms ease-out forwards` }}
                 >
-                  <div className="text-sm font-black uppercase tracking-[0.22em] max-sm:text-[11px]">
-                    {fieldEventAnimation.text}
+                  <div className="mb-3 text-[10px] font-black uppercase tracking-[0.28em] text-white/72 sm:text-[11px]">
+                    {fieldEventActorLabel} jugo
                   </div>
+                  {fieldEventCard ? (
+                    <div className="mx-auto flex flex-col items-center">
+                      <div
+                        className={`relative w-[220px] overflow-hidden rounded-[26px] border shadow-[0_24px_60px_rgba(0,0,0,0.46)] sm:w-[248px] ${
+                          fieldEventCard.id === 'pel'
+                            ? 'border-yellow-300/70 bg-slate-950'
+                            : 'border-white/20 bg-slate-950'
+                        }`}
+                      >
+                        <div className="absolute inset-[6px] z-10 rounded-[20px] border border-white/14" />
+                        {fieldEventCard.imageUrl ? (
+                          <>
+                            <img
+                              src={fieldEventCard.imageUrl}
+                              alt={fieldEventCard.name}
+                              className="aspect-[0.72] w-full object-cover object-center"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/48" />
+                          </>
+                        ) : (
+                          <div className="flex aspect-[0.72] w-full items-center justify-center bg-slate-900 px-5 text-center text-2xl font-black uppercase leading-tight text-white">
+                            {fieldEventCard.name}
+                          </div>
+                        )}
+                        <div className="absolute left-3 top-3 z-20 rounded-full border border-white/16 bg-black/60 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-white/80 backdrop-blur-sm">
+                          {getCardTypeLabel(fieldEventCard)}
+                        </div>
+                        {fieldEventCard.id === 'pel' ? (
+                          <div className="pointer-events-none absolute inset-0 z-20 bg-[radial-gradient(circle_at_50%_16%,rgba(250,204,21,0.3),transparent_36%),radial-gradient(circle_at_50%_80%,transparent,rgba(250,204,21,0.2)_88%)]" />
+                        ) : null}
+                      </div>
+                      <div className="mt-4 text-lg font-black uppercase tracking-[0.16em] text-white sm:text-xl">
+                        {fieldEventAnimation.text ?? fieldEventAnimation.label}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-lg font-black uppercase tracking-[0.22em] max-sm:text-[13px] sm:text-xl">
+                      {fieldEventAnimation.text ?? fieldEventAnimation.label}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
