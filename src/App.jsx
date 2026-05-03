@@ -693,6 +693,20 @@ export default function App() {
   const [playerDisplayName, setPlayerDisplayName] = useState('JUGADOR');
   const [opponentDisplayName, setOpponentDisplayName] = useState('RIVAL');
   const [fieldEventAnimation, setFieldEventAnimation] = useState(null);
+
+  useEffect(() => {
+    if (!onlineError || gameState !== 'playing') {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setOnlineError('');
+    }, ACTION_NOTICE_TIMEOUT_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [gameState, onlineError]);
   const [onlineCoinFlipReveal, setOnlineCoinFlipReveal] = useState(null);
   const [isDribbleVideoPlaying, setIsDribbleVideoPlaying] = useState(false);
   const [activeActionVideo, setActiveActionVideo] = useState(oleVideo);

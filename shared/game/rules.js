@@ -220,6 +220,9 @@ export const getDefenseResponsePlan = ({ actor, pendingDefense, cardId, defender
 };
 
 export const getPenaltyResponsePlan = ({ actor, pendingShot, cardId, attackerHasRemate }) => {
+  const penaltyLabel =
+    pendingShot?.shotType === 'penalty_legendary' ? 'Penalti Legendario' : 'Penalti';
+
   if (pendingShot?.phase !== 'penalty_response' || actor !== pendingShot.defender || !['var', 'paq'].includes(cardId)) {
     return { allowed: false };
   }
@@ -232,7 +235,7 @@ export const getPenaltyResponsePlan = ({ actor, pendingShot, cardId, attackerHas
         nextTurn: actor,
         nextPossession: actor,
         clearTransientState: true,
-        logMessage: 'Parada del arquero al penalti. No hay Remate disponible.'
+        logMessage: `Parada del arquero al ${penaltyLabel.toLowerCase()}. No hay Remate disponible.`
       };
     }
 
@@ -242,7 +245,7 @@ export const getPenaltyResponsePlan = ({ actor, pendingShot, cardId, attackerHas
       nextPendingShot: { ...pendingShot, phase: 'remate' },
       nextTurn: pendingShot.attacker,
       hasActedThisTurn: false,
-      logMessage: 'Parada del arquero al penalti. El atacante puede usar Remate.'
+      logMessage: `Parada del arquero al ${penaltyLabel.toLowerCase()}. El atacante puede usar Remate.`
     };
   }
 
@@ -252,7 +255,7 @@ export const getPenaltyResponsePlan = ({ actor, pendingShot, cardId, attackerHas
     nextTurn: actor,
     nextPossession: actor,
     clearTransientState: true,
-    logMessage: 'VAR anula el Penalti.'
+    logMessage: `VAR anula el ${penaltyLabel}.`
   };
 };
 
@@ -378,11 +381,7 @@ export const getShotResolutionPlan = ({
       };
     }
 
-    return {
-      type: 'goal',
-      scorer: attacker,
-      reason: 'Penalti convertido.'
-    };
+    return { type: 'goal', scorer: attacker, reason: 'Penalti convertido.' };
   }
 
   const canUseOffside = shotType !== 'remate' && defenderHasOffside;
